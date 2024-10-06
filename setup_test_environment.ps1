@@ -20,7 +20,7 @@ New-SmbShare -Name $shareName -Path $sourceDir -FullAccess $CurrentUser
 
 # Function to generate random content
 function Get-RandomContent {
-
+    # Generate random c alphbetic content
     -join ((65..90) + (97..122) | Get-Random -Count 1000 | ForEach-Object {[char]$_})
 }
 

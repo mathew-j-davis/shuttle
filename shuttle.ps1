@@ -39,7 +39,10 @@ param (
     [string]$SettingsPath = "C:/TestEnvironment/.shuttle/settings.txt",
 
     [Parameter(Mandatory=$false)]
-    [switch]$TestSourceWriteAccess = $false
+    [switch]$TestSourceWriteAccess = $false,
+
+    [Parameter(Mandatory=$false)]
+    [switch]$DeleteSourceFilesAfterCopying = $false
 )
 
 # Function to get path from settings or parameter
@@ -50,19 +53,13 @@ function Get-PathValue {
     )
     Write-Host "ParameterValue: $ParameterValue"
     Write-Host "SettingsKey: $SettingsKey"
-    Write-Host "Settings: $Settings"
 
-    
+
     if ($ParameterValue) {
         Write-Host "ParameterValue is not null"
         return $ParameterValue
     } elseif ($Settings.ContainsKey($SettingsKey)) {
 
-        	
-        #$Settings.Get_Item("SettingsKey")
-        #Write-Host $Settings.Get_Item($SettingsKey)
-
-        Write-Host $Settings
         Write-Host $SettingsKey
         Write-Host $Settings[$SettingsKey]
 
@@ -72,6 +69,76 @@ function Get-PathValue {
         return $Settings[$SettingsKey]
     }
     return $null
+}
+
+function Get-FileHashValue {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$FilePath,
+        [string]$Algorithm = "SHA256"
+    )
+
+    try {
+        $hash = Get-FileHash -Path $FilePath -Algorithm $Algorithm
+        return $hash.Hash
+    }
+    catch {
+        Write-Error "Error calculating hash for $FilePath : $_"
+        return $null
+    }
+}
+
+function Compare-FileHashes {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$Hash1,
+        [Parameter(Mandatory=$true)]
+        [string]$Hash2
+    )
+
+    if ($Hash1 -eq $Hash2) {
+        return $true
+    } else {
+        return $false
+    }
+}
+
+function Test-FileExists {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$FilePath
+    )
+
+     Write-Host "FilePath: $FilePath"
+    if (Test-Path -Path $FilePath -PathType Leaf) {
+        Write-Host "File exists: $FilePath"
+        return $true
+    } else {
+        Write-Host "File does not exist: $FilePath"
+        return $false
+    }
+}
+
+
+function Remove-FileWithLogging {
+    param (
+        [Parameter(Mandatory=$true)]
+        [string]$FilePath
+    )
+
+    try {
+        Remove-Item -Path $FilePath -Force | Out-Null
+        if (-not (Test-Path $FilePath)) {
+            #Delete succeeded
+            Write-Host "Delete succeeded: $FilePath"
+            return $true
+        }
+    }
+    catch {
+        #Delete failed
+        Write-Host "Delete failed: $FilePath"
+    }
+    return $false
 }
 
 # Initialize $Settings as an empty hashtable
@@ -123,7 +190,7 @@ $Credential = New-Object System.Management.Automation.PSCredential ($Username, $
 
 # Attempt to connect to the source path (network file share)
 try {
-    $sourceDrive = "S:"  # Choose an available drive letter
+    $sourceDrive = "V:"  # Choose an available drive letter
     New-PSDrive -Name $sourceDrive.TrimEnd(':') -PSProvider FileSystem -Root $SourcePath -Credential $Credential -ErrorAction Stop
     Write-Host "Successfully connected to $SourcePath"
 } catch {
@@ -151,8 +218,9 @@ try {
         New-Item -Path $TempPath -ItemType Directory -Force | Out-Null
     }
     
-    Copy-Item -Path "$sourceDrive\*" -Destination $TempPath -Recurse -Force
+    Copy-Item -Path "$sourceDrive\*" -Destination $TempPath -Recurse -Force -Verbose
     Write-Host "Successfully copied files from $SourcePath to $TempPath"
+    
 } catch {
     Write-Error "Failed to copy files from $SourcePath to $TempPath. Error: $_"
     Remove-PSDrive -Name $sourceDrive.TrimEnd(':') -Force
@@ -186,37 +254,71 @@ try {
 
 # Copy files from temp to destination and manage source files
 try {
-    $files = Get-ChildItem -Path $TempPath -Recurse -File
 
-    foreach ($file in $files) {
-        $relativePath = $file.FullName.Substring($TempPath.Length)
-        $destinationFile = Join-Path -Path $DestinationPath -ChildPath $relativePath
-        $sourceFile = Join-Path -Path $sourceDrive -ChildPath $relativePath
+    $tempFiles  = Get-ChildItem -Path $TempPath -Recurse -File
+
+    foreach ($tempFile in $tempFiles) {
+
+        $relativePath = $tempFile.FullName.Substring($TempPath.Length)
+
+        Write-Host "$relativePath"
+
+        $tempFilePath = $tempFile.FullName
+        $destinationFilePath = Join-Path -Path $DestinationPath -ChildPath $relativePath
+        $sourceFilePath = Join-Path -Path $SourcePath -ChildPath $relativePath
+
+        Write-Host "tempFilePath: $tempFilePath"
+        Write-Host "destinationFilePath: $destinationFilePath"
+        Write-Host "sourceFilePath: $sourceFilePath"    
 
         # Ensure the destination directory exists
-        $destinationDir = Split-Path -Path $destinationFile -Parent
+        $destinationDir = Split-Path -Path $destinationFilePath -Parent
         if (-not (Test-Path -Path $destinationDir)) {
             New-Item -Path $destinationDir -ItemType Directory -Force | Out-Null
         }
 
         # Copy file to destination
-        Copy-Item -Path $file.FullName -Destination $destinationFile -Force -ErrorAction Stop
+        Copy-Item -Path $tempFilePath -Destination $destinationFilePath -Force -ErrorAction Stop
 
-        # Verify if the file was copied successfully
-        if (-not (Test-Path -Path $destinationFile)) {
-            throw "Failed to copy file to destination: $($file.FullName)"
+        # Verify if the file was copied 
+        if (-not (Test-Path -Path $destinationFilePath)) {
+            throw "Failed to copy file to destination: $($tempFilePath)"
         }
 
-        # Delete the file from source directory
-        Remove-Item -Path $sourceFile -Force -ErrorAction Stop
-        Write-Host "Deleted source file: $sourceFile"
+        # Get the hash of the destination file  
+        $DestinationFileHash = Get-FileHashValue -FilePath $destinationFilePath
+
+        # Get the hash of the source file
+        $SourceFileHash = Get-FileHashValue -FilePath $sourceFilePath
+
+        # Get the hash of the temp file
+        $TempFileHash = Get-FileHashValue -FilePath $tempFilePath
+
+        # Verify if the file was copied successfully!
+        if(
+            (-Not (Compare-FileHashes -Hash1 $SourceFileHash -Hash2 $DestinationFileHash))
+        ) {
+            throw "After copying files, source and destination files do not match: $relativePath "
+        }
+
+        if (
+            -Not (Compare-FileHashes -Hash1 $DestinationFileHash -Hash2 $TempFileHash)  
+         ) {
+            throw "After copying files, temp and destination files do not match: $relativePath "
+         }
+
+        Write-Host "Copied to destination successfully: $destinationFilePath"
 
         # Delete the file from temp directory
-        Remove-Item -Path $file.FullName -Force
-        Write-Host "Copied to destination and removed from temp: $($file.FullName)"
-    }
+        Remove-FileWithLogging -FilePath $tempFilePath
 
+        if ($DeleteSourceFilesAfterCopying) {
+            # Delete the file from source directory
+            Remove-FileWithLogging -FilePath $sourceFilePath
+        }
+    }
     Write-Host "All files processed successfully."
+
 } catch {
     Write-Error "Error during file processing: $_"
     exit 1
