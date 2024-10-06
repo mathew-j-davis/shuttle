@@ -1,0 +1,3 @@
+﻿SourcePath=\\\\LOCALHOST\\TestShare
+TempPath=C:/TestEnvironment/Temp
+DestinationPath=C:/TestEnvironment/Destination
