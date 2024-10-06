@@ -13,6 +13,7 @@
 #   -TempPath             : (Optional) Path to the temporary directory
 #   -SettingsPath         : (Optional) Path to the settings file (default: %USERPROFILE%\.shuttle\settings.txt)
 #   -TestSourceWriteAccess: (Optional) Test write access to the source directory (default: $false)
+#   -DeleteSourceFilesAfterCopying: (Optional) Delete the source files after copying them to the destination (default: $false)
 #
 # Settings File:
 #   If not provided as parameters, the script will look for SourcePath, DestinationPath and TempPath
