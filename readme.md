@@ -1,10 +1,24 @@
 powershell script to move files from a network share, scan for malware, then move to destination location
 
+USE AT OWN RISK, THIS IS STILL UNDER DEVELOPMENT, AND NOT FULLY TESTED.
+
+Roboshuttle.ps1 - Robocopy wrapper script
+
+Usage:
+.\roboshuttle.ps1 -SourcePath <network_share_path> -DestinationPath <path> -QuarantinePath <path> -SettingsPath <path> -TestSourceWriteAccess
+
+Ronoshuttle is simpler than shuttle, as it uses robocopy under the hood to move files from source to destination.
+However, because of the need to scan the files while they are in the quarantine directory, we cannot rely on robocopy's move feature to delete the source files.
+
+At present the 'delete on successful copy' function is not implemented in roboshuttle.
+
+
+
 
 Shuttle.ps1 - File Transfer Script
 
 Usage:
-.\shuttle.ps1 [-SourcePath <network_share_path>] [-DestinationPath <path>] [-TempPath <path>] [-SettingsPath <path>] [-TestSourceWriteAccess]
+.\shuttle.ps1 [-SourcePath <network_share_path>] [-DestinationPath <path>] [-QuarantinePath <path>] [-SettingsPath <path>] [-TestSourceWriteAccess]
 
 Description:
 This script facilitates file transfer operations from a network file share to a destination.
@@ -13,7 +27,7 @@ It requires write access to the source directory for file deletion after success
 Parameters:
 -SourcePath           : (Optional) Path to the source network file share (e.g., \\server\share)
 -DestinationPath      : (Optional) Path to the destination directory
--TempPath             : (Optional) Path to the temporary directory
+-QuarantinePath             : (Optional) Path to the temporary quarantine directory
 -SettingsPath         : (Optional) Path to the settings file (default: %USERPROFILE%\.shuttle\settings.txt)
 -TestSourceWriteAccess: (Optional) Test write access to the source directory (default: $false)
 
