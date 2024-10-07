@@ -9,9 +9,9 @@
 #
 # Parameters:
 #   -SourcePath           : (Optional) Path to the source network file share (e.g., \\server\share)
-#   -DestinationPath      : (Optional) Path to the destination directory
-#   -TempPath             : (Optional) Path to the temporary directory
-#   -SettingsPath         : (Optional) Path to the settings file (default: %USERPROFILE%\.shuttle\settings.txt)
+#   -DestinationPath    : (Optional) Path to the destination directory
+#   -QuarantinePath    : (Optional) Path to the quarantine directory
+#   -SettingsPath          : (Optional) Path to the settings file (default: %USERPROFILE%\.shuttle\settings.txt)
 #   -TestSourceWriteAccess: (Optional) Test write access to the source directory (default: $false)
 #   -DeleteSourceFilesAfterCopying: (Optional) Delete the source files after copying them to the destination (default: $false)
 #
@@ -19,9 +19,10 @@
 #   If not provided as parameters, the script will look for SourcePath, DestinationPath and TempPath
 #   in the settings file. A sample settings file (settings.txt) might look like this:
 #
-#   SourcePath=\\server\share
-#   DestinationPath=C:\Users\YourUsername\Documents\Destination
-#   TempPath=C:\Temp\ShuttleTemp
+#   SourcePath=\\\\LOCALHOST\\TestShare
+#   TempPath=C:/TestEnvironment/Temp
+#   DestinationPath=C:/TestEnvironment/Destination
+#   QuarantinePath=C:/TestEnvironment/Quarantine
 #
 # Note: Command-line parameters take precedence over settings file values.
 #       SourcePath must be a network file share if provided.
@@ -34,7 +35,7 @@ param (
     [string]$DestinationPath,
 
     [Parameter(Mandatory=$false)]
-    [string]$TempPath,
+    [string]$QuarantinePath,
 
     [Parameter(Mandatory=$false)]
     [string]$SettingsPath = "C:/TestEnvironment/.shuttle/settings.txt",
@@ -54,7 +55,6 @@ function Get-PathValue {
     )
     Write-Host "ParameterValue: $ParameterValue"
     Write-Host "SettingsKey: $SettingsKey"
-
 
     if ($ParameterValue) {
         Write-Host "ParameterValue is not null"
@@ -175,11 +175,11 @@ if ($SourcePath -and -not ($SourcePath -match '^\\\\')) {
 
 Write-Host "SourcePath: $SourcePath"
 Write-Host "DestinationPath: $DestinationPath"
-Write-Host "TempPath: $TempPath"    
+Write-Host "QuarantinePath: $QuarantinePath"    
 
 # Check if required paths are provided
-if (-not ($SourcePath -and $DestinationPath -and $TempPath)) {
-    throw "SourcePath, DestinationPath, and TempPath must all be provided either as parameters or in the settings file."
+if (-not ($SourcePath -and $DestinationPath -and $QuarantinePath)) {
+    throw "SourcePath, DestinationPath, and QuarantinePath must all be provided either as parameters or in the settings file."
 }
 
 # Prompt for username and password
@@ -213,62 +213,62 @@ if ($TestSourceWriteAccess) {
     }
 }
 
-# Copy all files from source path to temp directory
+# Copy all files from source path to Quarantine directory
 try {
-    if (-not (Test-Path $TempPath)) {
-        New-Item -Path $TempPath -ItemType Directory -Force | Out-Null
+    if (-not (Test-Path $QuarantinePath)) {
+        New-Item -Path $QuarantinePath -ItemType Directory -Force | Out-Null
     }
     
-    Copy-Item -Path "$sourceDrive\*" -Destination $TempPath -Recurse -Force -Verbose
-    Write-Host "Successfully copied files from $SourcePath to $TempPath"
+    Copy-Item -Path "$sourceDrive\*" -Destination $QuarantinePath -Recurse -Force -Verbose
+    Write-Host "Successfully copied files from $SourcePath to $QuarantinePath"
     
 } catch {
-    Write-Error "Failed to copy files from $SourcePath to $TempPath. Error: $_"
+    Write-Error "Failed to copy files from $SourcePath to $QuarantinePath. Error: $_"
     Remove-PSDrive -Name $sourceDrive.TrimEnd(':') -Force
     exit 1
 }
 
-# Scan files in the temp location for malware using Windows Defender
+# Scan files in the Quarantine location for malware using Windows Defender
 try {
-    Write-Host "Scanning files in $TempPath for malware..."
-    $scanResult = Start-Process -FilePath "C:\Program Files\Windows Defender\MpCmdRun.exe" -ArgumentList "-Scan -ScanType 3 -File `"$TempPath`"" -Wait -PassThru -NoNewWindow
+    Write-Host "Scanning files in $QuarantinePath for malware..."
+    $scanResult = Start-Process -FilePath "C:\Program Files\Windows Defender\MpCmdRun.exe" -ArgumentList "-Scan -ScanType 3 -File `"$QuarantinePath`"" -Wait -PassThru -NoNewWindow
     
     if ($scanResult.ExitCode -eq 0) {
         Write-Host "Malware scan completed successfully. No threats detected."
     } elseif ($scanResult.ExitCode -eq 2) {
-        Write-Error "Malware scan detected threats. Deleting all files in $TempPath"
-        Remove-Item -Path "$TempPath\*" -Recurse -Force
+        Write-Error "Malware scan detected threats. Deleting all files in $QuarantinePath"
+        Remove-Item -Path "$QuarantinePath\*" -Recurse -Force
         Remove-PSDrive -Name $sourceDrive.TrimEnd(':') -Force
         exit 1
     } else {
         Write-Error "Malware scan failed with exit code: $($scanResult.ExitCode)"
-        Remove-Item -Path "$TempPath\*" -Recurse -Force
+        Remove-Item -Path "$QuarantinePath\*" -Recurse -Force
         Remove-PSDrive -Name $sourceDrive.TrimEnd(':') -Force
         exit 1
     }
 } catch {
     Write-Error "Failed to perform malware scan. Error: $_"
-    Remove-Item -Path "$TempPath\*" -Recurse -Force
+    Remove-Item -Path "$QuarantinePath\*" -Recurse -Force
     Remove-PSDrive -Name $sourceDrive.TrimEnd(':') -Force
     exit 1
 }
 
-# Copy files from temp to destination and manage source files
+# Copy files from Quarantine to destination and manage source files
 try {
 
-    $tempFiles  = Get-ChildItem -Path $TempPath -Recurse -File
+    $quarantineFiles  = Get-ChildItem -Path $QuarantinePath -Recurse -File
 
-    foreach ($tempFile in $tempFiles) {
+    foreach ($quarantineFile in $quarantineFiles) {
 
-        $relativePath = $tempFile.FullName.Substring($TempPath.Length)
+        $relativePath = $quarantineFile.FullName.Substring($QuarantinePath.Length)
 
         Write-Host "$relativePath"
 
-        $tempFilePath = $tempFile.FullName
+        $quarantineFilePath = $quarantineFile.FullName
         $destinationFilePath = Join-Path -Path $DestinationPath -ChildPath $relativePath
         $sourceFilePath = Join-Path -Path $SourcePath -ChildPath $relativePath
 
-        Write-Host "tempFilePath: $tempFilePath"
+        Write-Host "quarantineFilePath: $quarantineFilePath"
         Write-Host "destinationFilePath: $destinationFilePath"
         Write-Host "sourceFilePath: $sourceFilePath"    
 
@@ -279,11 +279,11 @@ try {
         }
 
         # Copy file to destination
-        Copy-Item -Path $tempFilePath -Destination $destinationFilePath -Force -ErrorAction Stop
+        Copy-Item -Path $quarantineFilePath -Destination $destinationFilePath -Force -ErrorAction Stop
 
         # Verify if the file was copied 
         if (-not (Test-Path -Path $destinationFilePath)) {
-            throw "Failed to copy file to destination: $($tempFilePath)"
+            throw "Failed to copy file to destination: $($quarantineFilePath)"
         }
 
         # Get the hash of the destination file  
@@ -292,8 +292,8 @@ try {
         # Get the hash of the source file
         $SourceFileHash = Get-FileHashValue -FilePath $sourceFilePath
 
-        # Get the hash of the temp file
-        $TempFileHash = Get-FileHashValue -FilePath $tempFilePath
+        # Get the hash of the Quarantine file
+        $QuarantineFileHash = Get-FileHashValue -FilePath $quarantineFilePath
 
         # Verify if the file was copied successfully!
         if(
@@ -303,15 +303,15 @@ try {
         }
 
         if (
-            -Not (Compare-FileHashes -Hash1 $DestinationFileHash -Hash2 $TempFileHash)  
+            -Not (Compare-FileHashes -Hash1 $DestinationFileHash -Hash2 $QuarantineFileHash)  
          ) {
-            throw "After copying files, temp and destination files do not match: $relativePath "
+            throw "After copying files, Quarantine and destination files do not match: $relativePath "
          }
 
         Write-Host "Copied to destination successfully: $destinationFilePath"
 
-        # Delete the file from temp directory
-        Remove-FileWithLogging -FilePath $tempFilePath
+        # Delete the file from Quarantine directory
+        Remove-FileWithLogging -FilePath $quarantineFilePath
 
         if ($DeleteSourceFilesAfterCopying) {
             # Delete the file from source directory
@@ -324,8 +324,8 @@ try {
     Write-Error "Error during file processing: $_"
     exit 1
 } finally {
-    # Clean up any remaining files in temp directory
-    Remove-Item -Path "$TempPath\*" -Recurse -Force
+    # Clean up any remaining files in Quarantine directory
+    Remove-Item -Path "$QuarantinePath\*" -Recurse -Force
     # Remove the temporary PSDrive
     Remove-PSDrive -Name $sourceDrive.TrimEnd(':') -Force
 }

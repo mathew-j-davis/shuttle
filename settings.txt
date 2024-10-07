@@ -1,3 +1,6 @@
 ﻿SourcePath=\\\\LOCALHOST\\TestShare
 TempPath=C:/TestEnvironment/Temp
 DestinationPath=C:/TestEnvironment/Destination
+QuarantinePath=C:/TestEnvironment/Quarantine
+LogPath=C:/TestEnvironment/Logs
+
