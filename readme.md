@@ -41,3 +41,27 @@ TempPath=C:\Temp\ShuttleTemp
 
 Note: Command-line parameters take precedence over settings file values.
 SourcePath must be a network file share if provided.
+
+
+
+```
+
+  mdatp health
+
+    mdatp definition update
+
+      mdatp threat list
+
+
+        mdatp scan quick
+
+
+
+          mdatp scan full
+
+
+
+            mdatp config telemetry --value-enabled | --value-disabled
+
+
+```
