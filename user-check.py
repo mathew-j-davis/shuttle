@@ -5,6 +5,15 @@ import win32con
 import win32security
 import ctypes
 
+
+
+# [DEFAULT]
+# SourcePath=\\server\share
+# DestinationPath=C:\Users\YourUsername\Documents\Destination
+#  QuarantinePath=C:\Temp\ShuttleTemp
+#   LogPath=C:\Logs
+#    pip install pywin32
+
 def get_user_sid(username):
     try:
         sid, domain, type = win32security.LookupAccountName(None, username)
