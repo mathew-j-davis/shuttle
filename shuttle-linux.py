@@ -109,8 +109,6 @@ def is_file_open(file_path):
         print(f"Error checking if file is open: {e}")
         return False
 
-
-
 def is_file_stable(file_path, stability_time=5):
     """
     Check if a file has not been modified in the last 'stability_time' seconds.
@@ -229,7 +227,7 @@ def main():
     parser.add_argument('-TestSourceWriteAccess', action='store_true', help='Test write access to the source directory')
     parser.add_argument('-DeleteSourceFilesAfterCopying', action='store_true',
                         help='Delete the source files after copying them to the destination')
-    parser.add_argument('--max-scans', type=int, default=2, help='Maximum number of parallel scans')
+    parser.add_argument('--max-scans', type=int, help='Maximum number of parallel scans')
     parser.add_argument('--lock-file', default='/tmp/shuttle.lock', help='Path to lock file to prevent multiple instances')
     parser.add_argument('-QuarantineHazardArchive', help='Path to the hazard archive directory')
     parser.add_argument('-HazardArchivePassword', help='Password for the encrypted hazard archive')
@@ -253,13 +251,24 @@ def main():
                     key, value = line.strip().split('=', 1)
                     settings[key.strip()] = value.strip()
 
-    # Get paths from arguments or settings file
+    # Get paths and parameters from arguments or settings file
     source_path = args.SourcePath or settings.get('SourcePath')
     destination_path = args.DestinationPath or settings.get('DestinationPath')
     quarantine_path = args.QuarantinePath or settings.get('QuarantinePath')
-    hazard_archive_path = args.QuarantineHazardArchive
-    hazard_archive_password = args.HazardArchivePassword
-    delete_source_files = args.DeleteSourceFilesAfterCopying
+    hazard_archive_path = args.QuarantineHazardArchive or settings.get('QuarantineHazardArchive')
+    hazard_archive_password = args.HazardArchivePassword or settings.get('HazardArchivePassword')
+
+    # Convert DeleteSourceFilesAfterCopying to boolean, giving priority to the command-line argument
+    if args.DeleteSourceFilesAfterCopying:
+        delete_source_files = True
+    else:
+        delete_source_files = settings.get('DeleteSourceFilesAfterCopying', 'False').lower() == 'true'
+
+    # Determine max_scans, giving priority to the command-line argument
+    if args.max_scans is not None:
+        max_scans = args.max_scans
+    else:
+        max_scans = int(settings.get('MaxScans', 2))
 
     # Validate required paths
     if not (source_path and destination_path and quarantine_path):
@@ -317,7 +326,7 @@ def main():
             ))
 
     # Process files in parallel using a ProcessPoolExecutor
-    with ProcessPoolExecutor(max_workers=args.max_scans) as executor:
+    with ProcessPoolExecutor(max_workers=max_scans) as executor:
         results = list(executor.map(scan_and_process_file, quarantine_files))
 
     # Check if all files were processed successfully
