@@ -32,7 +32,7 @@
 
 - **Configuration via Command-Line Arguments or Settings File:**
   - Supports specifying paths and options through command-line arguments.
-  - Can load settings from a configuration file if arguments are not provided.
+  - Can load settings from a configuration file (`settings.ini`) if arguments are not provided.
 
 ## **Prerequisites**
 
@@ -129,7 +129,7 @@ python3 shuttle-linux.py \
 - `-SourcePath`: Path to the source directory containing files to transfer.
 - `-DestinationPath`: Path to the destination directory where clean files will be moved.
 - `-QuarantinePath`: Path to the quarantine directory used for scanning.
-- `-SettingsPath`: Path to the settings file (default: `~/.shuttle/settings.txt`).
+- `-SettingsPath`: Path to the settings file (default: `~/.shuttle/settings.ini`).
 - `-TestSourceWriteAccess`: Test write access to the source directory.
 - `-DeleteSourceFilesAfterCopying`: Delete the source files after successful transfer.
 - `--max-scans`: Maximum number of parallel scans.
@@ -137,21 +137,26 @@ python3 shuttle-linux.py \
 - `-QuarantineHazardArchive`: Path to the hazard archive directory for infected files.
 - `-HazardArchivePassword`: Password for encrypting the hazard archive (overrides keyring).
 
-### **Settings File:**
+### **Settings File (`settings.ini`):**
 
-If command-line arguments are not provided, the script will attempt to read from a settings file. An example `settings.txt` might look like:
+If command-line arguments are not provided, the script will attempt to read from a settings file in INI format. An example `settings.ini` might look like:
 
 ```ini
+[Paths]
 SourcePath=/path/to/source
 DestinationPath=/path/to/destination
 QuarantinePath=/path/to/quarantine
-QuarantineHazardArchive=/path/to/hazard_archive
 LogPath=/path/to/logs
+QuarantineHazardArchive=/path/to/hazard_archive
+
+[Settings]
 MaxScans=4
 DeleteSourceFilesAfterCopying=True
 ```
 
-Hazard Password is stored in the operating system keyring. The primary use for this password is to require a manual confirmation before opening an archive that may contain malware. If you require alternative storage of the password to protect these archives, please modify the script to integrate with your secrets vault.
+**Note:** The script gives priority to command-line arguments over the settings file.
+
+**Hazard Archive Password:** The password is stored in the operating system keyring. The primary use for this password is to require a manual confirmation before opening an archive that may contain malware. If you require alternative storage of the password to protect these archives, please modify the script to integrate with your secrets vault.
 
 ### **Example Workflow:**
 
@@ -165,7 +170,7 @@ Hazard Password is stored in the operating system keyring. The primary use for t
 
 2. **Run the Shuttle Script:**
 
-   Execute `shuttle-linux.py` with the desired parameters or ensure the `settings.txt` file is properly configured.
+   Execute `shuttle-linux.py` with the desired parameters or ensure the `settings.ini` file is properly configured.
 
    ```bash
    python3 shuttle-linux.py
@@ -254,7 +259,7 @@ An example project directory structure:
 ├── create_venv.sh
 ├── store_password.py
 ├── requirements.txt
-├── settings.txt
+├── settings.ini
 ├── readme.md
 └── ... (other files)
 ```

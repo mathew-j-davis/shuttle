@@ -1,3 +1,4 @@
+  #!/usr/bin/env python3
 import os
 import shutil
 import hashlib
@@ -11,6 +12,7 @@ import keyring
 from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
+import configparser  # Added import for configparser
 
 def setup_logging(log_file=None, log_level=logging.INFO):
     """
@@ -357,12 +359,12 @@ def main():
     parser.add_argument('-DestinationPath', help='Path to the destination directory')
     parser.add_argument('-QuarantinePath', help='Path to the quarantine directory')
     parser.add_argument('-LogPath', help='Path to the log directory')
-    parser.add_argument('-SettingsPath', default=os.path.join(os.getenv('USERPROFILE') or os.getenv('HOME'), '.shuttle', 'settings.txt'),
+    parser.add_argument('-SettingsPath', default=os.path.join(os.getenv('HOME'), '.shuttle', 'settings.ini'),
                         help='Path to the settings file')
     parser.add_argument('-TestSourceWriteAccess', action='store_true', help='Test write access to the source directory')
     parser.add_argument('-DeleteSourceFilesAfterCopying', action='store_true',
                         help='Delete the source files after copying them to the destination')
-    parser.add_argument('--max-scans', type=int, help='Maximum number of parallel scans')   
+    parser.add_argument('--max-scans', type=int, help='Maximum number of parallel scans')
     parser.add_argument('--lock-file', default='/tmp/shuttle.lock', help='Path to lock file to prevent multiple instances')
     parser.add_argument('-QuarantineHazardArchive', help='Path to the hazard archive directory')
     parser.add_argument('-HazardArchivePassword', help='Password for the encrypted hazard archive')
@@ -379,6 +381,41 @@ def main():
         lock_file.write(str(os.getpid()))
 
     try:
+        # Load settings from the settings file using configparser
+        config = configparser.ConfigParser()
+        config.read(args.SettingsPath)
+
+        # Helper function to get settings with priority: CLI args > settings file > default
+        def get_setting(arg_value, section, option, default=None):
+            if arg_value is not None:
+                return arg_value
+            elif config.has_option(section, option):
+                return config.get(section, option)
+            else:
+                return default
+
+        # Get paths and parameters from arguments or settings file
+        source_path = get_setting(args.SourcePath, 'Paths', 'SourcePath')
+        destination_path = get_setting(args.DestinationPath, 'Paths', 'DestinationPath')
+        quarantine_path = get_setting(args.QuarantinePath, 'Paths', 'QuarantinePath')
+        log_path = get_setting(args.LogPath, 'Paths', 'LogPath')
+        hazard_archive_path = get_setting(args.QuarantineHazardArchive, 'Paths', 'QuarantineHazardArchive')
+
+        # Create log file name with timestamp and unique ID
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        unique_id = os.getpid()  # Using process ID as unique identifier
+        log_filename = f"shuttle_{timestamp}_{unique_id}.log"
+
+        # Construct full log path if log directory is specified
+        log_file = None
+        if log_path:
+            os.makedirs(log_path, exist_ok=True)
+            log_file = os.path.join(log_path, log_filename)
+
+        # Set up logging
+        logger = setup_logging(log_file=log_file)
+        logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
+
         # Retrieve the hazard archive password
         if args.HazardArchivePassword:
             hazard_archive_password = args.HazardArchivePassword
@@ -391,59 +428,26 @@ def main():
                 logger.warning("Hazard archive password not found. Suspect files will be deleted without archiving.")
                 hazard_archive_password = None
 
-
-        # Load settings from the settings file if parameters are not provided
-        settings = {}
-        if os.path.exists(args.SettingsPath):
-            with open(args.SettingsPath, 'r') as f:
-                for line in f:
-                    if '=' in line:
-                        key, value = line.strip().split('=', 1)
-                        settings[key.strip()] = value.strip()
-
-        # Get paths and parameters from arguments or settings file
-        source_path = args.SourcePath or settings.get('SourcePath')
-        destination_path = args.DestinationPath or settings.get('DestinationPath')
-        quarantine_path = args.QuarantinePath or settings.get('QuarantinePath')
-        log_path = args.LogPath or settings.get('LogPath')
-        hazard_archive_path = args.QuarantineHazardArchive or settings.get('QuarantineHazardArchive')
-
-
-        # Create log file name with timestamp and unique ID
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        unique_id = os.getpid()  # Using process ID as unique identifier
-        log_filename = f"shuttle_{timestamp}_{unique_id}.log"
-
-        # Construct full log path if log directory is specified
-        log_file = None
-        if log_path:
-            os.makedirs(log_path, exist_ok=True)
-            log_file = os.path.join(log_path, log_filename)
-        
-        # Set up logging
-        logger = setup_logging(log_file=log_file)
-        logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
-
         # Convert DeleteSourceFilesAfterCopying to boolean, giving priority to the command-line argument
         if args.DeleteSourceFilesAfterCopying:
             delete_source_files = True
         else:
-            delete_source_files = settings.get('DeleteSourceFilesAfterCopying', 'False').lower() == 'true'
+            delete_source_files = config.getboolean('Settings', 'DeleteSourceFilesAfterCopying', fallback=False)
+
         # Determine max_scans, giving priority to the command-line argument
         if args.max_scans is not None:
             max_scans = args.max_scans
         else:
-            max_scans = int(settings.get('MaxScans', 2))
-
+            max_scans = config.getint('Settings', 'MaxScans', fallback=2)
 
         # Validate required paths
         if not (source_path and destination_path and quarantine_path):
-            print("SourcePath, DestinationPath, and QuarantinePath must all be provided either as parameters or in the settings file.")
+            logger.error("SourcePath, DestinationPath, and QuarantinePath must all be provided either as parameters or in the settings file.")
             sys.exit(1)
 
-        print(f"SourcePath: {source_path}")
-        print(f"DestinationPath: {destination_path}")
-        print(f"QuarantinePath: {quarantine_path}")
+        logger.info(f"SourcePath: {source_path}")
+        logger.info(f"DestinationPath: {destination_path}")
+        logger.info(f"QuarantinePath: {quarantine_path}")
 
         try:
             # Create quarantine directory if it doesn't exist
@@ -491,9 +495,14 @@ def main():
                     delete_source_files
                 ))
 
-        # Process files in parallel using a ProcessPoolExecutor
+        # Process files in parallel using a ProcessPoolExecutor with graceful shutdown
         with ProcessPoolExecutor(max_workers=max_scans) as executor:
-            results = list(executor.map(scan_and_process_file, quarantine_files))
+            try:
+                results = list(executor.map(scan_and_process_file, quarantine_files))
+            except Exception as e:
+                logger.error(f"An error occurred during parallel processing: {e}")
+                executor.shutdown(wait=False, cancel_futures=True)
+                raise
 
         # Check if all files were processed successfully
         if not all(results):
@@ -502,10 +511,12 @@ def main():
         # After processing all files, remove the quarantine directory
         shutil.rmtree(quarantine_path, ignore_errors=True)
 
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
     finally:
-        # Remove the lock file upon script completion
+        # Remove the lock file upon script completion or error
         if os.path.exists(args.lock_file):
             os.remove(args.lock_file)
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

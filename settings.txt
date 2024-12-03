@@ -1,9 +1,0 @@
-﻿SourcePath=~/.shuttle/TestEnvironment/Source
-DestinationPath=~/.shuttle/TestEnvironment/Destination
-QuarantinePath=~/.shuttle/TestEnvironment/Quarantine
-LogPath=~/.shuttle/TestEnvironment/Logs
-QuarantineHazardArchive=~/.shuttle/TestEnvironment/HazardArchive
-LogDirectory=~/.shuttle/TestEnvironment/Logs
-MaxScans=4
-DeleteSourceFilesAfterCopying=True
-
