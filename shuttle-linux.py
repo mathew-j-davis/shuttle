@@ -369,141 +369,143 @@ def main():
 
     args = parser.parse_args()
 
-
-    # Retrieve the hazard archive password
-    if args.HazardArchivePassword:
-        hazard_archive_password = args.HazardArchivePassword
-    else:
-        service_name = "shuttle_linux"
-        username = "hazard_archive"
-        hazard_archive_password = keyring.get_password(service_name, username)
-
-        if not hazard_archive_password:
-            logger.warning("Hazard archive password not found. Suspect files will be deleted without archiving.")
-            hazard_archive_password = None
-
     # Prevent multiple instances using a lock file
     if os.path.exists(args.lock_file):
         print(f"Another instance of the script is running. Lock file {args.lock_file} exists.")
         sys.exit(1)
-    else:
-        # Create the lock file
-        with open(args.lock_file, 'w') as lock_file:
-            lock_file.write(str(os.getpid()))
 
-    # Load settings from the settings file if parameters are not provided
-    settings = {}
-    if os.path.exists(args.SettingsPath):
-        with open(args.SettingsPath, 'r') as f:
-            for line in f:
-                if '=' in line:
-                    key, value = line.strip().split('=', 1)
-                    settings[key.strip()] = value.strip()
-
-    # Get paths and parameters from arguments or settings file
-    source_path = args.SourcePath or settings.get('SourcePath')
-    destination_path = args.DestinationPath or settings.get('DestinationPath')
-    quarantine_path = args.QuarantinePath or settings.get('QuarantinePath')
-    log_path = args.LogPath or settings.get('LogPath')
-    hazard_archive_path = args.QuarantineHazardArchive or settings.get('QuarantineHazardArchive')
-
-
-    # Create log file name with timestamp and unique ID
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    unique_id = os.getpid()  # Using process ID as unique identifier
-    log_filename = f"shuttle_{timestamp}_{unique_id}.log"
-
-    # Construct full log path if log directory is specified
-    log_file = None
-    if log_path:
-        os.makedirs(log_path, exist_ok=True)
-        log_file = os.path.join(log_path, log_filename)
-    
-    # Set up logging
-    logger = setup_logging(log_file=log_file)
-    logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
-
-    # Convert DeleteSourceFilesAfterCopying to boolean, giving priority to the command-line argument
-    if args.DeleteSourceFilesAfterCopying:
-        delete_source_files = True
-    else:
-        delete_source_files = settings.get('DeleteSourceFilesAfterCopying', 'False').lower() == 'true'
-    # Determine max_scans, giving priority to the command-line argument
-    if args.max_scans is not None:
-        max_scans = args.max_scans
-    else:
-        max_scans = int(settings.get('MaxScans', 2))
-
-
-    # Validate required paths
-    if not (source_path and destination_path and quarantine_path):
-        print("SourcePath, DestinationPath, and QuarantinePath must all be provided either as parameters or in the settings file.")
-        sys.exit(1)
-
-    print(f"SourcePath: {source_path}")
-    print(f"DestinationPath: {destination_path}")
-    print(f"QuarantinePath: {quarantine_path}")
+    # Create the lock file
+    with open(args.lock_file, 'w') as lock_file:
+        lock_file.write(str(os.getpid()))
 
     try:
-        # Create quarantine directory if it doesn't exist
-        os.makedirs(quarantine_path, exist_ok=True)
+        # Retrieve the hazard archive password
+        if args.HazardArchivePassword:
+            hazard_archive_password = args.HazardArchivePassword
+        else:
+            service_name = "shuttle_linux"
+            username = "hazard_archive"
+            hazard_archive_password = keyring.get_password(service_name, username)
 
-        # Copy files from source to quarantine directory
-        for root, dirs, files in os.walk(source_path):
+            if not hazard_archive_password:
+                logger.warning("Hazard archive password not found. Suspect files will be deleted without archiving.")
+                hazard_archive_password = None
+
+
+        # Load settings from the settings file if parameters are not provided
+        settings = {}
+        if os.path.exists(args.SettingsPath):
+            with open(args.SettingsPath, 'r') as f:
+                for line in f:
+                    if '=' in line:
+                        key, value = line.strip().split('=', 1)
+                        settings[key.strip()] = value.strip()
+
+        # Get paths and parameters from arguments or settings file
+        source_path = args.SourcePath or settings.get('SourcePath')
+        destination_path = args.DestinationPath or settings.get('DestinationPath')
+        quarantine_path = args.QuarantinePath or settings.get('QuarantinePath')
+        log_path = args.LogPath or settings.get('LogPath')
+        hazard_archive_path = args.QuarantineHazardArchive or settings.get('QuarantineHazardArchive')
+
+
+        # Create log file name with timestamp and unique ID
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        unique_id = os.getpid()  # Using process ID as unique identifier
+        log_filename = f"shuttle_{timestamp}_{unique_id}.log"
+
+        # Construct full log path if log directory is specified
+        log_file = None
+        if log_path:
+            os.makedirs(log_path, exist_ok=True)
+            log_file = os.path.join(log_path, log_filename)
+        
+        # Set up logging
+        logger = setup_logging(log_file=log_file)
+        logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
+
+        # Convert DeleteSourceFilesAfterCopying to boolean, giving priority to the command-line argument
+        if args.DeleteSourceFilesAfterCopying:
+            delete_source_files = True
+        else:
+            delete_source_files = settings.get('DeleteSourceFilesAfterCopying', 'False').lower() == 'true'
+        # Determine max_scans, giving priority to the command-line argument
+        if args.max_scans is not None:
+            max_scans = args.max_scans
+        else:
+            max_scans = int(settings.get('MaxScans', 2))
+
+
+        # Validate required paths
+        if not (source_path and destination_path and quarantine_path):
+            print("SourcePath, DestinationPath, and QuarantinePath must all be provided either as parameters or in the settings file.")
+            sys.exit(1)
+
+        print(f"SourcePath: {source_path}")
+        print(f"DestinationPath: {destination_path}")
+        print(f"QuarantinePath: {quarantine_path}")
+
+        try:
+            # Create quarantine directory if it doesn't exist
+            os.makedirs(quarantine_path, exist_ok=True)
+
+            # Copy files from source to quarantine directory
+            for root, dirs, files in os.walk(source_path):
+                for file in files:
+                    file_path = os.path.join(root, file)
+
+                    # Skip files that are not stable (still being written to)
+                    if not is_file_stable(file_path):
+                        print(f"Skipping file {file_path} because it may still be written to.")
+                        continue  # Skip this file and proceed to the next one
+
+                    # Skip files that are currently open
+                    if is_file_open(file_path):
+                        print(f"Skipping file {file_path} because it is being written to.")
+                        continue  # Skip this file and proceed to the next one
+
+                    # Determine the relative directory structure
+                    rel_dir = os.path.relpath(root, source_path)
+                    dest_dir = os.path.join(quarantine_path, rel_dir)
+                    os.makedirs(dest_dir, exist_ok=True)
+
+                    # Copy the file to the quarantine directory
+                    shutil.copy2(file_path, dest_dir)
+            print(f"Successfully copied files from {source_path} to {quarantine_path}")
+        except Exception as e:
+            print(f"Failed to copy files from {source_path} to {quarantine_path}. Error: {e}")
+            sys.exit(1)
+
+        # Prepare arguments for scanning and processing files
+        quarantine_files = []
+        for root, _, files in os.walk(quarantine_path):
             for file in files:
                 file_path = os.path.join(root, file)
+                quarantine_files.append((
+                    file_path,
+                    quarantine_path,
+                    destination_path,
+                    source_path,
+                    hazard_archive_path,
+                    hazard_archive_password,
+                    delete_source_files
+                ))
 
-                # Skip files that are not stable (still being written to)
-                if not is_file_stable(file_path):
-                    print(f"Skipping file {file_path} because it may still be written to.")
-                    continue  # Skip this file and proceed to the next one
+        # Process files in parallel using a ProcessPoolExecutor
+        with ProcessPoolExecutor(max_workers=max_scans) as executor:
+            results = list(executor.map(scan_and_process_file, quarantine_files))
 
-                # Skip files that are currently open
-                if is_file_open(file_path):
-                    print(f"Skipping file {file_path} because it is being written to.")
-                    continue  # Skip this file and proceed to the next one
+        # Check if all files were processed successfully
+        if not all(results):
+            print("Some files failed to be processed.")
 
-                # Determine the relative directory structure
-                rel_dir = os.path.relpath(root, source_path)
-                dest_dir = os.path.join(quarantine_path, rel_dir)
-                os.makedirs(dest_dir, exist_ok=True)
+        # After processing all files, remove the quarantine directory
+        shutil.rmtree(quarantine_path, ignore_errors=True)
 
-                # Copy the file to the quarantine directory
-                shutil.copy2(file_path, dest_dir)
-        print(f"Successfully copied files from {source_path} to {quarantine_path}")
-    except Exception as e:
-        print(f"Failed to copy files from {source_path} to {quarantine_path}. Error: {e}")
-        sys.exit(1)
-
-    # Prepare arguments for scanning and processing files
-    quarantine_files = []
-    for root, _, files in os.walk(quarantine_path):
-        for file in files:
-            file_path = os.path.join(root, file)
-            quarantine_files.append((
-                file_path,
-                quarantine_path,
-                destination_path,
-                source_path,
-                hazard_archive_path,
-                hazard_archive_password,
-                delete_source_files
-            ))
-
-    # Process files in parallel using a ProcessPoolExecutor
-    with ProcessPoolExecutor(max_workers=max_scans) as executor:
-        results = list(executor.map(scan_and_process_file, quarantine_files))
-
-    # Check if all files were processed successfully
-    if not all(results):
-        print("Some files failed to be processed.")
-
-    # After processing all files, remove the quarantine directory
-    shutil.rmtree(quarantine_path, ignore_errors=True)
-
-    # Remove the lock file upon script completion
-    if os.path.exists(args.lock_file):
-        os.remove(args.lock_file)
+    finally:
+        # Remove the lock file upon script completion
+        if os.path.exists(args.lock_file):
+            os.remove(args.lock_file)
 
 if __name__ == "__main__":
     main()
