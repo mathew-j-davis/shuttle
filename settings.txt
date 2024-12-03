@@ -1,8 +1,9 @@
-﻿SourcePath=/home/yourusername/TestEnvironment/Source
-DestinationPath=/home/yourusername/TestEnvironment/Destination
-QuarantinePath=/home/yourusername/TestEnvironment/Quarantine
-LogPath=/home/yourusername/TestEnvironment/Logs
-QuarantineHazardArchive=/home/yourusername/TestEnvironment/HazardArchive
+﻿SourcePath=~/.shuttle/TestEnvironment/Source
+DestinationPath=~/.shuttle/TestEnvironment/Destination
+QuarantinePath=~/.shuttle/TestEnvironment/Quarantine
+LogPath=~/.shuttle/TestEnvironment/Logs
+QuarantineHazardArchive=~/.shuttle/TestEnvironment/HazardArchive
+LogDirectory=~/.shuttle/TestEnvironment/Logs
 MaxScans=4
 DeleteSourceFilesAfterCopying=True
 

@@ -68,15 +68,24 @@ def get_file_hash(file_path, algorithm='sha256'):
     Returns:
         str: The hexadecimal hash string of the file.
     """
+    logger = logging.getLogger('shuttle')
     try:
         hash_func = hashlib.new(algorithm)
         with open(file_path, 'rb') as f:
             # Read the file in chunks to handle large files efficiently
             for chunk in iter(lambda: f.read(4096), b""):
                 hash_func.update(chunk)
-        return hash_func.hexdigest()
+        hash_value = hash_func.hexdigest()
+        logger.debug(f"Successfully calculated {algorithm} hash for {file_path}")
+        return hash_value
+    except FileNotFoundError:
+        logger.error(f"File not found while calculating hash: {file_path}")
+        return None
+    except PermissionError:
+        logger.error(f"Permission denied while calculating hash: {file_path}")
+        return None
     except Exception as e:
-        print(f"Error calculating hash for {file_path}: {e}")
+        logger.error(f"Error calculating hash for {file_path}: {e}")
         return None
 
 def compare_file_hashes(hash1, hash2):
@@ -102,13 +111,18 @@ def remove_file_with_logging(file_path):
     Returns:
         bool: True if file was successfully deleted, False otherwise.
     """
+    logger = logging.getLogger('shuttle')
     try:
         os.remove(file_path)
         if not os.path.exists(file_path):
-            print(f"Delete succeeded: {file_path}")
+            logger.info(f"Successfully deleted file: {file_path}")
             return True
+    except PermissionError:
+        logger.error(f"Permission denied while deleting file: {file_path}")
+    except FileNotFoundError:
+        logger.warning(f"File not found while attempting deletion: {file_path}")
     except Exception as e:
-        print(f"Delete failed: {file_path}, Error: {e}")
+        logger.error(f"Failed to delete file {file_path}: {e}")
     return False
 
 def test_write_access(path):
@@ -121,20 +135,22 @@ def test_write_access(path):
     Returns:
         bool: True if write access is confirmed, False otherwise.
     """
+    logger = logging.getLogger('shuttle')
     try:
         test_file = os.path.join(path, 'write_test.tmp')
         with open(test_file, 'w') as f:
             f.write('test')
         os.remove(test_file)
-        print(f"Write access confirmed for {path}")
+        logger.info(f"Write access confirmed for {path}")
         return True
     except Exception as e:
-        print(f"No write access to {path}. Error: {e}")
+        logger.error(f"No write access to {path}. Error: {e}")
         return False
 
 def scan_for_malware(path):
+    logger = logging.getLogger('shuttle')
     try:
-        print(f"Scanning files in {path} for malware...")
+        logger.info(f"Scanning files in {path} for malware...")
         result = subprocess.run([
             "mdatp",
             "scan",
@@ -143,16 +159,16 @@ def scan_for_malware(path):
             path
         ], capture_output=True, text=True)
         if result.returncode == 0:
-            print("Malware scan completed successfully. No threats detected.")
+            logger.info("Malware scan completed successfully. No threats detected.")
             return True
         elif result.returncode == 2:
-            print(f"Malware scan detected threats in {path}")
+            logger.warning(f"Malware scan detected threats in {path}")
             return False
         else:
-            print(f"Malware scan failed with exit code: {result.returncode}")
+            logger.error(f"Malware scan failed with exit code: {result.returncode}")
             return False
     except Exception as e:
-        print(f"Failed to perform malware scan. Error: {e}")
+        logger.error(f"Failed to perform malware scan. Error: {e}")
         return False
 
 def is_file_open(file_path):
@@ -165,6 +181,7 @@ def is_file_open(file_path):
     Returns:
         bool: True if the file is open, False otherwise.
     """
+    logger = logging.getLogger('shuttle')
     try:
         result = subprocess.run(
             ['lsof', '--', file_path],
@@ -172,13 +189,13 @@ def is_file_open(file_path):
             stderr=subprocess.DEVNULL,
             check=False
         )
-        # If returncode is 0, the file is open by some process
-        return result.returncode == 0
+        is_open = result.returncode == 0
+        if is_open:
+            logger.debug(f"File is currently open: {file_path}")
+        return is_open
     except Exception as e:
-        print(f"Error checking if file is open: {e}")
+        logger.error(f"Error checking if file is open: {e}")
         return False
-
-
 
 def is_file_stable(file_path, stability_time=5):
     """
@@ -191,9 +208,17 @@ def is_file_stable(file_path, stability_time=5):
     Returns:
         bool: True if the file is stable, False otherwise.
     """
-    last_modified_time = os.path.getmtime(file_path)
-    current_time = time.time()
-    return (current_time - last_modified_time) > stability_time
+    logger = logging.getLogger('shuttle')
+    try:
+        last_modified_time = os.path.getmtime(file_path)
+        current_time = time.time()
+        is_stable = (current_time - last_modified_time) > stability_time
+        if not is_stable:
+            logger.debug(f"File is not yet stable: {file_path}")
+        return is_stable
+    except Exception as e:
+        logger.error(f"Error checking file stability for {file_path}: {e}")
+        return False
 
 def scan_and_process_file(args):
     """
@@ -207,6 +232,7 @@ def scan_and_process_file(args):
     Returns:
         bool: True if processing was successful, False otherwise.
     """
+    logger = logging.getLogger('shuttle')
     (
         file_path,
         quarantine_path,
@@ -219,7 +245,7 @@ def scan_and_process_file(args):
 
     try:
         # Scan the file
-        print(f"Scanning file {file_path} for malware...")
+        logger.info(f"Scanning file {file_path} for malware...")
         result = subprocess.run([
             "mdatp",
             "scan",
@@ -230,63 +256,100 @@ def scan_and_process_file(args):
 
         if result.returncode == 0:
             # No threats detected
-            print(f"No threats detected in {file_path}.")
-
-            # Move the file from quarantine to destination
-            rel_path = os.path.relpath(file_path, quarantine_path)
-            destination_file_path = os.path.join(destination_path, rel_path)
-            dest_dir = os.path.dirname(destination_file_path)
-            os.makedirs(dest_dir, exist_ok=True)
-            shutil.move(file_path, destination_file_path)
-
-            # Verify the file hashes between source and destination
-            destination_file_hash = get_file_hash(destination_file_path)
-            source_file_path = os.path.join(source_path, rel_path)
-            source_file_hash = get_file_hash(source_file_path)
-
-            if not compare_file_hashes(source_file_hash, destination_file_hash):
-                print(f"Source and destination files do not match: {rel_path}")
-                return False
-
-            print(f"Copied to destination successfully: {destination_file_path}")
-
-            # Remove the source file if required
-            if delete_source_files:
-                remove_file_with_logging(source_file_path)
+            logger.info(f"No threats detected in {file_path}.")
+            return handle_clean_file(file_path, quarantine_path, destination_path, source_path, delete_source_files)
 
         else:
             # Threats detected in the file
-            print(f"Threats detected in {file_path}.")
-
-            if hazard_archive_path and hazard_archive_password:
-                # Compress and encrypt the file
-                os.makedirs(hazard_archive_path, exist_ok=True)
-                archive_name = 'hazard_' + os.path.basename(file_path) + '_' + datetime.now().strftime('%Y%m%d%H%M%S') + '.zip'
-                archive_path = os.path.join(hazard_archive_path, archive_name)
-
-                # Use zip with password to encrypt the file
-                zip_command = [
-                    'zip', '--password', hazard_archive_password, archive_path, file_path
-                ]
-
-                # Execute the zip command
-                result = subprocess.run(zip_command, capture_output=True, text=True)
-                if result.returncode == 0:
-                    print(f"File archived and encrypted to {archive_path}")
-                else:
-                    print(f"Failed to create encrypted archive for {file_path}. Error: {result.stderr}")
-                    return False
-            else:
-                print(f"No hazard archive path or password provided. Deleting file {file_path}.")
-
-            # Remove the infected file from quarantine
-            os.remove(file_path)
+            logger.warning(f"Threats detected in {file_path}.")
+            return handle_suspect_file(file_path, hazard_archive_path, hazard_archive_password)
 
         return True
     except Exception as e:
-        print(f"Error processing file {file_path}: {e}")
+        logger.error(f"Error processing file {file_path}: {e}")
         return False
 
+def handle_clean_file(file_path, quarantine_path, destination_path, source_path, delete_source_files):
+    """Handle processing of clean files."""
+    logger = logging.getLogger('shuttle')
+    try:
+        rel_path = os.path.relpath(file_path, quarantine_path)
+        destination_file_path = os.path.join(destination_path, rel_path)
+        dest_dir = os.path.dirname(destination_file_path)
+        
+        logger.debug(f"Moving clean file to destination: {destination_file_path}")
+        os.makedirs(dest_dir, exist_ok=True)
+        shutil.move(file_path, destination_file_path)
+
+        # Verify file integrity
+        if not verify_file_integrity(source_path, destination_file_path, rel_path):
+            return False
+
+        if delete_source_files:
+            source_file_path = os.path.join(source_path, rel_path)
+            remove_file_with_logging(source_file_path)
+        
+        return True
+    except Exception as e:
+        logger.error(f"Error handling clean file {file_path}: {e}")
+        return False
+
+def verify_file_integrity(source_path, destination_file_path, rel_path):
+    """Verify file integrity between source and destination."""
+    logger = logging.getLogger('shuttle')
+    destination_file_hash = get_file_hash(destination_file_path)
+    source_file_path = os.path.join(source_path, rel_path)
+    source_file_hash = get_file_hash(source_file_path)
+
+    if not compare_file_hashes(source_file_hash, destination_file_hash):
+        logger.error(f"Source and destination files do not match: {rel_path}")
+        return False
+    
+    logger.info(f"File integrity verified for: {destination_file_path}")
+    return True
+
+def handle_suspect_file(file_path, hazard_archive_path, hazard_archive_password):
+    """
+    Handle processing of suspect files by compressing and encrypting them.
+    
+    Args:
+        file_path (str): Path to the suspect file.
+        hazard_archive_path (str): Path to the hazard archive directory.
+        hazard_archive_password (str): Password for the encrypted archive.
+    
+    Returns:
+        bool: True if the file was successfully handled, False otherwise.
+    """
+    logger = logging.getLogger('shuttle')
+    try:
+        if hazard_archive_path and hazard_archive_password:
+            # Compress and encrypt the file
+            os.makedirs(hazard_archive_path, exist_ok=True)
+            archive_name = 'hazard_' + os.path.basename(file_path) + '_' + datetime.now().strftime('%Y%m%d%H%M%S') + '.zip'
+            archive_path = os.path.join(hazard_archive_path, archive_name)
+
+            # Use zip with password to encrypt the file
+            zip_command = [
+                'zip', '--password', hazard_archive_password, archive_path, file_path
+            ]
+
+            # Execute the zip command
+            result = subprocess.run(zip_command, capture_output=True, text=True)
+            if result.returncode == 0:
+                logger.info(f"File archived and encrypted to {archive_path}")
+            else:
+                logger.error(f"Failed to create encrypted archive for {file_path}. Error: {result.stderr}")
+                return False
+        else:
+            logger.warning(f"No hazard archive path or password provided. Deleting file {file_path}.")
+
+        # Remove the infected file from quarantine
+        os.remove(file_path)
+        return True
+    except Exception as e:
+        logger.error(f"Error handling suspect file {file_path}: {e}")
+        return False
+    
 def main():
     # Set up argument parser
     parser = argparse.ArgumentParser(description='File Transfer Script')
@@ -316,8 +379,8 @@ def main():
         hazard_archive_password = keyring.get_password(service_name, username)
 
         if not hazard_archive_password:
-            print("Hazard archive password not found in keyring. Please run store_password.py to set it.")
-            sys.exit(1)
+            logger.warning("Hazard archive password not found. Suspect files will be deleted without archiving.")
+            hazard_archive_password = None
 
     # Prevent multiple instances using a lock file
     if os.path.exists(args.lock_file):
