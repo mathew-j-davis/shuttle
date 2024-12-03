@@ -32,7 +32,7 @@
 
 - **Configuration via Command-Line Arguments or Settings File:**
   - Supports specifying paths and options through command-line arguments.
-  - Can load settings from a configuration file (`settings.ini`) if arguments are not provided.
+  - Can load settings from a configuration file if arguments are not provided.
 
 ## **Prerequisites**
 
@@ -42,6 +42,28 @@
 - **pip**: Python package installer.
 - **lsof**: Utility to check if files are open by any processes.
 - **zip**: Utility for compressing and encrypting files.
+- **mdatp**: Microsoft Defender ATP command-line tool for malware scanning.
+
+**Note:** The script will check for the availability of these external commands at runtime. If any are missing, it will log an error and exit.
+
+### **Installation of External Commands**
+
+Ensure that the following commands are installed and accessible in your system's PATH:
+
+- **lsof**:
+  - Install via package manager:
+    ```bash
+    sudo apt-get install lsof  # For Debian/Ubuntu
+    ```
+- **zip**:
+  - Install via package manager:
+    ```bash
+    sudo apt-get install zip  # For Debian/Ubuntu
+    ```
+- **mdatp**:
+  - **Official Installation Guide**:
+    - [Install Microsoft Defender for Endpoint on Linux Manually](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/linux-install-manually)
+  - **Note**: `mdatp` requires manual installation following Microsoft's official guide due to licensing agreements and repository setup.
 
 ### **Installation Script**
 
@@ -53,37 +75,37 @@ To install all the necessary system packages and Python dependencies, you can us
 
 - **Make the Script Executable:**
 
-  ```bash
-  chmod +x install_dependencies.sh
-  ```
+   ```bash
+   chmod +x install_dependencies.sh
+   ```
 
 - **Run the Script:**
 
-  ```bash
-  ./install_dependencies.sh
-  ```
+   ```bash
+   ./install_dependencies.sh
+   ```
 
 #### **Create and Activate a Virtual Environment**
 
 - **Create a Virtual Environment:**
 
-  ```bash
-  python3 -m venv venv
-  ```
+   ```bash
+   python3 -m venv venv
+   ```
 
 - **Activate the Virtual Environment:**
 
-  ```bash
-  source venv/bin/activate
-  ```
+   ```bash
+   source venv/bin/activate
+   ```
 
 - **Install Python Packages:**
 
-  After activating the virtual environment, install the Python packages specified in `requirements.txt`:
+   After activating the virtual environment, install the Python packages specified in `requirements.txt`:
 
-  ```bash
-  pip install -r requirements.txt
-  ```
+   ```bash
+   pip install -r requirements.txt
+   ```
 
 ### **Install `mdatp`**
 
@@ -99,7 +121,7 @@ The script uses `python-keyring` to securely store and retrieve the hazard archi
 
 - **Store the Password:**
 
-  Use the `store_password.py` script to store the hazard archive password in the keyring.
+   Use the `store_password.py` script to store the hazard archive password in the keyring.
 
   ```bash
   python3 store_password.py
@@ -136,6 +158,7 @@ python3 shuttle-linux.py \
 - `--lock-file`: Path to the lock file to prevent multiple instances (default: `/tmp/shuttle.lock`).
 - `-QuarantineHazardArchive`: Path to the hazard archive directory for infected files.
 - `-HazardArchivePassword`: Password for encrypting the hazard archive (overrides keyring).
+- `-LogLevel`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default is INFO.
 
 ### **Settings File (`settings.ini`):**
 
@@ -152,9 +175,15 @@ QuarantineHazardArchive=/path/to/hazard_archive
 [Settings]
 MaxScans=4
 DeleteSourceFilesAfterCopying=True
+
+[Logging]
+LogLevel=DEBUG
 ```
 
-**Note:** The script gives priority to command-line arguments over the settings file.
+**Note:** The script gives priority to command-line arguments over the settings 
+file.
+
+**Note:** The `LogLevel` can be set to `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` depending on the desired verbosity.
 
 **Hazard Archive Password:** The password is stored in the operating system keyring. The primary use for this password is to require a manual confirmation before opening an archive that may contain malware. If you require alternative storage of the password to protect these archives, please modify the script to integrate with your secrets vault.
 

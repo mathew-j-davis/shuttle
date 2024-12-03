@@ -50,6 +50,10 @@ config['Settings'] = {
     'DeleteSourceFilesAfterCopying': 'True'
 }
 
+config['Logging'] = {
+    'LogLevel': 'DEBUG'
+}
+
 with open(settings_file, 'w') as configfile:
     config.write(configfile)
 

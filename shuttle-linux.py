@@ -16,39 +16,29 @@ import configparser  # Added import for configparser
 
 def setup_logging(log_file=None, log_level=logging.INFO):
     """
-    Set up logging configuration for the application.
-    
+    Set up logging for the script.
+
     Args:
-        log_file (str): Path to the log file. If None, logs only to console.
-        log_level (int): Logging level (default: logging.INFO)
+        log_file (str): Path to the log file.
+        log_level (int): Logging level (e.g., logging.DEBUG, logging.INFO).
     """
     # Create logger
     logger = logging.getLogger('shuttle')
     logger.setLevel(log_level)
+    formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
 
-    # Create formatter
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    # Console handler
+    ch = logging.StreamHandler()
+    ch.setLevel(log_level)
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
 
-    # Always add console handler
-    console_handler = logging.StreamHandler()
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-
-    # Add file handler if log_file is specified
+    # File handler if log_file is specified
     if log_file:
-        try:
-            # Ensure log directory exists
-            os.makedirs(os.path.dirname(log_file), exist_ok=True)
-            # Create rotating file handler (10MB per file, keep 5 backup files)
-            file_handler = RotatingFileHandler(
-                log_file, 
-                maxBytes=10*1024*1024,  # 10MB
-                backupCount=5
-            )
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
-        except Exception as e:
-            print(f"Failed to set up file logging: {e}")
+        fh = RotatingFileHandler(log_file, maxBytes=5*1024*1024, backupCount=5)
+        fh.setLevel(log_level)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
 
     return logger
 
@@ -225,14 +215,6 @@ def is_file_stable(file_path, stability_time=5):
 def scan_and_process_file(args):
     """
     Scan and process a single file.
-    If no threats detected, move to destination.
-    If threats detected, archive and encrypt, then move to hazard archive.
-    
-    Args:
-        args (tuple): Tuple containing the arguments required for processing.
-    
-    Returns:
-        bool: True if processing was successful, False otherwise.
     """
     logger = logging.getLogger('shuttle')
     (
@@ -260,13 +242,11 @@ def scan_and_process_file(args):
             # No threats detected
             logger.info(f"No threats detected in {file_path}.")
             return handle_clean_file(file_path, quarantine_path, destination_path, source_path, delete_source_files)
-
         else:
             # Threats detected in the file
             logger.warning(f"Threats detected in {file_path}.")
             return handle_suspect_file(file_path, hazard_archive_path, hazard_archive_password)
 
-        return True
     except Exception as e:
         logger.error(f"Error processing file {file_path}: {e}")
         return False
@@ -368,6 +348,7 @@ def main():
     parser.add_argument('--lock-file', default='/tmp/shuttle.lock', help='Path to lock file to prevent multiple instances')
     parser.add_argument('-QuarantineHazardArchive', help='Path to the hazard archive directory')
     parser.add_argument('-HazardArchivePassword', help='Password for the encrypted hazard archive')
+    parser.add_argument('-LogLevel', default=None, help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
 
     args = parser.parse_args()
 
@@ -400,6 +381,13 @@ def main():
         quarantine_path = get_setting(args.QuarantinePath, 'Paths', 'QuarantinePath')
         log_path = get_setting(args.LogPath, 'Paths', 'LogPath')
         hazard_archive_path = get_setting(args.QuarantineHazardArchive, 'Paths', 'QuarantineHazardArchive')
+        log_level_str = get_setting(args.LogLevel, 'Logging', 'LogLevel', 'INFO').upper()
+
+        # Map the log level string to a logging level
+        numeric_level = getattr(logging, log_level_str, None)
+        if not isinstance(numeric_level, int):
+            print(f"Invalid log level: {log_level_str}")
+            sys.exit(1)
 
         # Create log file name with timestamp and unique ID
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -412,9 +400,24 @@ def main():
             os.makedirs(log_path, exist_ok=True)
             log_file = os.path.join(log_path, log_filename)
 
-        # Set up logging
-        logger = setup_logging(log_file=log_file)
+        # Set up logging with the configured log level
+        logger = setup_logging(log_file=log_file, log_level=numeric_level)
         logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
+
+        # Check for required external commands
+        import shutil
+
+        required_commands = ['lsof', 'mdatp', 'zip']
+        missing_commands = []
+
+        for cmd in required_commands:
+            if shutil.which(cmd) is None:
+                missing_commands.append(cmd)
+
+        if missing_commands:
+            for cmd in missing_commands:
+                logger.error(f"Required command '{cmd}' not found. Please ensure it is installed and accessible in your PATH.")
+            sys.exit(1)
 
         # Retrieve the hazard archive password
         if args.HazardArchivePassword:
@@ -428,13 +431,9 @@ def main():
                 logger.warning("Hazard archive password not found. Suspect files will be deleted without archiving.")
                 hazard_archive_password = None
 
-        # Convert DeleteSourceFilesAfterCopying to boolean, giving priority to the command-line argument
-        if args.DeleteSourceFilesAfterCopying:
-            delete_source_files = True
-        else:
-            delete_source_files = config.getboolean('Settings', 'DeleteSourceFilesAfterCopying', fallback=False)
+        # Retrieve other settings
+        delete_source_files = args.DeleteSourceFilesAfterCopying or config.getboolean('Settings', 'DeleteSourceFilesAfterCopying', fallback=False)
 
-        # Determine max_scans, giving priority to the command-line argument
         if args.max_scans is not None:
             max_scans = args.max_scans
         else:
