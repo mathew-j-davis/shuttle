@@ -39,7 +39,6 @@ DestinationPath={dest_dir}
 QuarantinePath={quarantine_dir}
 LogPath={log_dir}
 QuarantineHazardArchive={hazard_archive_dir}
-HazardArchivePassword=your_secure_password
 MaxScans=4
 DeleteSourceFilesAfterCopying=True
 """

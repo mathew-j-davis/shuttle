@@ -2,7 +2,7 @@
 
 **Note:** This script is under active development and has not been fully tested. Use at your own risk.
 
-`shuttle-linux.py` is a Python script designed to securely transfer files from a source directory to a destination directory on Linux systems. It includes malware scanning using Microsoft Defender ATP (`mdatp`), handling of infected files, and supports parallel processing for efficiency.
+`shuttle-linux.py` is a Python script designed to transfer files from a source directory to a destination directory on Linux systems. It includes malware scanning using Microsoft Defender ATP (`mdatp`), handling of infected files, and supports parallel processing for efficiency.
 
 ## **Features**
 
@@ -34,10 +34,87 @@
   - Supports specifying paths and options through command-line arguments.
   - Can load settings from a configuration file if arguments are not provided.
 
-## **Usage**
+## **Prerequisites**
+
+### **System Dependencies**
+
+- **Python 3**: Programming language used to run the script (version >= 3.6).
+- **pip**: Python package installer.
+- **lsof**: Utility to check if files are open by any processes.
+- **zip**: Utility for compressing and encrypting files.
+
+### **Installation Script**
+
+To install all the necessary system packages and Python dependencies, you can use the provided `install_dependencies.sh` script.
+
+#### **Install Dependencies Script**
+
+#### **Running the Installation Script**
+
+- **Make the Script Executable:**
+
+  ```bash
+  chmod +x install_dependencies.sh
+  ```
+
+- **Run the Script:**
+
+  ```bash
+  ./install_dependencies.sh
+  ```
+
+#### **Create and Activate a Virtual Environment**
+
+- **Create a Virtual Environment:**
+
+  ```bash
+  python3 -m venv venv
+  ```
+
+- **Activate the Virtual Environment:**
+
+  ```bash
+  source venv/bin/activate
+  ```
+
+- **Install Python Packages:**
+
+  After activating the virtual environment, install the Python packages specified in `requirements.txt`:
+
+  ```bash
+  pip install -r requirements.txt
+  ```
+
+### **Install `mdatp`**
+
+`mdatp` requires manual installation following Microsoft's official guide due to licensing agreements and repository setup.
+
+**Official Installation Guide:**
+
+- [Install Microsoft Defender for Endpoint on Linux Manually](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/linux-install-manually)
+
+### **Password Management**
+
+The script uses `python-keyring` to securely store and retrieve the hazard archive password.
+
+- **Store the Password:**
+
+  Use the `store_password.py` script to store the hazard archive password in the keyring.
+
+  ```bash
+  python3 store_password.py
+  ```
+
+  You will be prompted to enter the password twice for confirmation.
+
+- **Command-Line Override:**
+
+  You can override the keyring password by providing the `-HazardArchivePassword` argument when running the script.
+
+### **Usage**
 
 ```bash
-python shuttle-linux.py \
+python3 shuttle-linux.py \
     -SourcePath /path/to/source \
     -DestinationPath /path/to/destination \
     -QuarantinePath /path/to/quarantine \
@@ -55,48 +132,47 @@ python shuttle-linux.py \
 - `-SettingsPath`: Path to the settings file (default: `~/.shuttle/settings.txt`).
 - `-TestSourceWriteAccess`: Test write access to the source directory.
 - `-DeleteSourceFilesAfterCopying`: Delete the source files after successful transfer.
-- `--max-scans`: Maximum number of parallel scans (default: `2`).
+- `--max-scans`: Maximum number of parallel scans.
 - `--lock-file`: Path to the lock file to prevent multiple instances (default: `/tmp/shuttle.lock`).
 - `-QuarantineHazardArchive`: Path to the hazard archive directory for infected files.
-- `-HazardArchivePassword`: Password for encrypting the hazard archive.
+- `-HazardArchivePassword`: Password for encrypting the hazard archive (overrides keyring).
 
 ### **Settings File:**
 
 If command-line arguments are not provided, the script will attempt to read from a settings file. An example `settings.txt` might look like:
 
-```
+```ini
 SourcePath=/path/to/source
 DestinationPath=/path/to/destination
 QuarantinePath=/path/to/quarantine
 QuarantineHazardArchive=/path/to/hazard_archive
-HazardArchivePassword=your_secure_password
 LogPath=/path/to/logs
+MaxScans=4
+DeleteSourceFilesAfterCopying=True
 ```
 
-### **Prerequisites:**
-
-- **Python 3** installed on the system.
-- **Microsoft Defender ATP (`mdatp`)** installed and configured.
-  - [Installation Guide](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/linux-install-manually)
-- **Required Utilities:**
-  - `lsof`: For checking if files are open.
-    ```bash
-    sudo apt-get install lsof  # For Debian/Ubuntu
-    ```
-  - `zip`: For compressing and encrypting files.
-    ```bash
-    sudo apt-get install zip
-    ```
+Hazard Password is stored in the operating system keyring. The primary use for this password is to require a manual confirmation before opening an archive that may contain malware. If you require alternative storage of the password to protect these archives, please modify the script to integrate with your secrets vault.
 
 ### **Example Workflow:**
 
 1. **Set Up Test Environment:**
-   - Use the provided `setup_test_environment_linux.py` script to create test directories and files.
+
+   Use the provided `setup_test_environment_linux.py` script to create test directories and files.
+
+   ```bash
+   python3 setup_test_environment_linux.py
+   ```
 
 2. **Run the Shuttle Script:**
-   - Execute `shuttle-linux.py` with the desired parameters.
+
+   Execute `shuttle-linux.py` with the desired parameters or ensure the `settings.txt` file is properly configured.
+
+   ```bash
+   python3 shuttle-linux.py
+   ```
 
 3. **Script Operations:**
+
    - The script copies files from the source to the quarantine directory, skipping files that are unstable or open.
    - Files in the quarantine directory are scanned in parallel.
      - Clean files are moved to the destination directory.
@@ -105,103 +181,98 @@ LogPath=/path/to/logs
    - The quarantine directory is cleaned up after processing.
 
 4. **Review Results:**
+
    - Check the destination directory for transferred files.
    - Examine the hazard archive for any infected files, if applicable.
    - Verify logs and output messages for any errors or issues.
 
-## **Important Notes:**
+## **Important Notes**
 
 - **Security Considerations:**
+
   - Handle passwords securely; avoid exposing them in scripts or command-line arguments when possible.
   - Ensure only authorized users have access to the script and the directories involved.
 
 - **Error Handling:**
+
   - The script includes basic error handling but may require enhancements for production use.
   - Logs and messages should be reviewed to identify and address any issues.
 
 - **Testing and Validation:**
+
   - Thoroughly test the script in a controlled environment before deploying it in production.
   - Validate that all operations perform as expected and that files are transferred securely.
 
 - **Limitations:**
+
   - The script assumes that `mdatp` is installed and operational.
   - The `zip` utility's encryption may not meet all security requirements; consider using stronger encryption methods if necessary.
 
-## **Contributing and Feedback:**
+## **Contributing and Feedback**
 
 This script is a work in progress. Contributions, suggestions, and feedback are welcome to improve its functionality and reliability.
 
 ---
 
-The first version of these scripts were developed for windows using powershell.
+## **Additional Commands and Tips**
 
-These are no longer being developed.
+Here are some additional `mdatp` commands that may be useful:
 
-
-powershell script to move files from a network share, scan for malware, then move to destination location
-
-USE AT OWN RISK, THIS IS STILL UNDER DEVELOPMENT, AND NOT FULLY TESTED.
-
-Roboshuttle.ps1 - Robocopy wrapper script
-
-Usage:
-.\roboshuttle.ps1 -SourcePath <network_share_path> -DestinationPath <path> -QuarantinePath <path> -SettingsPath <path> -TestSourceWriteAccess
-
-Ronoshuttle is simpler than shuttle, as it uses robocopy under the hood to move files from source to destination.
-However, because of the need to scan the files while they are in the quarantine directory, we cannot rely on robocopy's move feature to delete the source files.
-
-At present the 'delete on successful copy' function is not implemented in roboshuttle.
-
-
-
-
-Shuttle.ps1 - File Transfer Script
-
-Usage:
-.\shuttle.ps1 [-SourcePath <network_share_path>] [-DestinationPath <path>] [-QuarantinePath <path>] [-SettingsPath <path>] [-TestSourceWriteAccess]
-
-Description:
-This script facilitates file transfer operations from a network file share to a destination.
-It requires write access to the source directory for file deletion after successful transfer.
-
-Parameters:
--SourcePath           : (Optional) Path to the source network file share (e.g., \\server\share)
--DestinationPath      : (Optional) Path to the destination directory
--QuarantinePath             : (Optional) Path to the temporary quarantine directory
--SettingsPath         : (Optional) Path to the settings file (default: %USERPROFILE%\.shuttle\settings.txt)
--TestSourceWriteAccess: (Optional) Test write access to the source directory (default: $false)
-
-Settings File:
-If not provided as parameters, the script will look for SourcePath, DestinationPath and TempPath
-in the settings file. A sample settings file (settings.txt) might look like this:
-
-SourcePath=\\server\share
-DestinationPath=C:\Users\YourUsername\Documents\Destination
-TempPath=C:\Temp\ShuttleTemp
-
-Note: Command-line parameters take precedence over settings file values.
-SourcePath must be a network file share if provided.
-
-
-
-```
-
+```bash
+# Check health status
 mdatp health
 
- mdatp definition update
+# Update definitions
+mdatp definition update
 
+# List detected threats
 mdatp threat list
 
-
+# Perform a quick scan
 mdatp scan quick
 
-
-
+# Perform a full scan
 mdatp scan full
 
+# Configure telemetry settings
+mdatp config telemetry --value-enabled  # Enable telemetry
+mdatp config telemetry --value-disabled # Disable telemetry
+```
 
+Feel free to explore the `mdatp` command-line options to better understand its capabilities.
 
-mdatp config telemetry --value-enabled | --value-disabled
+## **Project Structure**
 
+An example project directory structure:
 
 ```
+/your_project/
+├── shuttle-linux.py
+├── setup_test_environment_linux.py
+├── install_dependencies.sh
+├── health_check.sh
+├── create_venv.sh
+├── store_password.py
+├── requirements.txt
+├── settings.txt
+├── readme.md
+└── ... (other files)
+```
+
+Ensure all scripts have the correct permissions:
+
+```bash
+chmod +x shuttle-linux.py
+chmod +x setup_test_environment_linux.py
+chmod +x install_dependencies.sh
+chmod +x health_check.sh
+chmod +x create_venv.sh
+chmod +x store_password.py
+```
+
+---
+
+Please refer to this `readme.md` for detailed instructions on setting up, configuring, and running the `shuttle-linux.py` script.
+
+
+

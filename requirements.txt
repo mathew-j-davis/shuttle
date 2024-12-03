@@ -1,0 +1,3 @@
+# External packages required. Uses standard Python libraries.
+# Requires Python version >= 3.6 
+keyring

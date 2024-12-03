@@ -7,6 +7,52 @@ import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
+import keyring
+from pathlib import Path
+import logging
+from logging.handlers import RotatingFileHandler
+
+def setup_logging(log_file=None, log_level=logging.INFO):
+    """
+    Set up logging configuration for the application.
+    
+    Args:
+        log_file (str): Path to the log file. If None, logs only to console.
+        log_level (int): Logging level (default: logging.INFO)
+    """
+    # Create logger
+    logger = logging.getLogger('shuttle')
+    logger.setLevel(log_level)
+
+    # Create formatter
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    # Always add console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    # Add file handler if log_file is specified
+    if log_file:
+        try:
+            # Ensure log directory exists
+            os.makedirs(os.path.dirname(log_file), exist_ok=True)
+            # Create rotating file handler (10MB per file, keep 5 backup files)
+            file_handler = RotatingFileHandler(
+                log_file, 
+                maxBytes=10*1024*1024,  # 10MB
+                backupCount=5
+            )
+            file_handler.setFormatter(formatter)
+            logger.addHandler(file_handler)
+        except Exception as e:
+            print(f"Failed to set up file logging: {e}")
+
+    return logger
+
+
+
+
 
 #    sudo apt-get install lsof 
 #    python shuttle-linux.py -SourcePath /path/to/source -DestinationPath /path/to/destination -QuarantinePath /path/to/quarantine
@@ -86,6 +132,29 @@ def test_write_access(path):
         print(f"No write access to {path}. Error: {e}")
         return False
 
+def scan_for_malware(path):
+    try:
+        print(f"Scanning files in {path} for malware...")
+        result = subprocess.run([
+            "mdatp",
+            "scan",
+            "custom",
+            "--path",
+            path
+        ], capture_output=True, text=True)
+        if result.returncode == 0:
+            print("Malware scan completed successfully. No threats detected.")
+            return True
+        elif result.returncode == 2:
+            print(f"Malware scan detected threats in {path}")
+            return False
+        else:
+            print(f"Malware scan failed with exit code: {result.returncode}")
+            return False
+    except Exception as e:
+        print(f"Failed to perform malware scan. Error: {e}")
+        return False
+
 def is_file_open(file_path):
     """
     Check if a file is currently open by any process.
@@ -108,6 +177,8 @@ def is_file_open(file_path):
     except Exception as e:
         print(f"Error checking if file is open: {e}")
         return False
+
+
 
 def is_file_stable(file_path, stability_time=5):
     """
@@ -222,16 +293,31 @@ def main():
     parser.add_argument('-SourcePath', help='Path to the source directory')
     parser.add_argument('-DestinationPath', help='Path to the destination directory')
     parser.add_argument('-QuarantinePath', help='Path to the quarantine directory')
+    parser.add_argument('-LogPath', help='Path to the log directory')
     parser.add_argument('-SettingsPath', default=os.path.join(os.getenv('USERPROFILE') or os.getenv('HOME'), '.shuttle', 'settings.txt'),
                         help='Path to the settings file')
     parser.add_argument('-TestSourceWriteAccess', action='store_true', help='Test write access to the source directory')
     parser.add_argument('-DeleteSourceFilesAfterCopying', action='store_true',
                         help='Delete the source files after copying them to the destination')
-    parser.add_argument('--max-scans', type=int, help='Maximum number of parallel scans')
+    parser.add_argument('--max-scans', type=int, help='Maximum number of parallel scans')   
     parser.add_argument('--lock-file', default='/tmp/shuttle.lock', help='Path to lock file to prevent multiple instances')
     parser.add_argument('-QuarantineHazardArchive', help='Path to the hazard archive directory')
     parser.add_argument('-HazardArchivePassword', help='Password for the encrypted hazard archive')
+
     args = parser.parse_args()
+
+
+    # Retrieve the hazard archive password
+    if args.HazardArchivePassword:
+        hazard_archive_password = args.HazardArchivePassword
+    else:
+        service_name = "shuttle_linux"
+        username = "hazard_archive"
+        hazard_archive_password = keyring.get_password(service_name, username)
+
+        if not hazard_archive_password:
+            print("Hazard archive password not found in keyring. Please run store_password.py to set it.")
+            sys.exit(1)
 
     # Prevent multiple instances using a lock file
     if os.path.exists(args.lock_file):
@@ -255,20 +341,36 @@ def main():
     source_path = args.SourcePath or settings.get('SourcePath')
     destination_path = args.DestinationPath or settings.get('DestinationPath')
     quarantine_path = args.QuarantinePath or settings.get('QuarantinePath')
+    log_path = args.LogPath or settings.get('LogPath')
     hazard_archive_path = args.QuarantineHazardArchive or settings.get('QuarantineHazardArchive')
-    hazard_archive_password = args.HazardArchivePassword or settings.get('HazardArchivePassword')
+
+
+    # Create log file name with timestamp and unique ID
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    unique_id = os.getpid()  # Using process ID as unique identifier
+    log_filename = f"shuttle_{timestamp}_{unique_id}.log"
+
+    # Construct full log path if log directory is specified
+    log_file = None
+    if log_path:
+        os.makedirs(log_path, exist_ok=True)
+        log_file = os.path.join(log_path, log_filename)
+    
+    # Set up logging
+    logger = setup_logging(log_file=log_file)
+    logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
 
     # Convert DeleteSourceFilesAfterCopying to boolean, giving priority to the command-line argument
     if args.DeleteSourceFilesAfterCopying:
         delete_source_files = True
     else:
         delete_source_files = settings.get('DeleteSourceFilesAfterCopying', 'False').lower() == 'true'
-
     # Determine max_scans, giving priority to the command-line argument
     if args.max_scans is not None:
         max_scans = args.max_scans
     else:
         max_scans = int(settings.get('MaxScans', 2))
+
 
     # Validate required paths
     if not (source_path and destination_path and quarantine_path):
@@ -291,12 +393,12 @@ def main():
                 # Skip files that are not stable (still being written to)
                 if not is_file_stable(file_path):
                     print(f"Skipping file {file_path} because it may still be written to.")
-                    continue
+                    continue  # Skip this file and proceed to the next one
 
                 # Skip files that are currently open
                 if is_file_open(file_path):
                     print(f"Skipping file {file_path} because it is being written to.")
-                    continue
+                    continue  # Skip this file and proceed to the next one
 
                 # Determine the relative directory structure
                 rel_dir = os.path.relpath(root, source_path)
