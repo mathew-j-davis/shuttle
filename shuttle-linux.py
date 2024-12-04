@@ -49,35 +49,31 @@ def setup_logging(log_file=None, log_level=logging.INFO):
 #    sudo apt-get install lsof 
 #    python shuttle-linux.py -SourcePath /path/to/source -DestinationPath /path/to/destination -QuarantinePath /path/to/quarantine
 
-def get_file_hash(file_path, algorithm='sha256'):
+def get_file_hash(file_path):
     """
-    Calculate the hash of a file using the specified algorithm.
-    
+    Compute the SHA-256 hash of a file.
+
     Args:
         file_path (str): Path to the file.
-        algorithm (str): Hash algorithm to use (default is 'sha256').
-    
+
     Returns:
-        str: The hexadecimal hash string of the file.
+        str: The computed hash or None if an error occurred.
     """
-    logger = logging.getLogger('shuttle')
+    hash_sha256 = hashlib.sha256()
     try:
-        hash_func = hashlib.new(algorithm)
         with open(file_path, 'rb') as f:
-            # Read the file in chunks to handle large files efficiently
-            for chunk in iter(lambda: f.read(4096), b""):
-                hash_func.update(chunk)
-        hash_value = hash_func.hexdigest()
-        logger.debug(f"Successfully calculated {algorithm} hash for {file_path}")
-        return hash_value
+            # Read the file in chunks to avoid memory issues with large files
+            for chunk in iter(lambda: f.read(4096), b''):
+                hash_sha256.update(chunk)
+        return hash_sha256.hexdigest()
     except FileNotFoundError:
-        logger.error(f"File not found while calculating hash: {file_path}")
+        logging.getLogger('shuttle').error(f"File not found: {file_path}")
         return None
     except PermissionError:
-        logger.error(f"Permission denied while calculating hash: {file_path}")
+        logging.getLogger('shuttle').error(f"Permission denied when accessing file: {file_path}")
         return None
     except Exception as e:
-        logger.error(f"Error calculating hash for {file_path}: {e}")
+        logging.getLogger('shuttle').error(f"Error computing hash for {file_path}: {e}")
         return None
 
 def compare_file_hashes(hash1, hash2):
@@ -176,19 +172,31 @@ def is_file_open(file_path):
     logger = logging.getLogger('shuttle')
     try:
         result = subprocess.run(
-            ['lsof', '--', file_path],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            ['lsof', file_path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
             check=False
         )
-        is_open = result.returncode == 0
-        if is_open:
-            logger.debug(f"File is currently open: {file_path}")
-        return is_open
-    except Exception as e:
-        logger.error(f"Error checking if file is open: {e}")
+        if result.returncode == 0:
+            return bool(result.stdout.strip())
+        elif result.returncode == 1:
+            # lsof returns 1 if no processes are using the file
+            return False
+        else:
+            if result.stderr:
+                logger.error(f"Error checking if file is open: {result.stderr.strip()}")
+            return False
+    except FileNotFoundError:
+        logger.error(f"'lsof' command not found. Please ensure it is installed.")
         return False
-
+    except PermissionError:
+        logger.error(f"Permission denied when accessing 'lsof' or file: {file_path}")
+        return False
+    except Exception as e:
+        logger.error(f"Exception occurred while checking if file is open: {e}")
+        return False
+    
 def is_file_stable(file_path, stability_time=5):
     """
     Check if a file has not been modified in the last 'stability_time' seconds.
@@ -208,128 +216,243 @@ def is_file_stable(file_path, stability_time=5):
         if not is_stable:
             logger.debug(f"File is not yet stable: {file_path}")
         return is_stable
-    except Exception as e:
-        logger.error(f"Error checking file stability for {file_path}: {e}")
+    except FileNotFoundError:
+        logger.error(f"File not found when checking if file is stable: {file_path}")
         return False
-
+    except PermissionError:
+        logger.error(f"Permission denied when accessing file size: {file_path}")
+        return False
+    except Exception as e:
+        logger.error(f"Error checking if file is stable {file_path}: {e}")
+        return False
 def scan_and_process_file(args):
     """
-    Scan and process a single file.
+    Scan a file for malware and process it accordingly.
+
+    Args:
+        args (tuple): Contains all necessary arguments.
+            - quarantine_file_path (str): Full path to the file in quarantine
+            - source_file_path (str): Full path to the original source file
+            - destination_file_path (str): Full path where the file should be copied in destination
+            - hazard_archive_path (str): Path to the hazard archive directory
+            - hazard_archive_password (str): Password for the encrypted archive
+            - delete_source_files (bool): Whether to delete source files after processing
+
+    Returns:
+        bool: True if the file was processed successfully, False otherwise
     """
-    logger = logging.getLogger('shuttle')
+    # Unpack arguments
     (
-        file_path,
-        quarantine_path,
-        destination_path,
-        source_path,
+        quarantine_file_path,
+        source_file_path,
+        destination_file_path,
         hazard_archive_path,
         hazard_archive_password,
         delete_source_files
     ) = args
 
+    logger = logging.getLogger('shuttle')
+
     try:
-        # Scan the file
-        logger.info(f"Scanning file {file_path} for malware...")
-        result = subprocess.run([
-            "mdatp",
-            "scan",
-            "file",
-            "--path",
-            file_path
-        ], capture_output=True, text=True)
+        # Scan the file for malware
+        logger.info(f"Scanning file {quarantine_file_path} for malware...")
+        result = subprocess.run(
+            [
+                "mdatp",
+                "scan",
+                "file",
+                "--path",
+                quarantine_file_path
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False
+        )
 
         if result.returncode == 0:
-            # No threats detected
-            logger.info(f"No threats detected in {file_path}.")
-            return handle_clean_file(file_path, quarantine_path, destination_path, source_path, delete_source_files)
+            logger.info(f"No threats found in {quarantine_file_path}")
+            return handle_clean_file(
+                quarantine_file_path,
+                source_file_path,
+                destination_file_path,
+                delete_source_files
+            )
+        elif result.returncode == 3:
+            logger.warning(f"Threats found in {quarantine_file_path}")
+            return handle_suspect_file(
+                quarantine_file_path,
+                source_file_path,
+                hazard_archive_path,
+                hazard_archive_password,
+                delete_source_files
+            )
         else:
-            # Threats detected in the file
-            logger.warning(f"Threats detected in {file_path}.")
-            return handle_suspect_file(file_path, hazard_archive_path, hazard_archive_password)
-
-    except Exception as e:
-        logger.error(f"Error processing file {file_path}: {e}")
-        return False
-
-def handle_clean_file(file_path, quarantine_path, destination_path, source_path, delete_source_files):
-    """Handle processing of clean files."""
-    logger = logging.getLogger('shuttle')
-    try:
-        rel_path = os.path.relpath(file_path, quarantine_path)
-        destination_file_path = os.path.join(destination_path, rel_path)
-        dest_dir = os.path.dirname(destination_file_path)
-        
-        logger.debug(f"Moving clean file to destination: {destination_file_path}")
-        os.makedirs(dest_dir, exist_ok=True)
-        shutil.move(file_path, destination_file_path)
-
-        # Verify file integrity
-        if not verify_file_integrity(source_path, destination_file_path, rel_path):
+            logger.error(f"Failed to scan {quarantine_file_path}. Error: {result.stderr.strip()}")
             return False
 
-        if delete_source_files:
-            source_file_path = os.path.join(source_path, rel_path)
-            remove_file_with_logging(source_file_path)
-        
-        return True
+    except FileNotFoundError:
+        logger.error(f"'mdatp' command not found. Please ensure it is installed.")
+        return False
+    except PermissionError:
+        logger.error(f"Permission denied when scanning file: {quarantine_file_path}")
+        return False
     except Exception as e:
-        logger.error(f"Error handling clean file {file_path}: {e}")
+        logger.error(f"An exception occurred while scanning {quarantine_file_path}: {e}")
         return False
 
-def verify_file_integrity(source_path, destination_file_path, rel_path):
+def handle_clean_file(
+    quarantine_file_path,
+    source_file_path,
+    destination_file_path,
+    delete_source_files
+):
+    """
+    Handle processing of clean files by moving them to the destination.
+
+    Args:
+        quarantine_file_path (str): Full path to the file in quarantine
+        source_file_path (str): Full path to the original source file
+        destination_file_path (str): Full path where the file should be copied in destination
+        delete_source_files (bool): Whether to delete source files after processing
+
+    Returns:
+        bool: True if the file was successfully handled, False otherwise
+    """
+    logger = logging.getLogger('shuttle')
+    try:
+        # Create destination directory if it doesn't exist
+        dest_dir = os.path.dirname(destination_file_path)
+        os.makedirs(dest_dir, exist_ok=True)
+
+        # Move file to destination
+        shutil.move(quarantine_file_path, destination_file_path)
+        logger.info(f"Moved clean file to destination: {destination_file_path}")
+
+        # Verify integrity and delete source if requested
+        if delete_source_files:
+            if verify_file_integrity(source_file_path, destination_file_path):
+                remove_file_with_logging(source_file_path)
+            else:
+                logger.error(f"Integrity check failed, source file not deleted: {source_file_path}")
+                return False
+
+        return True
+    except FileNotFoundError as e:
+        logger.error(f"File not found during handling of clean file: {e}")
+        return False
+    except PermissionError as e:
+        logger.error(f"Permission denied during handling of clean file: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Failed to handle clean file {quarantine_file_path}: {e}")
+        return False
+
+def verify_file_integrity(source_file_path, comparison_file_path):
     """Verify file integrity between source and destination."""
     logger = logging.getLogger('shuttle')
-    destination_file_hash = get_file_hash(destination_file_path)
-    source_file_path = os.path.join(source_path, rel_path)
-    source_file_hash = get_file_hash(source_file_path)
 
-    if not compare_file_hashes(source_file_hash, destination_file_hash):
-        logger.error(f"Source and destination files do not match: {rel_path}")
+    if os.path.getsize(source_file_path) == 0 or os.path.getsize(comparison_file_path) == 0:
+        logger.error("One of the files is empty")
         return False
-    
-    logger.info(f"File integrity verified for: {destination_file_path}")
-    return True
 
-def handle_suspect_file(file_path, hazard_archive_path, hazard_archive_password):
+    source_hash = get_file_hash(source_file_path)
+    comparison_hash = get_file_hash(comparison_file_path)
+
+    if source_hash is None:
+        logger.error(f"Failed to compute hash for source file: {source_file_path}")
+        return False
+    if comparison_hash is None:
+        logger.error(f"Failed to compute hash for comparison file: {comparison_file_path}")
+        return False
+
+    if compare_file_hashes(source_hash, comparison_hash):
+        logger.info(f"File integrity verified between {source_file_path} and {comparison_file_path}")
+        return True
+    else:
+        logger.error(f"File integrity check failed between {source_file_path} and {comparison_file_path}")
+        return False
+
+def handle_suspect_file(
+    quarantine_file_path,
+    source_file_path,
+    hazard_archive_path,
+    hazard_archive_password,
+    delete_source_files
+):
     """
     Handle processing of suspect files by compressing and encrypting them.
-    
+
     Args:
-        file_path (str): Path to the suspect file.
-        hazard_archive_path (str): Path to the hazard archive directory.
-        hazard_archive_password (str): Password for the encrypted archive.
-    
+        quarantine_file_path (str): Full path to the file in quarantine
+        source_file_path (str): Full path to the original source file
+        hazard_archive_path (str): Path to the hazard archive directory
+        hazard_archive_password (str): Password for the encrypted archive
+        delete_source_files (bool): Whether to delete source files after processing
+
     Returns:
-        bool: True if the file was successfully handled, False otherwise.
+        bool: True if the file was successfully handled, False otherwise
     """
     logger = logging.getLogger('shuttle')
     try:
         if hazard_archive_path and hazard_archive_password:
+            # Verify integrity with source before archiving
+            if not verify_file_integrity(source_file_path, quarantine_file_path):
+                logger.error(f"Integrity check failed before archiving: {quarantine_file_path}")
+                return False
+
             # Compress and encrypt the file
             os.makedirs(hazard_archive_path, exist_ok=True)
-            archive_name = 'hazard_' + os.path.basename(file_path) + '_' + datetime.now().strftime('%Y%m%d%H%M%S') + '.zip'
+            archive_name = 'hazard_' + os.path.basename(quarantine_file_path) + '_' + datetime.now().strftime('%Y%m%d%H%M%S') + '.zip'
             archive_path = os.path.join(hazard_archive_path, archive_name)
 
-            # Use zip with password to encrypt the file
+            # Use zip with password from stdin
             zip_command = [
-                'zip', '--password', hazard_archive_password, archive_path, file_path
+                'zip', '-e', archive_path, quarantine_file_path
             ]
 
-            # Execute the zip command
-            result = subprocess.run(zip_command, capture_output=True, text=True)
+            # Execute the zip command, passing password via stdin
+            result = subprocess.run(
+                zip_command,
+                input=hazard_archive_password + '\n' + hazard_archive_password + '\n',  # zip asks for password twice
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False
+            )
+
             if result.returncode == 0:
                 logger.info(f"File archived and encrypted to {archive_path}")
+                # Remove the infected file from quarantine
+                remove_file_with_logging(quarantine_file_path)
+                
+                # Delete source file if requested and integrity check passed
+                if delete_source_files:
+                    remove_file_with_logging(source_file_path)
+                
+                return True
             else:
-                logger.error(f"Failed to create encrypted archive for {file_path}. Error: {result.stderr}")
+                logger.error(f"Failed to create encrypted archive for {quarantine_file_path}. Error: {result.stderr.strip()}")
                 return False
         else:
-            logger.warning(f"No hazard archive path or password provided. Deleting file {file_path}.")
+            logger.warning(f"No hazard archive path or password provided. Deleting file {quarantine_file_path}.")
+            # Remove the infected file from quarantine
+            remove_file_with_logging(quarantine_file_path)
+            
+            # Delete source file if requested
+            if delete_source_files:
+                remove_file_with_logging(source_file_path)
+            
+            return True
 
-        # Remove the infected file from quarantine
-        os.remove(file_path)
-        return True
+    except FileNotFoundError:
+        logger.error(f"'zip' command not found. Please ensure it is installed.")
+        return False
+    except PermissionError:
+        logger.error(f"Permission denied when handling suspect file: {quarantine_file_path}")
+        return False
     except Exception as e:
-        logger.error(f"Error handling suspect file {file_path}: {e}")
+        logger.error(f"Error handling suspect file {quarantine_file_path}: {e}")
         return False
     
 def main():
@@ -453,6 +576,7 @@ def main():
             os.makedirs(quarantine_path, exist_ok=True)
 
             # Copy files from source to quarantine directory
+            # os.walk traverses the directory tree
             for root, dirs, files in os.walk(source_path):
                 for file in files:
                     file_path = os.path.join(root, file)
@@ -468,12 +592,32 @@ def main():
                         continue  # Skip this file and proceed to the next one
 
                     # Determine the relative directory structure
+                    # Replicate that structure in the quarantine directory
                     rel_dir = os.path.relpath(root, source_path)
-                    dest_dir = os.path.join(quarantine_path, rel_dir)
-                    os.makedirs(dest_dir, exist_ok=True)
+                    quarantine_file_copy_dir = os.path.join(quarantine_path, rel_dir)
+                    os.makedirs(quarantine_file_copy_dir, exist_ok=True)
 
-                    # Copy the file to the quarantine directory
-                    shutil.copy2(file_path, dest_dir)
+                    # Copy the file to the appropriate directory in the quarantine directory
+                    quarantine_temp_path = os.path.join(quarantine_file_copy_dir, file + '.tmp')
+                    try:
+                        shutil.copy2(file_path, quarantine_temp_path)
+                        os.rename(quarantine_temp_path, os.path.join(quarantine_file_copy_dir, file))
+                    except:
+                        if os.path.exists(quarantine_temp_path):
+                            os.remove(quarantine_temp_path)
+                        raise
+
+                    try:
+                        ##shutil.copy2(file_path, quarantine_file_path)
+                        shutil.copy2(file_path, quarantine_file_copy_dir)
+                        logger.info(f"Copied file {file_path} to quarantine: {quarantine_file_copy_dir}")
+                    except FileNotFoundError as e:
+                        logger.error(f"File not found during copying: {file_path} to quarantine: {quarantine_file_copy_dir}. Error: {e}")
+                    except PermissionError as e:
+                        logger.error(f"Permission denied when copying file: {file_path} to quarantine: {quarantine_file_copy_dir}. Error: {e}")
+                    except Exception as e:
+                        logger.error(f"Failed to copy file to quarantine: {file_path} to quarantine: {quarantine_file_copy_dir}. Error: {e}")
+
             print(f"Successfully copied files from {source_path} to {quarantine_path}")
         except Exception as e:
             print(f"Failed to copy files from {source_path} to {quarantine_path}. Error: {e}")
@@ -481,18 +625,45 @@ def main():
 
         # Prepare arguments for scanning and processing files
         quarantine_files = []
-        for root, _, files in os.walk(quarantine_path):
+        for root, dirs, files in os.walk(source_path):
             for file in files:
-                file_path = os.path.join(root, file)
-                quarantine_files.append((
-                    file_path,
-                    quarantine_path,
-                    destination_path,
-                    source_path,
-                    hazard_archive_path,
-                    hazard_archive_password,
-                    delete_source_files
-                ))
+                # Full paths
+                source_file_path = os.path.join(root, file)
+                
+                # Get relative path to maintain structure
+                rel_dir = os.path.relpath(root, source_path)
+                
+                # Create quarantine directory structure
+                quarantine_dir = os.path.join(quarantine_path, rel_dir)
+                os.makedirs(quarantine_dir, exist_ok=True)
+                
+                # Full quarantine path
+                quarantine_file_path = os.path.join(quarantine_dir, file)
+                
+                # Full destination path (but don't create directory yet)
+                destination_dir = os.path.join(destination_path, rel_dir)
+                destination_file_path = os.path.join(destination_dir, file)
+
+                # Copy to quarantine
+                try:
+                    shutil.copy2(source_file_path, quarantine_file_path)
+                    logger.info(f"Copied file {source_file_path} to quarantine: {quarantine_file_path}")
+                    
+                    # Add to processing queue with full paths
+                    quarantine_files.append((
+                        quarantine_file_path,     # full path to quarantine file
+                        source_file_path,         # full path to source file
+                        destination_file_path,     # full path to destination file
+                        hazard_archive_path,
+                        hazard_archive_password,
+                        delete_source_files
+                    ))
+                except FileNotFoundError as e:
+                    logger.error(f"File not found during copying: {source_file_path}. Error: {e}")
+                except PermissionError as e:
+                    logger.error(f"Permission denied when copying file: {source_file_path}. Error: {e}")
+                except Exception as e:
+                    logger.error(f"Failed to copy file to quarantine: {source_file_path}. Error: {e}")
 
         # Process files in parallel using a ProcessPoolExecutor with graceful shutdown
         with ProcessPoolExecutor(max_workers=max_scans) as executor:
