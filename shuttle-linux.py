@@ -323,7 +323,14 @@ def handle_clean_file(
     try:
         # Create destination directory if it doesn't exist
         dest_dir = os.path.dirname(destination_file_path)
-        os.makedirs(dest_dir, exist_ok=True)
+        try:
+            os.makedirs(dest_dir, exist_ok=True)
+        except PermissionError:
+            logger.error(f"Permission denied creating directory: {dest_dir}")
+            return False
+        except OSError as e:
+            logger.error(f"Failed to create directory {dest_dir}: {e}")
+            return False
 
         # Move file to destination
         shutil.move(quarantine_file_path, destination_file_path)
@@ -401,8 +408,16 @@ def handle_suspect_file(
                 logger.error(f"Integrity check failed before archiving: {quarantine_file_path}")
                 return False
 
-            # Compress and encrypt the file
-            os.makedirs(hazard_archive_path, exist_ok=True)
+            # Create hazard archive directory
+            try:
+                os.makedirs(hazard_archive_path, exist_ok=True)
+            except PermissionError:
+                logger.error(f"Permission denied creating hazard archive directory: {hazard_archive_path}")
+                return False
+            except OSError as e:
+                logger.error(f"Failed to create hazard archive directory {hazard_archive_path}: {e}")
+                return False
+
             archive_name = 'hazard_' + os.path.basename(quarantine_file_path) + '_' + datetime.now().strftime('%Y%m%d%H%M%S') + '.zip'
             archive_path = os.path.join(hazard_archive_path, archive_name)
 
