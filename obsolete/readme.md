@@ -49,3 +49,19 @@ Note: Command-line parameters take precedence over settings file values.
 SourcePath must be a network file share if provided.
 
 
+old password information:
+
+
+### **Password Management**
+
+The script uses `python-keyring` to securely store and retrieve the hazard archive password.
+
+- **Store the Password:**
+
+   Use the `store_password.py` script to store the hazard archive password in the keyring.
+
+  ```bash
+  python3 store_password.py
+  ```
+
+  You will be prompted to enter the password twice for confirmation.

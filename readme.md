@@ -115,20 +115,6 @@ To install all the necessary system packages and Python dependencies, you can us
 
 - [Install Microsoft Defender for Endpoint on Linux Manually](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/linux-install-manually)
 
-### **Password Management**
-
-The script uses `python-keyring` to securely store and retrieve the hazard archive password.
-
-- **Store the Password:**
-
-   Use the `store_password.py` script to store the hazard archive password in the keyring.
-
-  ```bash
-  python3 store_password.py
-  ```
-
-  You will be prompted to enter the password twice for confirmation.
-
 - **Command-Line Override:**
 
   You can override the keyring password by providing the `-HazardArchivePassword` argument when running the script.
@@ -377,6 +363,83 @@ sequenceDiagram
     
 
 
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant S as Script
+    participant Q as Quarantine
+    participant M as MDATP
+    participant D as Destination
+    participant H as HazardArchive
+    participant FS as FileSystem
+
+    U->>S: Run with args
+    
+    alt Initialization
+        S->>S: Parse arguments
+        S->>S: Load settings.ini
+        S->>S: Setup logging
+        S->>FS: Create lock file
+    end
+
+    alt Directory Validation
+        S->>FS: Check source exists
+        S->>FS: Check destination exists
+        S->>FS: Create quarantine dir
+    end
+
+    loop For each file in source
+        S->>FS: Check if file stable
+        alt File not stable
+            S-->>S: Skip file
+        end
+
+        S->>FS: Check if file open
+        alt File open
+            S-->>S: Skip file
+        end
+
+        S->>Q: Copy file to quarantine
+    end
+ 
+    alt Parallel Processing
+        loop For each file in quarantine
+            S->>M: Scan file
+            
+            alt Clean file
+                S->>D: Move to destination
+                S->>S: Verify integrity
+                alt Delete source enabled
+                    S->>FS: Delete source file
+                end
+            else Infected file
+                alt Hazard archive configured
+                    S->>H: Encrypt and archive
+                    S->>Q: Delete from quarantine
+                    alt Delete source enabled
+                        S->>FS: Delete source file
+                    end
+                else No hazard archive
+                    S->>Q: Delete infected file
+                    alt Delete source enabled
+                        S->>FS: Delete source file
+                    end
+                end
+            end
+        end
+    end
+
+    alt Cleanup
+        S->>Q: Remove quarantine directory
+        S->>FS: Remove lock file
+    end
+
+    alt Any step fails
+        S-->>U: Error with details
+    else Success
+        S-->>U: Transfer complete
+    end
+```
 
 
 

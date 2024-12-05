@@ -12,6 +12,7 @@ dest_dir = os.path.join(base_dir, work_dir, "destination")
 log_dir = os.path.join(base_dir, work_dir, "logs")
 settings_dir = os.path.join(base_dir, ".shuttle")
 hazard_archive_dir = os.path.join(base_dir, work_dir, "HazardArchive")
+hazard_encryption_key_path = os.path.join(base_dir, work_dir, "shuttle_hazard_public.gpg")
 
 settings_file = os.path.join(settings_dir, "settings.ini")
 
@@ -42,7 +43,8 @@ config['Paths'] = {
     'DestinationPath': dest_dir,
     'QuarantinePath': quarantine_dir,
     'LogPath': log_dir,
-    'QuarantineHazardArchive': hazard_archive_dir
+    'QuarantineHazardArchive': hazard_archive_dir,
+    'HazardEncryptionKeyPath': hazard_encryption_key_path
 }
 
 config['Settings'] = {

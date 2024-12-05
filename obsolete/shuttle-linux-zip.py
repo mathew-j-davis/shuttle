@@ -13,7 +13,6 @@ from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
 import configparser  # Added import for configparser
-import gnupg
 
 def setup_logging(log_file=None, log_level=logging.INFO):
     """
@@ -226,8 +225,6 @@ def is_file_stable(file_path, stability_time=5):
     except Exception as e:
         logger.error(f"Error checking if file is stable {file_path}: {e}")
         return False
-
-
 def scan_and_process_file(args):
     """
     Scan a file for malware and process it accordingly.
@@ -238,7 +235,7 @@ def scan_and_process_file(args):
             - source_file_path (str): Full path to the original source file
             - destination_file_path (str): Full path where the file should be copied in destination
             - hazard_archive_path (str): Path to the hazard archive directory
-            - key_file_path (str): Full path to the public encryption key file
+            - hazard_archive_password (str): Password for the encrypted archive
             - delete_source_files (bool): Whether to delete source files after processing
 
     Returns:
@@ -250,7 +247,7 @@ def scan_and_process_file(args):
         source_file_path,
         destination_file_path,
         hazard_archive_path,
-        key_file_path,
+        hazard_archive_password,
         delete_source_files
     ) = args
 
@@ -287,7 +284,7 @@ def scan_and_process_file(args):
                 quarantine_file_path,
                 source_file_path,
                 hazard_archive_path,
-                key_file_path,
+                hazard_archive_password,
                 delete_source_files
             )
         else:
@@ -303,7 +300,6 @@ def scan_and_process_file(args):
     except Exception as e:
         logger.error(f"An exception occurred while scanning {quarantine_file_path}: {e}")
         return False
-
 
 def handle_clean_file(
     quarantine_file_path,
@@ -384,143 +380,94 @@ def verify_file_integrity(source_file_path, comparison_file_path):
         logger.error(f"File integrity check failed between {source_file_path} and {comparison_file_path}")
         return False
 
-
-def encrypt_file(file_path, output_path, key_file_path):
-    """
-    Encrypt a file using GPG with a specified public key file.
-    
-    Args:
-        file_path (str): Path to file to encrypt
-        output_path (str): Path for encrypted output
-        key_file_path (str): Full path to the public key file (.gpg)
-    
-    Returns:
-        bool: True if encryption successful, False otherwise
-    """
-    logger = logging.getLogger('shuttle')
-    try:
-        gpg = gnupg.GPG()
-        
-        # Import the key from file
-        with open(key_file_path, 'rb') as key_file:
-            import_result = gpg.import_keys(key_file.read())
-            if not import_result.count:
-                logger.error(f"Failed to import key from {key_file_path}")
-                return False
-            
-            # Use the fingerprint from the imported key
-            key_id = import_result.fingerprints[0]
-        
-        # Encrypt file
-        with open(file_path, 'rb') as f:
-            status = gpg.encrypt_file(
-                f,
-                recipients=[key_id],
-                output=output_path,
-                always_trust=True
-            )
-        
-        if status.ok:
-            logger.info(f"File encrypted successfully: {output_path}")
-            return True
-        else:
-            logger.error(f"Encryption failed: {status.status}")
-            return False
-            
-    except FileNotFoundError:
-        logger.error(f"Key file not found: {key_file_path}")
-        return False
-    except Exception as e:
-        logger.error(f"Error during encryption: {e}")
-        return False
-
 def handle_suspect_file(
     quarantine_file_path,
     source_file_path,
     hazard_archive_path,
-    key_file_path,
+    hazard_archive_password,
     delete_source_files
 ):
     """
-    Handle a file that has been identified as suspicious/infected.
-    If hazard archive parameters are provided, encrypt and archive the file.
-    Otherwise, delete it.
-    
+    Handle processing of suspect files by compressing and encrypting them.
+
     Args:
-        quarantine_file_path (str): Path to the file in quarantine
-        source_file_path (str): Original path of the file
-        hazard_archive_path (str): Path to archive suspicious files
-        key_file_path (str): Path to GPG public key file
+        quarantine_file_path (str): Full path to the file in quarantine
+        source_file_path (str): Full path to the original source file
+        hazard_archive_path (str): Path to the hazard archive directory
+        hazard_archive_password (str): Password for the encrypted archive
         delete_source_files (bool): Whether to delete source files after processing
-    
+
     Returns:
-        bool: True if file was handled successfully, False otherwise
+        bool: True if the file was successfully handled, False otherwise
     """
     logger = logging.getLogger('shuttle')
-    
     try:
-        # If hazard archive path and encryption key are provided, archive the file
-        if hazard_archive_path and key_file_path:
-            # Verify file integrity before archiving
+        if hazard_archive_path and hazard_archive_password:
+            # Verify integrity with source before archiving
             if not verify_file_integrity(source_file_path, quarantine_file_path):
                 logger.error(f"Integrity check failed before archiving: {quarantine_file_path}")
                 return False
 
-            # Create hazard archive directory if it doesn't exist
+            # Create hazard archive directory
             try:
                 os.makedirs(hazard_archive_path, exist_ok=True)
-            except PermissionError as e:
-                logger.error(f"Permission denied when creating hazard archive directory {hazard_archive_path}: {e}")
+            except PermissionError:
+                logger.error(f"Permission denied creating hazard archive directory: {hazard_archive_path}")
                 return False
             except OSError as e:
-                logger.error(f"OS error when creating hazard archive directory {hazard_archive_path}: {e}")
+                logger.error(f"Failed to create hazard archive directory {hazard_archive_path}: {e}")
                 return False
 
-            # Generate encrypted file path with timestamp
-            archive_name = f"hazard_{os.path.basename(quarantine_file_path)}_{datetime.now().strftime('%Y%m%d%H%M%S')}.gpg"
+            archive_name = 'hazard_' + os.path.basename(quarantine_file_path) + '_' + datetime.now().strftime('%Y%m%d%H%M%S') + '.zip'
             archive_path = os.path.join(hazard_archive_path, archive_name)
 
-            # Attempt to encrypt the file
-            if encrypt_file(quarantine_file_path, archive_path, key_file_path):
-                logger.info(f"Successfully encrypted suspect file to: {archive_path}")
-                
+            # Use zip with password from stdin
+            zip_command = [
+                'zip', '-e', archive_path, quarantine_file_path
+            ]
+
+            # Execute the zip command, passing password via stdin
+            result = subprocess.run(
+                zip_command,
+                input=hazard_archive_password + '\n' + hazard_archive_password + '\n',  # zip asks for password twice
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False
+            )
+
+            if result.returncode == 0:
+                logger.info(f"File archived and encrypted to {archive_path}")
                 # Remove the infected file from quarantine
-                if not remove_file_with_logging(quarantine_file_path):
-                    logger.error(f"Failed to remove quarantined file after archiving: {quarantine_file_path}")
-                    return False
+                remove_file_with_logging(quarantine_file_path)
                 
-                # Delete source file if requested
+                # Delete source file if requested and integrity check passed
                 if delete_source_files:
-                    if not remove_file_with_logging(source_file_path):
-                        logger.error(f"Failed to remove source file after archiving: {source_file_path}")
-                        return False
+                    remove_file_with_logging(source_file_path)
                 
                 return True
             else:
-                logger.error(f"Failed to encrypt file: {quarantine_file_path}")
+                logger.error(f"Failed to create encrypted archive for {quarantine_file_path}. Error: {result.stderr.strip()}")
                 return False
         else:
-            # No hazard archive parameters - delete the infected file
-            logger.warning(
-                f"No hazard archive path or encryption key file provided. "
-                f"Deleting infected file: {quarantine_file_path}"
-            )
+            logger.warning(f"No hazard archive path or password provided. Deleting file {quarantine_file_path}.")
+            # Remove the infected file from quarantine
+            remove_file_with_logging(quarantine_file_path)
             
-            # Remove from quarantine
-            if not remove_file_with_logging(quarantine_file_path):
-                logger.error(f"Failed to remove quarantined file: {quarantine_file_path}")
-                return False
-            
-            # Delete source if requested
+            # Delete source file if requested
             if delete_source_files:
-                if not remove_file_with_logging(source_file_path):
-                    logger.error(f"Failed to remove source file: {source_file_path}")
-                    return False
+                remove_file_with_logging(source_file_path)
             
             return True
 
+    except FileNotFoundError:
+        logger.error(f"'zip' command not found. Please ensure it is installed.")
+        return False
+    except PermissionError:
+        logger.error(f"Permission denied when handling suspect file: {quarantine_file_path}")
+        return False
     except Exception as e:
-        logger.error(f"Unexpected error handling suspect file {quarantine_file_path}: {e}")
+        logger.error(f"Error handling suspect file {quarantine_file_path}: {e}")
         return False
     
 def main():
@@ -538,7 +485,7 @@ def main():
     parser.add_argument('--max-scans', type=int, help='Maximum number of parallel scans')
     parser.add_argument('--lock-file', default='/tmp/shuttle.lock', help='Path to lock file to prevent multiple instances')
     parser.add_argument('-QuarantineHazardArchive', help='Path to the hazard archive directory')
-    parser.add_argument('-HazardEncryptionKeyPath', help='Path to the GPG public key file for encrypting hazard files')
+    parser.add_argument('-HazardArchivePassword', help='Password for the encrypted hazard archive')
     parser.add_argument('-LogLevel', default=None, help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
 
     args = parser.parse_args()
@@ -610,21 +557,19 @@ def main():
                 logger.error(f"Required command '{cmd}' not found. Please ensure it is installed and accessible in your PATH.")
             sys.exit(1)
 
-        # Get encryption key file path
-        if hazard_archive_path:
-            hazard_encryption_key_file_path = args.HazardEncryptionKeyPath or config.get('Paths', 'HazardEncryptionKeyPath', fallback=None)
-            if not hazard_encryption_key_file_path:
-                logger.error("Hazard archive path specified but no encryption key file provided")
-                sys.exit(1)
-            if not os.path.isfile(hazard_encryption_key_file_path):
-                logger.error(f"Encryption key file not found: {hazard_encryption_key_file_path}")
-                sys.exit(1)
-
+        # Retrieve the hazard archive password
+        if args.HazardArchivePassword:
+            hazard_archive_password = args.HazardArchivePassword
         else:
-            hazard_encryption_key_file_path = None
+            service_name = "shuttle_linux"
+            username = "hazard_archive"
+            hazard_archive_password = keyring.get_password(service_name, username)
+
+            if not hazard_archive_password:
+                logger.warning("Hazard archive password not found. Suspect files will be deleted without archiving.")
+                hazard_archive_password = None
 
         # Retrieve other settings
-
         delete_source_files = args.DeleteSourceFilesAfterCopying or config.getboolean('Settings', 'DeleteSourceFilesAfterCopying', fallback=False)
 
         if args.max_scans is not None:
@@ -725,7 +670,7 @@ def main():
                         source_file_path,         # full path to source file
                         destination_file_path,     # full path to destination file
                         hazard_archive_path,
-                        hazard_encryption_key_file_path,
+                        hazard_archive_password,
                         delete_source_files
                     ))
                 except FileNotFoundError as e:

@@ -55,12 +55,12 @@ else
     exit 1
 fi
 
-# Check zip
-echo -n "Checking if zip is installed: "
-if command -v zip &>/dev/null; then
-    echo "zip is installed."
+# Check GPG installation
+echo -n "Checking if gpg is installed: "
+if command -v gpg &>/dev/null; then
+    echo "gpg is installed."
 else
-    echo "zip is not installed."
+    echo "gpg is not installed."
     exit 1
 fi
 

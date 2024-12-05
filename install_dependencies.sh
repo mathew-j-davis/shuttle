@@ -8,9 +8,9 @@ sudo apt-get update -y
 echo "Installing lsof..."
 sudo apt-get install -y lsof
 
-# Install zip for compressing and encrypting files
-echo "Installing zip..."
-sudo apt-get install -y zip
+# Install GPG if not present
+echo "Installing/updating GPG..."
+sudo apt-get install -y gnupg
 
 # Install Python 3 and pip
 echo "Installing Python3 and pip..."
