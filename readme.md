@@ -310,3 +310,79 @@ Please refer to this `readme.md` for detailed instructions on setting up, config
 
 
 
+```mermaid
+
+sequenceDiagram
+    participant U as User
+    participant S as Script
+    participant FS as FileSystem
+
+    participant GPG as GPG Server
+    participant GH as GitHub
+
+    U-->>S: Run with args
+
+    alt No version specified
+        S-->>FS: Check for installed version
+        alt Not installed
+            S-->>U: Error: No version
+        end
+    end
+
+    alt Version specified
+        S-->>S: Validate version format
+        alt Invalid format
+            S-->>U: Error: Invalid version
+        end
+    end
+
+
+
+        alt Need installation
+        S-->>GH: Download release zip
+        S-->>GH: Download signature
+        
+        S-->>GPG: Request OWASP key
+        GPG-->>S: Return key
+        
+        S-->>S: Verify signature
+        alt Verification fails
+            S-->>U: Error: Invalid signature
+        end
+        
+        S-->>FS: Create install directory
+        S-->>FS: Extract zip
+        S-->>FS: Update PATH in .bashrc
+    end
+
+
+
+    S-->>FS: Check project path exists
+
+     alt Path invalid
+            S-->>U: Error: Invalid path
+    end
+
+    rect rgb(240, 240, 245) 
+        S-->>S: Run dependency check
+        S-->>FS: Generate HTML report
+
+        alt Any step fails
+            S-->>U: Error with details
+        else Success
+            S-->>U: Scan complete
+        end
+    end
+```
+    
+
+
+
+
+
+        
+
+
+
+
+

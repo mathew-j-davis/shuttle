@@ -12,7 +12,9 @@ sudo apt-get install -y lsof
 echo "Installing zip..."
 sudo apt-get install -y zip
 
-
+# Install Python 3 and pip
+echo "Installing Python3 and pip..."
+sudo apt-get install -y python3 python3-pip
 
 # Install Python packages from requirements.txt
 echo "Installing Python packages from requirements.txt..."

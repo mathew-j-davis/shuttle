@@ -79,4 +79,116 @@ else
     exit 1
 fi
 
+
+# Install safety if not present
+echo -n "Checking if safety is installed: "
+if ! command -v safety &>/dev/null; then
+    echo "safety not found, installing..."
+    pip3 install safety
+else
+    echo "safety is installed."
+fi
+
+# Check Python packages for known vulnerabilities
+echo "Checking installed Python packages for vulnerabilities..."
+if safety check; then
+    echo "No known vulnerabilities found in installed packages."
+else
+    echo "WARNING: Vulnerabilities found in installed packages!"
+fi
+
+# Check requirements.txt for known vulnerabilities
+echo "Checking requirements.txt for vulnerabilities..."
+if [ -f requirements.txt ]; then
+    if safety check -r requirements.txt; then
+        echo "No known vulnerabilities found in requirements.txt"
+    else
+        echo "WARNING: Vulnerabilities found in requirements.txt!"
+    fi
+else
+    echo "requirements.txt not found, skipping check."
+fi
+
+# Check system packages for security updates
+echo "Checking system packages for security updates..."
+sudo apt-get update -qq
+SECURITY_UPDATES=$(apt list --upgradable 2>/dev/null | grep -i security)
+if [ -n "$SECURITY_UPDATES" ]; then
+    echo "WARNING: Security updates are available:"
+    echo "$SECURITY_UPDATES"
+else
+    echo "No security updates available."
+fi
+
 echo "All health checks passed!" 
+
+
+
+# # ... existing code ...
+
+# # Check mdatp
+# echo -n "Checking if mdatp is installed and running: "
+# if command -v mdatp &>/dev/null; then
+#     # Check if mdatp service is running and real-time protection is enabled
+#     REAL_TIME_PROTECTION=$(mdatp health --field real_time_protection_enabled)
+#     ENGINE_STATE=$(mdatp health --field engine_state)
+#     if [[ $REAL_TIME_PROTECTION == "true" ]] && [[ $ENGINE_STATE == "active" ]]; then
+#         echo "mdatp is installed and running properly."
+        
+#         # Test scan capability
+#         echo -n "Testing mdatp scan capability: "
+#         TEST_FILE=$(mktemp)
+#         echo "test content" > "$TEST_FILE"
+#         if mdatp scan file --path "$TEST_FILE" &>/dev/null; then
+#             echo "mdatp scan is working."
+#             rm -f "$TEST_FILE"
+#         else
+#             echo "mdatp scan test failed."
+#             rm -f "$TEST_FILE"
+#             exit 1
+#         fi
+#     else
+#         echo "mdatp is installed but not running properly. Real-time protection: $REAL_TIME_PROTECTION, Engine state: $ENGINE_STATE"
+#         exit 1
+#     fi
+# else
+#     echo "mdatp is not installed."
+#     exit 1
+# fi
+
+# # Check zip with encryption support
+# echo -n "Checking if zip supports encryption: "
+# TEST_ZIP=$(mktemp -d)/test.zip
+# TEST_FILE=$(mktemp)
+# echo "test" > "$TEST_FILE"
+# if echo "test_password" | zip -e "$TEST_ZIP" "$TEST_FILE" &>/dev/null; then
+#     echo "zip encryption is working."
+#     rm -f "$TEST_ZIP" "$TEST_FILE"
+# else
+#     echo "zip encryption test failed."
+#     rm -f "$TEST_ZIP" "$TEST_FILE"
+#     exit 1
+# fi
+
+# # Check write permissions
+# echo "Checking write permissions:"
+# for DIR in "$SOURCE_PATH" "$DESTINATION_PATH" "$QUARANTINE_PATH" "$HAZARD_ARCHIVE_PATH"; do
+#     if [ -n "$DIR" ]; then
+#         echo -n "  Checking $DIR: "
+#         if [ -d "$DIR" ]; then
+#             TEST_FILE="$DIR/.write_test"
+#             if touch "$TEST_FILE" 2>/dev/null; then
+#                 echo "writable"
+#                 rm -f "$TEST_FILE"
+#             else
+#                 echo "not writable"
+#                 exit 1
+#             fi
+#         else
+#             echo "directory does not exist"
+#             exit 1
+#         fi
+#     fi
+# done
+
+# ... existing code ...
