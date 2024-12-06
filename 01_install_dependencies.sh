@@ -12,14 +12,6 @@ sudo apt-get install -y lsof
 echo "Installing/updating GPG..."
 sudo apt-get install -y gnupg
 
-# Install Python 3 and pip
-echo "Installing Python3 and pip..."
-sudo apt-get install -y python3 python3-pip
-
-# Install Python packages from requirements.txt
-echo "Installing Python packages from requirements.txt..."
-pip3 install -r requirements.txt
-
 # Check if mdatp is installed
 if ! command -v mdatp &>/dev/null; then
     echo "mdatp (Microsoft Defender ATP) not found."
