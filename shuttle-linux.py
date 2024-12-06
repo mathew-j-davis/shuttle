@@ -8,7 +8,6 @@ import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
-import keyring
 from pathlib import Path
 import logging
 from logging.handlers import RotatingFileHandler
