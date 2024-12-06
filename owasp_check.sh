@@ -23,6 +23,39 @@ validate_version() {
     fi
 }
 
+# Compare semantic versions
+# Returns 0 if version1 >= version2
+# Returns 1 if version1 < version2
+compare_versions() {
+    local version1=$1
+    local version2=$2
+    
+    # Split versions into arrays
+    IFS='.' read -ra VER1 <<< "$version1"
+    IFS='.' read -ra VER2 <<< "$version2"
+    
+    # Compare major version
+    if [[ ${VER1[0]} -gt ${VER2[0]} ]]; then
+        return 0
+    elif [[ ${VER1[0]} -lt ${VER2[0]} ]]; then
+        return 1
+    fi
+    
+    # Compare minor version
+    if [[ ${VER1[1]} -gt ${VER2[1]} ]]; then
+        return 0
+    elif [[ ${VER1[1]} -lt ${VER2[1]} ]]; then
+        return 1
+    fi
+    
+    # Compare patch version
+    if [[ ${VER1[2]} -ge ${VER2[2]} ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
 get_installed_version() {
     if command -v dependency-check.sh >/dev/null; then
         dependency-check.sh --version | grep -oP '\d+\.\d+\.\d+'
@@ -94,8 +127,15 @@ main() {
     
     if [[ -n "$version" ]]; then
         validate_version "$version"
-        if [[ -z "$current_version" || "$version" > "$current_version" ]]; then
+        if [[ -z "$current_version" ]]; then
             download_and_verify "$version"
+        else
+            if ! compare_versions "$current_version" "$version"; then
+                log "Updating from version $current_version to $version"
+                download_and_verify "$version"
+            else
+                log "Current version $current_version meets or exceeds required version $version"
+            fi
         fi
     fi
     
