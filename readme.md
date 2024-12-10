@@ -15,9 +15,9 @@
   - Supports parallel scanning with a configurable number of concurrent scans.
 
 - **Handling Infected Files:**
-  - If malware is detected, files are compressed and encrypted using a provided password.
-  - Encrypted archives are moved to a specified hazard archive directory for further analysis.
-  - If hazard archive parameters are not provided, infected files are deleted.
+  - If malware is detected, files are encrypted using GPG with a public key
+  - Encrypted files are moved to a specified hazard archive directory for further analysis
+  - If hazard archive parameters are not provided, infected files are deleted
 
 - **File Integrity Verification:**
   - Verifies that the source and destination files match by comparing their hashes.
@@ -41,7 +41,7 @@
 - **Python 3**: Programming language used to run the script (version >= 3.6).
 - **pip**: Python package installer.
 - **lsof**: Utility to check if files are open by any processes.
-- **zip**: Utility for compressing and encrypting files.
+- **gpg**: GNU Privacy Guard for file encryption.
 - **mdatp**: Microsoft Defender ATP command-line tool for malware scanning.
 
 **Note:** The script will check for the availability of these external commands at runtime. If any are missing, it will log an error and exit.
@@ -55,11 +55,18 @@ Ensure that the following commands are installed and accessible in your system's
     ```bash
     sudo apt-get install lsof  # For Debian/Ubuntu
     ```
-- **zip**:
+    
+- **gpg**:
   - Install via package manager:
     ```bash
-    sudo apt-get install zip  # For Debian/Ubuntu
+    sudo apt-get install gnupg  # For Debian/Ubuntu
     ```
+  - Verify installation:
+    ```bash
+    gpg --version
+    ```
+  - Note: GPG is typically pre-installed on most Linux distributions but may need updating.
+
 - **mdatp**:
   - **Official Installation Guide**:
     - [Install Microsoft Defender for Endpoint on Linux Manually](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/linux-install-manually)
@@ -126,8 +133,8 @@ python3 shuttle-linux.py \
     -SourcePath /path/to/source \
     -DestinationPath /path/to/destination \
     -QuarantinePath /path/to/quarantine \
-    -QuarantineHazardArchive /path/to/hazard_archive \
-    -HazardArchivePassword your_secure_password \
+    -HazardArchivePath /path/to/hazard_archive \
+    -HazardEncryptionKeyPath /path/to/shuttle_public.gpg \
     --max-scans 4 \
     -DeleteSourceFilesAfterCopying
 ```
@@ -142,8 +149,8 @@ python3 shuttle-linux.py \
 - `-DeleteSourceFilesAfterCopying`: Delete the source files after successful transfer.
 - `--max-scans`: Maximum number of parallel scans.
 - `--lock-file`: Path to the lock file to prevent multiple instances (default: `/tmp/shuttle.lock`).
-- `-QuarantineHazardArchive`: Path to the hazard archive directory for infected files.
-- `-HazardArchivePassword`: Password for encrypting the hazard archive (overrides keyring).
+- `-HazardArchivePath`: Path to store encrypted infected files
+- `-HazardEncryptionKeyPath`: Path to the GPG public key file for encrypting hazard files
 - `-LogLevel`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default is INFO.
 
 ### **Settings File (`settings.ini`):**
@@ -156,7 +163,8 @@ SourcePath=/path/to/source
 DestinationPath=/path/to/destination
 QuarantinePath=/path/to/quarantine
 LogPath=/path/to/logs
-QuarantineHazardArchive=/path/to/hazard_archive
+HazardArchivePath=/path/to/hazard_archive
+HazardEncryptionKeyPath=/path/to/shuttle_public.gpg
 
 [Settings]
 MaxScans=4
@@ -170,8 +178,6 @@ LogLevel=DEBUG
 file.
 
 **Note:** The `LogLevel` can be set to `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` depending on the desired verbosity.
-
-**Hazard Archive Password:** The password is stored in the operating system keyring. The primary use for this password is to require a manual confirmation before opening an archive that may contain malware. If you require alternative storage of the password to protect these archives, please modify the script to integrate with your secrets vault.
 
 ### **Example Workflow:**
 
@@ -196,7 +202,7 @@ file.
    - The script copies files from the source to the quarantine directory, skipping files that are unstable or open.
    - Files in the quarantine directory are scanned in parallel.
      - Clean files are moved to the destination directory.
-     - Infected files are compressed, encrypted, and moved to the hazard archive.
+     - Infected files are encrypted and moved to the hazard archive.
    - Source files are optionally deleted after successful processing.
    - The quarantine directory is cleaned up after processing.
 
@@ -226,7 +232,8 @@ file.
 - **Limitations:**
 
   - The script assumes that `mdatp` is installed and operational.
-  - The `zip` utility's encryption may not meet all security requirements; consider using stronger encryption methods if necessary.
+
+
 
 ## **Contributing and Feedback**
 
@@ -269,10 +276,11 @@ An example project directory structure:
 /your_project/
 ├── shuttle-linux.py
 ├── setup_test_environment_linux.py
-├── install_dependencies.sh
-├── health_check.sh
-├── create_venv.sh
-├── store_password.py
+├── 01_install_dependencies.sh
+├── 02_health_check.sh
+├── 03_create_venv.sh
+├── 04_setup_owasp_check.sh
+├── 05_generate_keys.sh
 ├── requirements.txt
 ├── settings.ini
 ├── readme.md
@@ -284,11 +292,44 @@ Ensure all scripts have the correct permissions:
 ```bash
 chmod +x shuttle-linux.py
 chmod +x setup_test_environment_linux.py
-chmod +x install_dependencies.sh
-chmod +x health_check.sh
-chmod +x create_venv.sh
-chmod +x store_password.py
+chmod +x 01_install_dependencies.sh
+chmod +x 02_health_check.sh
+chmod +x 03_create_venv.sh
+chmod +x 04_setup_owasp_check.sh
+chmod +x 05_generate_keys.sh
 ```
+
+### **Key Management**
+
+The script uses GPG encryption for securing hazard files. You'll need to:
+
+1. **Generate Key Pair**:
+   ```bash
+   ./generate_keys.sh
+   ```
+   This will create:
+   - `shuttle_public.gpg`: Public key for encrypting hazard files
+   - `shuttle_private.gpg`: Private key for decryption (keep secure!)
+
+2. **Key Deployment**:
+   - Deploy ONLY the public key (`shuttle_public.gpg`) to production machines
+   - Keep the private key secure and OFF the production machine
+   - Store the private key securely for later decryption of hazard files
+
+3. **Security Considerations**:
+   - Never deploy the private key to production environments
+   - Keep the private key backed up securely
+   - Only systems that need to decrypt hazard files should have access to the private key
+   - The production system only needs the public key for encryption
+
+4. **Configuration**:
+   Update your settings.ini with the path to the public key:
+   ```ini
+   [Settings]
+   HazardEncryptionKeyFile = /path/to/shuttle_public.gpg
+   ```
+
+**Note:** The separation of public and private keys ensures that even if the production system is compromised, encrypted hazard files cannot be decrypted without access to the private key stored elsewhere.
 
 ---
 
