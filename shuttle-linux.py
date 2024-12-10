@@ -536,7 +536,7 @@ def main():
                         help='Delete the source files after copying them to the destination')
     parser.add_argument('--max-scans', type=int, help='Maximum number of parallel scans')
     parser.add_argument('--lock-file', default='/tmp/shuttle.lock', help='Path to lock file to prevent multiple instances')
-    parser.add_argument('-QuarantineHazardArchive', help='Path to the hazard archive directory')
+    parser.add_argument('-HazardArchivePath', help='Path to the hazard archive directory')
     parser.add_argument('-HazardEncryptionKeyPath', help='Path to the GPG public key file for encrypting hazard files')
     parser.add_argument('-LogLevel', default=None, help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
 
@@ -570,7 +570,7 @@ def main():
         destination_path = get_setting(args.DestinationPath, 'Paths', 'DestinationPath')
         quarantine_path = get_setting(args.QuarantinePath, 'Paths', 'QuarantinePath')
         log_path = get_setting(args.LogPath, 'Paths', 'LogPath')
-        hazard_archive_path = get_setting(args.QuarantineHazardArchive, 'Paths', 'QuarantineHazardArchive')
+        hazard_archive_path = get_setting(args.HazardArchivePath, 'Paths', 'HazardArchivePath')
         log_level_str = get_setting(args.LogLevel, 'Logging', 'LogLevel', 'INFO').upper()
 
         # Map the log level string to a logging level
