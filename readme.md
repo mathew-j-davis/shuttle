@@ -159,11 +159,20 @@ The script ensures that the following commands are installed and accessible in y
 
    ```
 
-## Running the script
+2. **Run the Shuttle Script:**
 
 Make sure the virtual environment is active.
 You do not need to provide parameters if parameters are configured in the settings file
 If you do not configure a hazard archive directory and an encryption key, suspect files will be deleted.
+
+Execute `shuttle-linux.py` with the desired parameters or ensure the `settings.ini` file is properly configured.
+
+```bash
+python3 shuttle-linux.py
+```
+
+Full parameters:
+
 
 ```bash
 python3 shuttle-linux.py \
@@ -196,19 +205,20 @@ If command-line arguments are not provided, the script will attempt to read from
 
 ```ini
 [Paths]
-SourcePath=/path/to/source
-DestinationPath=/path/to/destination
-QuarantinePath=/path/to/quarantine
-LogPath=/path/to/logs
-HazardArchivePath=/path/to/hazard_archive
-HazardEncryptionKeyPath=/path/to/shuttle_public.gpg
+source_path=/path/to/source
+destination_path=/path/to/destination
+quarantine_path=/path/to/quarantine
+log_path=/path/to/logs
+hazard_archive_path=/path/to/hazard_archive
+hazard_encryption_key_path=/path/to/shuttle_public.gpg
 
 [Settings]
-MaxScans=4
-DeleteSourceFilesAfterCopying=True
+max_scan_threads=4
+delete_source_files_after_copying=True
 
 [Logging]
-LogLevel=DEBUG
+log_level=DEBUG
+
 ```
 
 **Note:** The script gives priority to command-line arguments over the settings 
@@ -218,23 +228,9 @@ file.
 
 ### **Example Workflow:**
 
-1. **Set Up Test Environment:**
 
-   Use the provided `setup_test_environment_linux.py` script to create test directories and files.
 
-   ```bash
-   python3 setup_test_environment_linux.py
-   ```
-
-2. **Run the Shuttle Script:**
-
-   Execute `shuttle-linux.py` with the desired parameters or ensure the `settings.ini` file is properly configured.
-
-   ```bash
-   python3 shuttle-linux.py
-   ```
-
-3. **Script Operations:**
+- **Script Operations:**
 
    - The script copies files from the source to the quarantine directory, skipping files that are unstable or open.
    - Files in the quarantine directory are scanned in parallel.
@@ -243,7 +239,7 @@ file.
    - Source files are optionally deleted after successful processing.
    - The quarantine directory is cleaned up after processing.
 
-4. **Review Results:**
+- **Review Results:**
 
    - Check the destination directory for transferred files.
    - Examine the hazard archive for any infected files, if applicable.
@@ -253,7 +249,6 @@ file.
 
 - **Security Considerations:**
 
-  - Handle passwords securely; avoid exposing them in scripts or command-line arguments when possible.
   - Ensure only authorized users have access to the script and the directories involved.
 
 - **Error Handling:**
@@ -265,12 +260,6 @@ file.
 
   - Thoroughly test the script in a controlled environment before deploying it in production.
   - Validate that all operations perform as expected and that files are transferred securely.
-
-- **Limitations:**
-
-  - The script assumes that `mdatp` is installed and operational.
-
-
 
 ## **Contributing and Feedback**
 
@@ -305,36 +294,7 @@ mdatp config telemetry --value-disabled # Disable telemetry
 
 Feel free to explore the `mdatp` command-line options to better understand its capabilities.
 
-## **Project Structure**
 
-An example project directory structure:
-
-```
-/your_project/
-├── shuttle-linux.py
-├── setup_test_environment_linux.py
-├── 01_install_dependencies.sh
-├── 02_health_check.sh
-├── 03_create_venv.sh
-├── 04_setup_owasp_check.sh
-├── 05_generate_keys.sh
-├── requirements.txt
-├── settings.ini
-├── readme.md
-└── ... (other files)
-```
-
-Ensure all scripts have the correct permissions:
-
-```bash
-chmod +x shuttle-linux.py
-chmod +x setup_test_environment_linux.py
-chmod +x 01_install_dependencies.sh
-chmod +x 02_health_check.sh
-chmod +x 03_create_venv.sh
-chmod +x 04_setup_owasp_check.sh
-chmod +x 05_generate_keys.sh
-```
 
 ### **Key Management**
 
@@ -367,163 +327,3 @@ The script uses GPG encryption for securing hazard files. You'll need to:
    ```
 
 **Note:** The separation of public and private keys ensures that even if the production system is compromised, encrypted hazard files cannot be decrypted without access to the private key stored elsewhere.
-
----
-
-Please refer to this `readme.md` for detailed instructions on setting up, configuring, and running the `shuttle-linux.py` script.
-
-
-
-```mermaid
-
-sequenceDiagram
-    participant U as User
-    participant S as Script
-    participant FS as FileSystem
-
-    participant GPG as GPG Server
-    participant GH as GitHub
-
-    U-->>S: Run with args
-
-    alt No version specified
-        S-->>FS: Check for installed version
-        alt Not installed
-            S-->>U: Error: No version
-        end
-    end
-
-    alt Version specified
-        S-->>S: Validate version format
-        alt Invalid format
-            S-->>U: Error: Invalid version
-        end
-    end
-
-
-
-        alt Need installation
-        S-->>GH: Download release zip
-        S-->>GH: Download signature
-        
-        S-->>GPG: Request OWASP key
-        GPG-->>S: Return key
-        
-        S-->>S: Verify signature
-        alt Verification fails
-            S-->>U: Error: Invalid signature
-        end
-        
-        S-->>FS: Create install directory
-        S-->>FS: Extract zip
-        S-->>FS: Update PATH in .bashrc
-    end
-
-
-
-    S-->>FS: Check project path exists
-
-     alt Path invalid
-            S-->>U: Error: Invalid path
-    end
-
-    rect rgb(240, 240, 245) 
-        S-->>S: Run dependency check
-        S-->>FS: Generate HTML report
-
-        alt Any step fails
-            S-->>U: Error with details
-        else Success
-            S-->>U: Scan complete
-        end
-    end
-```
-    
-
-
-```mermaid
-sequenceDiagram
-    participant U as User
-    participant S as Script
-    participant Q as Quarantine
-    participant M as MDATP
-    participant D as Destination
-    participant H as HazardArchive
-    participant FS as FileSystem
-
-    U->>S: Run with args
-    
-    alt Initialization
-        S->>S: Parse arguments
-        S->>S: Load settings.ini
-        S->>S: Setup logging
-        S->>FS: Create lock file
-    end
-
-    alt Directory Validation
-        S->>FS: Check source exists
-        S->>FS: Check destination exists
-        S->>FS: Create quarantine dir
-    end
-
-    loop For each file in source
-        S->>FS: Check if file stable
-        alt File not stable
-            S-->>S: Skip file
-        end
-
-        S->>FS: Check if file open
-        alt File open
-            S-->>S: Skip file
-        end
-
-        S->>Q: Copy file to quarantine
-    end
- 
-    alt Parallel Processing
-        loop For each file in quarantine
-            S->>M: Scan file
-            
-            alt Clean file
-                S->>D: Move to destination
-                S->>S: Verify integrity
-                alt Delete source enabled
-                    S->>FS: Delete source file
-                end
-            else Infected file
-                alt Hazard archive configured
-                    S->>H: Encrypt and archive
-                    S->>Q: Delete from quarantine
-                    alt Delete source enabled
-                        S->>FS: Delete source file
-                    end
-                else No hazard archive
-                    S->>Q: Delete infected file
-                    alt Delete source enabled
-                        S->>FS: Delete source file
-                    end
-                end
-            end
-        end
-    end
-
-    alt Cleanup
-        S->>Q: Remove quarantine directory
-        S->>FS: Remove lock file
-    end
-
-    alt Any step fails
-        S-->>U: Error with details
-    else Success
-        S-->>U: Transfer complete
-    end
-```
-
-
-
-        
-
-
-
-
-
