@@ -2,7 +2,7 @@
 
 **Note:** This script is under active development and has not been fully tested. Use at your own risk.
 
-`shuttle-linux.py` is a Python script designed to transfer files from a source directory to a destination directory on Ubuntu Linux systems. It includes malware scanning using Microsoft Defender ATP (`mdatp`), handling of infected files, and supports parallel processing for efficiency. It may work on other Linux distributions however the installation scripts were written for ubuntu, and you will need to check that Microsoft Defender is supported on your distribution.
+`shuttle.py` is a Python script designed to transfer files from a source directory to a destination directory on Ubuntu Linux systems. It includes malware scanning using Microsoft Defender ATP (`mdatp`), handling of infected files, and supports parallel processing for efficiency. It may work on other Linux distributions however the installation scripts were written for ubuntu, and you will need to check that Microsoft Defender is supported on your distribution.
 
 ## **Features**
 
@@ -40,23 +40,60 @@
   - a public key  :   ~/.shuttle/hazard_public.gpg
   - a private key :   ~/.shuttle/hazard_private.gpg
 
+  This script can be found in
+  ```
+  /0_set_up_scripts_to_run_on_other_machine
+  ```
 
-
-   ```bash
-   ./00_generate_shuttle_keys.sh
-   ```
+  ```bash
+  ./00_generate_shuttle_keys.sh
+  ```
 
 Keep these keys somewhere secure.
+
 If you lose the private key you will not be able to decrypt files suspected of containing malware.
 
 Copy only the public key ~/.shuttle/hazard_public.gpg to the server
 
 DO NOT put the private key ~/.shuttle/hazard_private.gpg on the server
 
-## **Installation Scripts**
+## **Deploy Scripts**
+
+Copy the files in 
+
+```
+/1_deployment/shuttle
+```
+
+to your host
+
+eg.:
+
+```
+~/shuttle/
+```
+
+## **Environment Set Up Scripts**
 
 To install all the necessary system packages and Python dependencies, you can use the provided scripts.
-Run these scripts from the application root.
+
+These scripts can be found in:
+
+```
+/2_set_up_scripts_to_run_on_host
+```
+
+These scripts were tested running from the application root. After setup, they are not required on the host machine. However as the functionality of the virtual environment activation script may be useful on the host machine a separate copy of:
+
+```
+/set_up_scripts_to_run_on_host/04_activate_venv_CALL_BY_SOURCE.sh
+```
+
+is included in the deployment scripts:
+
+```
+1_deployment/shuttle/activate_venv_CALL_BY_SOURCE.sh
+```
 
 - **First make the scripts executable:**
 
@@ -159,31 +196,22 @@ The script ensures that the following commands are installed and accessible in y
 
    ```
 
-2. **Run the Shuttle Script:**
+
+
+1. **Run the Shuttle Script:**
 
 Make sure the virtual environment is active.
 You do not need to provide parameters if parameters are configured in the settings file
 If you do not configure a hazard archive directory and an encryption key, suspect files will be deleted.
 
-Execute `shuttle-linux.py` with the desired parameters or ensure the `settings.ini` file is properly configured.
+Execute `shuttle.py` with the desired parameters or ensure the `settings.ini` file is properly configured.
 
 ```bash
-python3 shuttle-linux.py
+cd ~/shuttle
+python3 shuttle.py
 ```
 
 Full parameters:
-
-
-```bash
-python3 shuttle-linux.py \
-    -SourcePath /path/to/source \
-    -DestinationPath /path/to/destination \
-    -QuarantinePath /path/to/quarantine \
-    -HazardArchivePath /path/to/hazard_archive \
-    -HazardEncryptionKeyPath /path/to/shuttle_public.gpg \
-    --max-scans 4 \
-    -DeleteSourceFilesAfterCopying
-```
 
 ### **Command-Line Arguments:**
 
@@ -227,8 +255,6 @@ file.
 **Note:** The `LogLevel` can be set to `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` depending on the desired verbosity.
 
 ### **Example Workflow:**
-
-
 
 - **Script Operations:**
 
