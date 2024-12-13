@@ -80,14 +80,14 @@ else
 fi
 
 
-# Install safety if not present
-echo -n "Checking if safety is installed: "
-if ! command -v safety &>/dev/null; then
-    echo "safety not found, installing..."
-    pip3 install safety
-else
-    echo "safety is installed."
-fi
+# # Install safety if not present
+# echo -n "Checking if safety is installed: "
+# if ! command -v safety &>/dev/null; then
+#     echo "safety not found, installing..."
+#     pip3 install safety
+# else
+#     echo "safety is installed."
+# fi
 
 # Check Python packages for known vulnerabilities
 echo "Checking installed Python packages for vulnerabilities..."

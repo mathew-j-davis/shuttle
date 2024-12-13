@@ -40,7 +40,9 @@ def get_user_info():
     print(f"Home directory: {home_directory}")
     print(f"Whoami output: {whoami_output}")
 
-def check_access_to_paths(settings_file='settings.txt'):
+def check_access_to_paths(settings_file='~/.shuttle/settings.ini'):
+
+    settings_file = os.path.expanduser(settings_file)
     # Read settings from the file
     settings = {}
     if os.path.exists(settings_file):
@@ -93,7 +95,8 @@ def check_access_to_paths(settings_file='settings.txt'):
         print("\nUser may not have sufficient access to some paths.")
 
 if __name__ == "__main__":
+
     print("User Information:")
     get_user_info()
-    print("\nChecking access to paths in settings.txt:")
+    print("\nChecking access to paths in ~/.shuttle/settings.ini:")
     check_access_to_paths()

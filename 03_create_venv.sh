@@ -10,15 +10,8 @@ fi
 echo "Creating a virtual environment..."
 python3 -m venv venv
 
-
 # set exec permissions on activate
 echo "Set execute permissions on virtual environment activate..."
 chmod +x ./venv/bin/activate
 
-# Activate the virtual environment
-echo "Activating the virtual environment..."
-. venv/bin/activate
-
-# windows gitbash
-#source venv/Scripts/activate
 
