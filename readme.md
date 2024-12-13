@@ -2,7 +2,7 @@
 
 **Note:** This script is under active development and has not been fully tested. Use at your own risk.
 
-`shuttle-linux.py` is a Python script designed to transfer files from a source directory to a destination directory on Linux systems. It includes malware scanning using Microsoft Defender ATP (`mdatp`), handling of infected files, and supports parallel processing for efficiency.
+`shuttle-linux.py` is a Python script designed to transfer files from a source directory to a destination directory on Ubuntu Linux systems. It includes malware scanning using Microsoft Defender ATP (`mdatp`), handling of infected files, and supports parallel processing for efficiency. It may work on other Linux distributions however the installation scripts were written for ubuntu, and you will need to check that Microsoft Defender is supported on your distribution.
 
 ## **Features**
 
@@ -34,21 +34,51 @@
   - Supports specifying paths and options through command-line arguments.
   - Can load settings from a configuration file if arguments are not provided.
 
-## **Prerequisites**
 
-### **System Dependencies**
+## **Generate encryption keys**
+  Run this script on a different machine. It will generate two keys
+  - a public key  :   ~/.shuttle/hazard_public.gpg
+  - a private key :   ~/.shuttle/hazard_private.gpg
 
-- **Python 3**: Programming language used to run the script (version >= 3.6).
-- **pip**: Python package installer.
-- **lsof**: Utility to check if files are open by any processes.
-- **gpg**: GNU Privacy Guard for file encryption.
-- **mdatp**: Microsoft Defender ATP command-line tool for malware scanning.
+
+
+   ```bash
+   ./00_generate_shuttle_keys.sh
+   ```
+
+Keep these keys somewhere secure.
+If you lose the private key you will not be able to decrypt files suspected of containing malware.
+
+Copy only the public key ~/.shuttle/hazard_public.gpg to the server
+
+DO NOT put the private key ~/.shuttle/hazard_private.gpg on the server
+
+## **Installation Scripts**
+
+To install all the necessary system packages and Python dependencies, you can use the provided scripts.
+Run these scripts from the application root.
+
+- **First make the scripts executable:**
+
+   ```bash
+   chmod +x ./*.sh
+   ```
+
+   ```bash
+   chmod +x ./*.py
+   ```
+
+- **Run the Scripts:**
+
+- **Install required supporting applications**
+  
+   ```bash
+   ./01_install_dependencies.sh
+   ```
 
 **Note:** The script will check for the availability of these external commands at runtime. If any are missing, it will log an error and exit.
 
-### **Installation of External Commands**
-
-Ensure that the following commands are installed and accessible in your system's PATH:
+The script ensures that the following commands are installed and accessible in your system's PATH:
 
 - **lsof**:
   - Install via package manager:
@@ -58,75 +88,82 @@ Ensure that the following commands are installed and accessible in your system's
     
 - **gpg**:
   - Install via package manager:
+- 
     ```bash
     sudo apt-get install gnupg  # For Debian/Ubuntu
     ```
   - Verify installation:
+  
     ```bash
     gpg --version
     ```
   - Note: GPG is typically pre-installed on most Linux distributions but may need updating.
 
 - **mdatp**:
+    If Microsoft Defender is not installed on your machine read the Microsoft installation Guide for further information:
   - **Official Installation Guide**:
     - [Install Microsoft Defender for Endpoint on Linux Manually](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/linux-install-manually)
   - **Note**: `mdatp` requires manual installation following Microsoft's official guide due to licensing agreements and repository setup.
 
-### **Installation Script**
 
-To install all the necessary system packages and Python dependencies, you can use the provided `install_dependencies.sh` script.
-
-#### **Install Dependencies Script**
-
-#### **Running the Installation Script**
-
-- **Make the Script Executable:**
-
+- **Set up python:**
+  
    ```bash
-   chmod +x install_dependencies.sh
+   ./02_install_python.sh
    ```
-
-- **Run the Script:**
-
-   ```bash
-   ./install_dependencies.sh
-   ```
-
-#### **Create and Activate a Virtual Environment**
 
 - **Create a Virtual Environment:**
 
    ```bash
+   ./03_create_venv.sh
+   ```
+
+  This script sets up a python virtual environment
+
+  ```bash
    python3 -m venv venv
    ```
 
-- **Activate the Virtual Environment:**
 
+- **Activate virtual environment**
+  
    ```bash
-   source venv/bin/activate
+   source ./04_activate_venv_CALL_BY_SOURCE.sh
    ```
 
-- **Install Python Packages:**
+  The virtual environment must be activated, this is what the script does:
 
-   After activating the virtual environment, install the Python packages specified in `requirements.txt`:
+  ```bash
+   source venv/bin/activate
+   ```
+   - **Set up python dependencies**
+
+   ```bash
+   ./05_install_python_dependencies.sh
+   ```
+
+    After activating the virtual environment, this script installs the Python packages specified in `requirements.txt`:
 
    ```bash
    pip install -r requirements.txt
    ```
 
-### **Install `mdatp`**
 
-`mdatp` requires manual installation following Microsoft's official guide due to licensing agreements and repository setup.
+   - **Set up working environment config**
+  
+  This script sets up working files, a settings file and creates a global scope exception for the working folder to stop automatic Microsoft Defender scans interfering with the scripted scanning process.
+  If you do not have permission to change exceptions on your machine this process will not work
 
-**Official Installation Guide:**
+  ```bash
+   python3 ./06_setup_test_environment_linux.py
 
-- [Install Microsoft Defender for Endpoint on Linux Manually](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/linux-install-manually)
+   ```
 
-- **Command-Line Override:**
+## Running the script
 
-  You can override the keyring password by providing the `-HazardArchivePassword` argument when running the script.
-
-### **Usage**
+Make sure the virtual environment is active.
+You do not need to provide parameters if parameters are configured in the settings file
+If you do not configure a hazard archive directory and an encryption key, suspect files will be deleted.
 
 ```bash
 python3 shuttle-linux.py \

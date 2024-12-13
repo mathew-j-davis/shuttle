@@ -1,4 +1,4 @@
-#!/home/dav717/.venv/bin/python3
+#!python3
 
 import os
 import random
@@ -82,7 +82,7 @@ with open(settings_file, 'w') as configfile:
             "folder",
             "add",
             "--path",
-            work_dir,
+            source_dir,
             "--scope",
             "global"
         ],
@@ -96,8 +96,31 @@ with open(settings_file, 'w') as configfile:
     print(result.stdout)
 
     if result.returncode == 0:
-        print("Work folder excluded from automatic malware scan: {work_dir}")
+        print("Source folder excluded from automatic malware scan: {source_dir}")
     
+    result = subprocess.run(
+        [
+            "mdatp",
+            "exclusion",
+            "folder",
+            "add",
+            "--path",
+            quarantine_dir,
+            "--scope",
+            "global"
+        ],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False
+    )
+
+    print(result.stderr)
+    print(result.stdout)
+
+    if result.returncode == 0:
+        print("Quarantine folder excluded from automatic malware scan: {quarantine_dir}")
+
 # Output messages
 print("Test environment setup complete:")
 print(f"Source directory: {source_dir}")
