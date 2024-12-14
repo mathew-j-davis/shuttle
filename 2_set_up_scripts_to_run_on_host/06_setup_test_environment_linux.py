@@ -44,7 +44,7 @@ for filename in ['a.txt', 'b.txt', 'c.txt']:
         file.write(content)
 
 
-for filename in ['d.txt', 'e.txt', 'f.txt']:
+for filename in ['d.txt', 'e.txt', 'f.txt', 'FLAG_AS_MALWARE.txt']:
     file_path = os.path.join(inner_dir, filename)
     content = get_random_content()
     with open(file_path, 'w') as file:

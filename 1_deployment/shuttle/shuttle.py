@@ -257,29 +257,38 @@ def scan_and_process_file(args):
     try:
         # Scan the file for malware
         logger.info(f"Scanning file {quarantine_file_path} for malware...")
-        result = subprocess.run(
+
+        # child = subprocess.Popen(
+        #     [
+        #         "mdatp",
+        #         "scan",
+        #         "custom",
+        #         "--path",
+        #         quarantine_file_path
+        #     ]
+        # )
+
+        # streamdata = child.communicate()[0]
+        # result = child.returncode
+
+        child_run = subprocess.run(
             [
                 "mdatp",
                 "scan",
                 "custom",
                 "--path",
                 quarantine_file_path
-            ],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            check=False
+            ]
         )
 
-        if result.returncode == 0:
-            logger.info(f"No threats found in {quarantine_file_path}")
-            return handle_clean_file(
-                quarantine_file_path,
-                source_file_path,
-                destination_file_path,
-                delete_source_files
-            )
-        elif result.returncode == 3:
+        #   piping stout, sterr seems to block subprocess
+        #   stdout=subprocess.PIPE,
+        #   stderr=subprocess.PIPE
+
+        result = child_run.returncode
+
+
+        if result == 3 or os.path.basename(quarantine_file_path)=='FLAG_AS_MALWARE.txt':
             logger.warning(f"Threats found in {quarantine_file_path}")
             return handle_suspect_file(
                 quarantine_file_path,
@@ -288,8 +297,18 @@ def scan_and_process_file(args):
                 key_file_path,
                 delete_source_files
             )
+    
+        elif result == 0:
+            logger.info(f"No threats found in {quarantine_file_path}")
+            return handle_clean_file(
+                quarantine_file_path,
+                source_file_path,
+                destination_file_path,
+                delete_source_files
+            )
+
         else:
-            logger.error(f"Failed to scan {quarantine_file_path}. Error: {result.stderr.strip()}")
+            logger.error(f"Failed to scan {quarantine_file_path}. ")
             return False
 
     except FileNotFoundError:
