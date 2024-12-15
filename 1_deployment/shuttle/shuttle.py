@@ -288,7 +288,15 @@ def scan_and_process_file(args):
         result = child_run.returncode
 
 
-        if result == 3 or os.path.basename(quarantine_file_path)=='FLAG_AS_MALWARE.txt':
+        if  (
+                # malware detected
+                result == 3 
+
+                or 
+
+                # deliberately triggered false positive to test malware handling
+                os.path.basename(quarantine_file_path)=='FLAG_AS_MALWARE.txt'
+            ):
             logger.warning(f"Threats found in {quarantine_file_path}")
             return handle_suspect_file(
                 quarantine_file_path,

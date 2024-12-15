@@ -349,7 +349,7 @@ The script uses GPG encryption for securing hazard files. You'll need to:
    Update your settings.ini with the path to the public key:
    ```ini
    [Settings]
-   HazardEncryptionKeyFile = /path/to/shuttle_public.gpg
+   hazard_encryption_key_path = /path/to/shuttle_public.gpg
    ```
 
 **Note:** The separation of public and private keys ensures that even if the production system is compromised, encrypted hazard files cannot be decrypted without access to the private key stored elsewhere.
