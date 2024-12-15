@@ -353,7 +353,9 @@ def handle_clean_file(
         try:
 
             # Verify integrity and delete source if requested
-            if verify_file_integrity(source_file_path, destination_file_path):
+            verify = verify_file_integrity(source_file_path, destination_file_path)
+
+            if verify['success']:
                 remove_file_with_logging(source_file_path)
             else:
                 logger.error(f"Integrity check failed, source file not deleted: {source_file_path}")
@@ -377,26 +379,39 @@ def verify_file_integrity(source_file_path, comparison_file_path):
     """Verify file integrity between source and destination."""
     logger = logging.getLogger('shuttle')
 
+    result = dict(); 
+    result['success'] = False
+    result['a'] = None
+    result['b'] = None
+ 
+
     if os.path.getsize(source_file_path) == 0 or os.path.getsize(comparison_file_path) == 0:
         logger.error("One of the files is empty")
-        return False
+        return result
 
     source_hash = get_file_hash(source_file_path)
     comparison_hash = get_file_hash(comparison_file_path)
 
+    result['a'] = source_hash
+    result['b'] = comparison_hash 
+
     if source_hash is None:
         logger.error(f"Failed to compute hash for source file: {source_file_path}")
-        return False
+        return result
+    
     if comparison_hash is None:
         logger.error(f"Failed to compute hash for comparison file: {comparison_file_path}")
-        return False
+        return result
 
     if compare_file_hashes(source_hash, comparison_hash):
         logger.info(f"File integrity verified between {source_file_path} and {comparison_file_path}")
-        return True
+
+        result['success'] = True
+        return result
+    
     else:
         logger.error(f"File integrity check failed between {source_file_path} and {comparison_file_path}")
-        return False
+        return result
 
 def encrypt_file(file_path, output_path, key_file_path):
     """
@@ -475,9 +490,14 @@ def handle_suspect_file(
         # If hazard archive path and encryption key are provided, archive the file
         if hazard_archive_path and key_file_path:
             # Verify file integrity before archiving
-            if not verify_file_integrity(source_file_path, quarantine_file_path):
+
+            verify = verify_file_integrity(source_file_path, quarantine_file_path)
+
+            if not verify['success']:
                 logger.error(f"Integrity check failed before archiving: {quarantine_file_path}")
                 return False
+
+            logger.error(f"Malware detected in : {quarantine_file_path} with hash value {verify['a']}")
 
             # Create hazard archive directory if it doesn't exist
             try:
@@ -496,10 +516,14 @@ def handle_suspect_file(
             # Attempt to encrypt the file
             if not encrypt_file(quarantine_file_path, archive_path, key_file_path):
                 logger.error(f"Failed to encrypt file: {quarantine_file_path}")
-                return False 
+            return False 
             
             logger.info(f"Successfully encrypted suspect file to: {archive_path}")
+
+            archive_hash = get_file_hash(archive_path)
            
+            logger.info(f"Suspect file archive {archive_path} has hash value : {archive_hash}")
+
         else:
             # No hazard archive parameters - delete the infected file
             logger.warning(
