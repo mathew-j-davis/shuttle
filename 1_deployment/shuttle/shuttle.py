@@ -42,13 +42,6 @@ def setup_logging(log_file=None, log_level=logging.INFO):
 
     return logger
 
-
-
-
-
-#    sudo apt-get install lsof 
-#    python shuttle-linux.py -SourcePath /path/to/source -DestinationPath /path/to/destination -QuarantinePath /path/to/quarantine
-
 def get_file_hash(file_path):
     """
     Compute the SHA-256 hash of a file.
@@ -257,19 +250,6 @@ def scan_and_process_file(args):
     try:
         # Scan the file for malware
         logger.info(f"Scanning file {quarantine_file_path} for malware...")
-
-        # child = subprocess.Popen(
-        #     [
-        #         "mdatp",
-        #         "scan",
-        #         "custom",
-        #         "--path",
-        #         quarantine_file_path
-        #     ]
-        # )
-
-        # streamdata = child.communicate()[0]
-        # result = child.returncode
 
         child_run = subprocess.run(
             [
@@ -646,13 +626,7 @@ def scan_and_process_directory(
                 try:
                     copy_temp_then_rename(source_file_path, quarantine_file_path)
 
-                    # if os.path.exists(quarantine_temp_path):
-                    #     os.remove(quarantine_temp_path)
-
-                    # shutil.copy2(source_file_path, quarantine_temp_path)
-                    # os.rename(quarantine_temp_path, quarantine_file_path)
-
-                    # logger.info(f"Copied file {source_file_path} to quarantine: {quarantine_file_path}")
+                    logger.info(f"Copied file {source_file_path} to quarantine: {quarantine_file_path}")
 
                     # Add to processing queue with full paths
                     quarantine_files.append((
