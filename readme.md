@@ -1,3 +1,15 @@
+---
+theme: base
+title: "Shuttle Linux - File Transfer and Malware Scanning ScriptRemote Access for Lab Equipment and Systems - CSIRO Energy Siemens CT Scanner Integration"
+author: Mat Davis
+date: 2024-12-15
+version: 0.1
+output: word_document
+
+---
+
+
+
 # Shuttle Linux - File Transfer and Malware Scanning Script
 
 **Note:** This script is under active development and has not been fully tested. Use at your own risk.
@@ -36,9 +48,14 @@
 
 
 ## **Generate encryption keys**
-  Run this script on a different machine. It will generate two keys
-  - a public key  :   ~/.shuttle/hazard_public.gpg
-  - a private key :   ~/.shuttle/hazard_private.gpg
+
+  This script will generate keys for testing purposes.
+  For production use, have the team responsible for managing keys provide you with a public key.
+
+  Run this script on a different machine. 
+  It will generate two keys
+  - a public key  :   ~/.shuttle/shuttle_public.gpg
+  - a private key :   ~/.shuttle/shuttle_private.gpg
 
   This script can be found in
   ```
@@ -53,9 +70,9 @@ Keep these keys somewhere secure.
 
 If you lose the private key you will not be able to decrypt files suspected of containing malware.
 
-Copy only the public key ~/.shuttle/hazard_public.gpg to the server
+Copy only the public key ~/.shuttle/shuttle_public.gpg to the server
 
-DO NOT put the private key ~/.shuttle/hazard_private.gpg on the server
+DO NOT put the private key on the server
 
 ## **Deploy Scripts**
 
