@@ -6,7 +6,6 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 import time
 import subprocess
-
 import argparse
 import sys
 import time
@@ -18,25 +17,9 @@ from logging.handlers import RotatingFileHandler
 import configparser  # Added import for configparser
 import gnupg
 import types
-
 from dataclasses import dataclass
 from typing import Optional
 
-import os
-import shutil
-import hashlib
-import argparse
-import subprocess
-import sys
-import time
-from concurrent.futures import ProcessPoolExecutor
-from datetime import datetime
-from pathlib import Path
-import logging
-from logging.handlers import RotatingFileHandler
-import configparser  # Added import for configparser
-import gnupg
-import types
 
 
 scan_result_types = types.SimpleNamespace()
@@ -453,100 +436,6 @@ def parse_config() -> ShuttleConfig:
 
     return settings_file_config
 
-class ShuttleBase:
-
-
-    def __init__(self, config: ShuttleConfig):
-        self.config = config
-        self.logger = None
-        
-     
-    def initialize(self):
-        """Common initialization code"""
-        # Lock file handling
-        if os.path.exists(self.config.lock_file):
-            print(f"Another instance is running. Lock file {self.config.lock_file} exists.")
-            sys.exit(1)
-            
-        with open(self.config.lock_file, 'w') as lock_file:
-            lock_file.write(str(os.getpid()))
-            
-        # Load config, set up logging, etc.
-        # ... (move common initialization code here)
-
-        # Create log file name with timestamp and unique ID
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        unique_id = os.getpid()  # Using process ID as unique identifier
-        log_filename = f"shuttle_{timestamp}_{unique_id}.log"
-
-        # Construct full log path if log directory is specified
-        log_file = None
-
-        if self.config.log_path:
-            os.makedirs(self.config.log_path, exist_ok=True)
-            log_file = os.path.join(self.config.log_path, log_filename)
-
-        # Set up logging with the configured log level
-        self.logger = setup_logging(log_file=log_file, log_level=self.config.log_level)
-
-        self.logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
-
-
-        # Check for required external commands
-        import shutil
-
-        required_commands = ['lsof', 'mdatp', 'gpg']
-        missing_commands = []
-
-        for cmd in required_commands:
-            if shutil.which(cmd) is None:
-                missing_commands.append(cmd)
-
-        if missing_commands:
-            for cmd in missing_commands:
-                self.logger.error(f"Required command '{cmd}' not found. Please ensure it is installed and accessible in your PATH.")
-            sys.exit(1)
-
-        # Get encryption key file path
-        if self.config.hazard_archive_path:
-            
-            if not self.config.hazard_encryption_key_file_path:
-                self.logger.error("Hazard archive path specified but no encryption key file provided")
-                sys.exit(1)
-            if not os.path.isfile(self.config.hazard_encryption_key_file_path):
-                self.logger.error(f"Encryption key file not found: {self.config.hazard_encryption_key_file_path}")
-                sys.exit(1)
-
-        else:
-            self.config.hazard_encryption_key_file_path = None
-
-        # Retrieve other settings
-
-        # Validate required paths
-        if not (self.config.source_path and self.config.destination_path and self.config.quarantine_path):
-            self.logger.error("SourcePath, DestinationPath, and QuarantinePath must all be provided either as parameters or in the settings file.")
-            sys.exit(1)
-
-        self.logger.info(f"SourcePath: {self.config.source_path}")
-        self.logger.info(f"DestinationPath: {self.config.destination_path}")
-        self.logger.info(f"QuarantinePath: {self.config.quarantine_path}")
-
-
-    def cleanup(self):
-        """Common cleanup code"""
-        if os.path.exists(self.args.lock_file):
-            os.remove(self.args.lock_file)
-            
-    def main(self):
-        """Template method pattern"""
-        try:
-            self.initialize()
-            self.process_files()   # This will be implemented by subclasses
-        except Exception as e:
-            self.logger.error(f"An error occurred: {e}")
-        finally:
-            self.cleanup()
-
 
 
 def scan_for_malware(path):
@@ -576,7 +465,7 @@ def scan_for_malware(path):
 
         match child_run.returncode:
             case 0:
-                logger.inf(f"No threat found in {path}")
+                logger.info(f"No threat found in {path}")
                 return scan_result_types.FILE_IS_CLEAN
 
             case 2 | 3 :
@@ -717,7 +606,6 @@ def handle_clean_file(
         
     return True
 
-
 def encrypt_file(file_path, output_path, key_file_path):
     """
     Encrypt a file using GPG with a specified public key file.
@@ -821,8 +709,8 @@ def handle_suspect_file(
             # Attempt to encrypt the file
             if not encrypt_file(quarantine_file_path, archive_path, key_file_path):
                 logger.error(f"Failed to encrypt file: {quarantine_file_path}")
-            return False 
-            
+                return False 
+
             logger.info(f"Successfully encrypted suspect file to: {archive_path}")
 
             archive_hash = get_file_hash(archive_path)
@@ -997,30 +885,99 @@ def scan_and_process_directory(
     except Exception as e:
         logger.error(f"Failed to copy files to quarantine: Error: {e}")
 
-class ActiveScanner(ShuttleBase):
 
-    def process_files(self):
-        """Implementation for active scanning"""
-        scan_and_process_directory(
-           self.config.source_path,
-            self.config.destination_path,
-            self.config.quarantine_path,
-            self.config.hazard_archive_path,
-            self.config.hazard_encryption_key_file_path,
-            self.config.delete_source_files,
-            self.config.max_scan_threads,
-            self.config.defender_handles_suspect_files
-        )
-   
+def process_files(config):
+
+    scan_and_process_directory(
+        config.source_path,
+        config.destination_path,
+        config.quarantine_path,
+        config.hazard_archive_path,
+        config.hazard_encryption_key_file_path,
+        config.delete_source_files,
+        config.max_scan_threads,
+        config.defender_handles_suspect_files
+    )
+
 def main():
     
-    scanner = None
-    
     config = parse_config()
-    
-    scanner = ActiveScanner(config)
+
+    # Lock file handling
+    if os.path.exists(config.lock_file):
+        print(f"Another instance is running. Lock file {config.lock_file} exists.")
+        sys.exit(1)
         
-    scanner.main()  
+    with open(config.lock_file, 'w') as lock_file:
+        lock_file.write(str(os.getpid()))
+
+    try:
+
+        # Create log file name with timestamp and unique ID
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        unique_id = os.getpid()  # Using process ID as unique identifier
+        log_filename = f"shuttle_{timestamp}_{unique_id}.log"
+
+        # Construct full log path if log directory is specified
+        log_file = None
+
+        if config.log_path:
+            os.makedirs(config.log_path, exist_ok=True)
+            log_file = os.path.join(config.log_path, log_filename)
+
+        # Set up logging with the configured log level
+        logger = setup_logging(log_file=log_file, log_level=config.log_level)
+
+        logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
+
+        # Check for required external commands
+        required_commands = ['lsof', 'mdatp', 'gpg']
+        missing_commands = []
+
+        for cmd in required_commands:
+            if shutil.which(cmd) is None:
+                missing_commands.append(cmd)
+
+        if missing_commands:
+            for cmd in missing_commands:
+                logger.error(f"Required command '{cmd}' not found. Please ensure it is installed and accessible in your PATH.")
+            sys.exit(1)
+
+        # Get encryption key file path
+        if config.hazard_archive_path:
+            
+            if not config.hazard_encryption_key_file_path:
+                logger.error("Hazard archive path specified but no encryption key file provided")
+                sys.exit(1)
+            if not os.path.isfile(config.hazard_encryption_key_file_path):
+                logger.error(f"Encryption key file not found: {config.hazard_encryption_key_file_path}")
+                sys.exit(1)
+
+        else:
+            config.hazard_encryption_key_file_path = None
+
+        # Retrieve other settings
+
+        # Validate required paths
+        if not (config.source_path and config.destination_path and config.quarantine_path):
+            logger.error("SourcePath, DestinationPath, and QuarantinePath must all be provided either as parameters or in the settings file.")
+            sys.exit(1)
+
+        logger.info(f"SourcePath: {config.source_path}")
+        logger.info(f"DestinationPath: {config.destination_path}")
+        logger.info(f"QuarantinePath: {config.quarantine_path}")
+
+        process_files(config)   
+
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+
+    finally:
+
+        if os.path.exists(config.lock_file):
+            os.remove(config.lock_file)
+    
+
 
 if __name__ == '__main__':
     main()
