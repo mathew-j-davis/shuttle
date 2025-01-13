@@ -453,7 +453,9 @@ def scan_for_malware(path):
                 "--ignore-exclusions",
                 "--path",
                 path
-            ]
+            ],
+            capture_output = True, # Python >= 3.7 only
+            text = True 
         )
 
         #   piping stout, sterr seems to block subprocess
