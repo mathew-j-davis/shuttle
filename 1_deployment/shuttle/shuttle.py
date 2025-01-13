@@ -518,6 +518,11 @@ def scan_and_process_file(args):
 
     logger = logging.getLogger('shuttle')
 
+    logger.info(f"getting file hash: {quarantine_file_path}.")
+    quarantine_hash = get_file_hash(quarantine_file_path)
+
+
+
     # Scan the file for malware
     logger.info(f"Scanning file {quarantine_file_path} for malware...")
     result = scan_for_malware(quarantine_file_path)
@@ -535,7 +540,27 @@ def scan_and_process_file(args):
         case scan_result_types.FILE_IS_SUSPECT:
             if defender_handles_suspect:
                 logger.warning(f"Threats found in {quarantine_file_path}, letting Defender handle it")
-                return True
+
+                # Delete source file if requested
+                # TODO: 
+                # Consider reading the Defender log to check if the file has been identified as a threat
+
+                if delete_source_files:
+                    logger.info(f"Checking if Defender has removed suspect source file {source_file_path}")
+                    if os.path.exists(source_file_path):
+                        source_hash = get_file_hash(source_file_path)
+
+                        if source_hash == quarantine_hash:
+                            logger.error(f"Hash match for {source_file_path} to suspect file{quarantine_file_path} ")
+                            logger.error(f"Removing {source_file_path} ")
+
+                            if not remove_file_with_logging(source_file_path):
+                                logger.error(f"Failed to remove source file after archiving: {source_file_path}")
+                                return False
+                        else:
+                            logger.error(f"Hash mismatch for {source_file_path} to suspect file{quarantine_file_path} ")
+                            logger.error(f"Not removing {source_file_path} ")
+                            
             else:
                 logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
                 return handle_suspect_file(
@@ -550,7 +575,7 @@ def scan_and_process_file(args):
             logger.warning(f"Scan failed on {quarantine_file_path}")
             return False
 
-
+    return True
 
 def handle_clean_file(
     quarantine_file_path,
