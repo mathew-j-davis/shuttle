@@ -28,6 +28,10 @@ scan_result_types.FILE_IS_SUSPECT = 3
 scan_result_types.FILE_IS_CLEAN = 0
 scan_result_types.FILE_SCAN_FAILED = 100
 
+# Define scan output patterns
+scan_patterns = types.SimpleNamespace()
+scan_patterns.THREAT_FOUND = "Threat(s) found"
+scan_patterns.NO_THREATS = "0 threat(s) detected"
 
 process_modes= types.SimpleNamespace()
 
@@ -441,7 +445,6 @@ def parse_config() -> ShuttleConfig:
 def scan_for_malware(path):
     logger = logging.getLogger('shuttle')
     try:
-
         # Scan the file for malware
         logger.info(f"Scanning file {path} for malware...")
 
@@ -454,44 +457,38 @@ def scan_for_malware(path):
                 "--path",
                 path
             ],
-            capture_output = True, # Python >= 3.7 only
-            text = True 
+            capture_output=True,
+            text=True 
         )
 
-        #   piping stout, sterr seems to block subprocess
-        #   stdout=subprocess.PIPE,
-        #   stderr=subprocess.PIPE
-
-        #  , capture_output=True, text=True)
-
-
-        # match text
-        # Threat(s) found
-        # 1 file(s) scanned\n\t0 threat(s) detected\n'
-        #
-        match child_run.returncode:
-            case 0:
-                logger.info(f"No threat found in {path}")
-                return scan_result_types.FILE_IS_CLEAN
-
-            case 2 | 3 :
+        if child_run.returncode == 0:
+            # Check for threat found pattern
+            if scan_patterns.THREAT_FOUND in child_run.stdout:
                 logger.warning(f"Threats found in {path}")
                 return scan_result_types.FILE_IS_SUSPECT
             
-            # case _:
-            #        logger.warning(f"Scan failed on  {path}")
+            # Check for clean scan pattern
+            elif child_run.stdout.rstrip().endswith(scan_patterns.NO_THREATS):
+                logger.info(f"No threat found in {path}")
+                return scan_result_types.FILE_IS_CLEAN
+            
+            # Output doesn't match expected patterns
+            else:
+                logger.warning(f"Unexpected scan output for {path}: {child_run.stdout}")
+                
+        else:
+            # Non-zero return code
+            logger.warning(f"Scan failed on {path} with return code {child_run.returncode}")
+
 
     except FileNotFoundError:
         logger.error(f"Files not found when scanning file: {path}")
-
     except PermissionError:
         logger.error(f"Permission denied when scanning file: {path}")
-
     except Exception as e:
         logger.error(f"Failed to perform malware scan on {path}. Error: {e}")
 
-    logger.warning(f"Scan failed on  {path}")
-    return scan_result_types.FILE_SCAN_FAILED;
+    return scan_result_types.FILE_SCAN_FAILED
 
 
 def scan_and_process_file(args):
