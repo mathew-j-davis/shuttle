@@ -465,6 +465,10 @@ def scan_for_malware(path):
         #  , capture_output=True, text=True)
 
 
+        # match text
+        # Threat(s) found
+        # 1 file(s) scanned\n\t0 threat(s) detected\n'
+        #
         match child_run.returncode:
             case 0:
                 logger.info(f"No threat found in {path}")
