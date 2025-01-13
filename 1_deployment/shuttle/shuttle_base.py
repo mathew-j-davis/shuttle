@@ -52,10 +52,9 @@ class ShuttleConfig:
     log_level: int
     process_mode: int
     lock_file: str
+    defender_handles_suspect_files: bool
 
 class ShuttleBase:
-
-
 
     @staticmethod
     def parse_config() -> ShuttleConfig:
@@ -80,6 +79,10 @@ class ShuttleBase:
                           choices=['active', 'passive'],
                           default='active',
                           help='Processing mode (active or passive)')
+        parser.add_argument('-DefenderHandlesSuspectFiles', 
+                           action='store_true',
+                           default=True,
+                           help='Let Microsoft Defender handle suspect files (default: True)')
         
         args = parser.parse_args()
 
@@ -122,6 +125,13 @@ class ShuttleBase:
         # Convert process mode string to int
         process_mode = process_modes.PASSIVE if args.ProcessMode == 'passive' else process_modes.ACTIVE
 
+        # Get defender handling setting
+        defender_handles_suspect = args.DefenderHandlesSuspectFiles or settings_file_config.getboolean(
+            'settings', 
+            'defender_handles_suspect_files', 
+            fallback=True
+        )
+
         # Create config object with all settings
         settings_file_config = ShuttleConfig(
             source_path=source_path,
@@ -133,8 +143,9 @@ class ShuttleBase:
             delete_source_files=delete_source_files,
             max_scan_threads=max_scan_threads,
             log_level=numeric_level,
-            process_mode = process_mode,
-            lock_file=lock_file
+            process_mode=process_mode,
+            lock_file=lock_file,
+            defender_handles_suspect=defender_handles_suspect
         )
 
         return settings_file_config

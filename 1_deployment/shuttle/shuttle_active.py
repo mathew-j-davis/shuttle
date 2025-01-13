@@ -52,6 +52,7 @@ def scan_for_malware(path):
                 "mdatp",
                 "scan",
                 "custom",
+                "--ignore-exclusions",
                 "--path",
                 path
             ]
@@ -101,6 +102,7 @@ def scan_and_process_file(args):
             - hazard_archive_path (str): Path to the hazard archive directory
             - key_file_path (str): Full path to the public encryption key file
             - delete_source_files (bool): Whether to delete source files after processing
+            - defender_handles_suspect (bool): Whether to let Defender handle suspect files
 
     Returns:
         bool: True if the file was processed successfully, False otherwise
@@ -112,18 +114,18 @@ def scan_and_process_file(args):
         destination_file_path,
         hazard_archive_path,
         key_file_path,
-        delete_source_files
+        delete_source_files,
+        defender_handles_suspect
     ) = args
 
     logger = logging.getLogger('shuttle')
 
     # Scan the file for malware
     logger.info(f"Scanning file {quarantine_file_path} for malware...")
-
     result = scan_for_malware(quarantine_file_path)
 
     match result:
-        case  scan_result_types.FILE_IS_CLEAN:
+        case scan_result_types.FILE_IS_CLEAN:
             logger.info(f"No threats found in {quarantine_file_path}")
             return handle_clean_file(
                 quarantine_file_path,
@@ -132,18 +134,22 @@ def scan_and_process_file(args):
                 delete_source_files
             )
 
-        case  scan_result_types.FILE_IS_SUSPECT:
-            logger.warning(f"Threats found in {quarantine_file_path}")
-            return handle_suspect_file(
-                quarantine_file_path,
-                source_file_path,
-                hazard_archive_path,
-                key_file_path,
-                delete_source_files
-            )
+        case scan_result_types.FILE_IS_SUSPECT:
+            if defender_handles_suspect:
+                logger.warning(f"Threats found in {quarantine_file_path}, letting Defender handle it")
+                return True
+            else:
+                logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
+                return handle_suspect_file(
+                    quarantine_file_path,
+                    source_file_path,
+                    hazard_archive_path,
+                    key_file_path,
+                    delete_source_files
+                )
 
         case _:
-            logger.warning(f"Scan failed on  {quarantine_file_path}")
+            logger.warning(f"Scan failed on {quarantine_file_path}")
             return False
 
 
@@ -345,9 +351,26 @@ def scan_and_process_directory(
     hazard_archive_path,
     hazard_encryption_key_file_path,
     delete_source_files,
-    max_scan_threads
+    max_scan_threads,
+    defender_handles_suspect_files
     ):
-   
+    """
+    Process all files in the source directory:
+    1. Copy to quarantine
+    2. Scan for malware
+    3. Move clean files to destination
+    4. Handle suspect files according to defender_handles_suspect_files setting
+
+    Args:
+        source_path (str): Path to source directory
+        destination_path (str): Path to destination directory
+        quarantine_path (str): Path to quarantine directory
+        hazard_archive_path (str): Path to archive suspect files
+        hazard_encryption_key_file_path (str): Path to encryption key
+        delete_source_files (bool): Whether to delete source files
+        max_scan_threads (int): Maximum number of parallel scans
+        defender_handles_suspect_files (bool): Whether to let Defender handle suspect files
+    """
     quarantine_files = []
 
     logger = logging.getLogger('shuttle')
@@ -400,7 +423,8 @@ def scan_and_process_directory(
                         destination_file_path,     # full path to destination file
                         hazard_archive_path,
                         hazard_encryption_key_file_path,
-                        delete_source_files
+                        delete_source_files,
+                        defender_handles_suspect_files   # Add the new parameter
                     ))
                     
                 except Exception as e:
@@ -475,5 +499,6 @@ class ActiveScanner(ShuttleBase):
             self.config.hazard_archive_path,
             self.config.hazard_encryption_key_file_path,
             self.config.delete_source_files,
-            self.config.max_scan_threads
+            self.config.max_scan_threads,
+            self.config.defender_handles_suspect_files
         )

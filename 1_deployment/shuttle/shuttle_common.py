@@ -7,9 +7,6 @@ from pathlib import Path
 import time
 import subprocess
 
-
-
-
 def setup_logging(log_file=None, log_level=logging.INFO):
     """
     Set up logging for the script.
