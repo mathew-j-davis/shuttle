@@ -981,35 +981,7 @@ def process_files(config):
         config.defender_handles_suspect_files
     )
 
-def verify_key_file_security(key_file_path):
-    """
-    Verify that the encryption key file has secure permissions.
-    
-    Args:
-        key_file_path (str): Path to the key file
-    
-    Returns:
-        bool: True if file permissions are secure, False otherwise
-    """
-    logger = logging.getLogger('shuttle')
-    try:
-        stat_info = os.stat(key_file_path)
-        
-        # Check file ownership
-        if stat_info.st_uid != os.getuid():
-            logger.error(f"Key file {key_file_path} not owned by current user")
-            return False
-            
-        # Check permissions (should be 600 or stricter)
-        if stat_info.st_mode & 0o077:
-            logger.error(f"Key file {key_file_path} has insecure permissions")
-            return False
-            
-        return True
-        
-    except Exception as e:
-        logger.error(f"Error checking key file security: {e}")
-        return False
+
 
 def main():
     
