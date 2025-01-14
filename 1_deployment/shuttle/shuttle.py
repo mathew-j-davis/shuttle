@@ -470,7 +470,14 @@ def scan_for_malware(path):
                 path
             ]
         
-
+        # something in the combination of :
+        #   stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        #   Processing files in parallel using a ProcessPoolExecutor
+        # is unstable, and leads to commands hanging
+        # I haven't entirely solved this mystery, but I have worked around it using:
+        #   calling sequentially without ProcessPoolExecutor
+        #   calling using subprocess.Popen so I can read from stdout to make sure the buffer doesn't overflow
+        # I don't know the real problem yet, but this is relieving the symptoms so will stay until I understand
 
         child_run = subprocess.Popen(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output = ''
