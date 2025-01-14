@@ -445,30 +445,65 @@ def parse_config() -> ShuttleConfig:
 def scan_for_malware(path):
     logger = logging.getLogger('shuttle')
     try:
-        # Scan the file for malware
-        logger.info(f"Scanning file {path} for malware...")
+        # # Scan the file for malware
+        # logger.info(f"Scanning file {path} for malware...")
 
-        child_run = subprocess.run(
-            [
+        # child_run = subprocess.run(
+        #     [
+        #         "mdatp",
+        #         "scan",
+        #         "custom",
+        #         "--ignore-exclusions",
+        #         "--path",
+        #         path
+        #     ],
+        #     capture_output=True,
+        #     text=True 
+        # )
+
+        cmd = [
                 "mdatp",
                 "scan",
                 "custom",
                 "--ignore-exclusions",
                 "--path",
                 path
-            ],
-            capture_output=True,
-            text=True 
-        )
+            ]
+        
+
+
+        child_run = subprocess.Popen(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output = ''
+        error = ''
+
+        last = time.time()
+        while child_run.poll() is None:
+            if time.time() - last > 5:
+                print('Process is still running')
+                last = time.time()
+
+            tmp = child_run.stdout.read(1)
+            if tmp:
+                output += tmp
+            tmp = child_run.stderr.read(1)
+            if tmp:
+                error += tmp
+
+        output += child_run.stdout.read()
+        error += child_run.stderr.read()
+
+        child_run.stdout.close() 
+        child_run.stderr.close()
+
 
         if child_run.returncode == 0:
             # Check for threat found pattern
-            if scan_patterns.THREAT_FOUND in child_run.stdout:
+            if scan_patterns.THREAT_FOUND in output:
                 logger.warning(f"Threats found in {path}")
                 return scan_result_types.FILE_IS_SUSPECT
             
             # Check for clean scan pattern
-            elif child_run.stdout.rstrip().endswith(scan_patterns.NO_THREATS):
+            elif output.rstrip().endswith(scan_patterns.NO_THREATS):
                 logger.info(f"No threat found in {path}")
                 return scan_result_types.FILE_IS_CLEAN
             
@@ -551,23 +586,15 @@ def scan_and_process_file(args):
                 if delete_source_files:
                     logger.info(f"Checking if Defender has removed suspect source file {source_file_path}")
                     if os.path.exists(source_file_path):
-                        source_hash = get_file_hash(source_file_path)
 
-                        if source_hash == quarantine_hash:
-                            logger.error(f"Hash match for {source_file_path} to suspect file {quarantine_file_path}")
-                            logger.error(f"Archiving {source_file_path}")
+                        if not handle_suspect_file(
+                            source_file_path,
+                            hazard_archive_path,
+                            key_file_path
+                        ):
+                            logger.error(f"Failed to archive suspect source file: {source_file_path}")
+                            return False
 
-                            if not handle_suspect_file(
-                                source_file_path,
-                                hazard_archive_path,
-                                key_file_path
-                            ):
-                                logger.error(f"Failed to archive source file: {source_file_path}")
-                                return False
-                        else:
-                            logger.error(f"Hash mismatch for {source_file_path} to suspect file {quarantine_file_path}")
-                            logger.error(f"Not archiving {source_file_path}")
-                            
                 return True
             else:
                 logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
@@ -909,15 +936,24 @@ def scan_and_process_directory(
                 except Exception as e:
                     logger.error(f"Failed to copy file from source: {source_file_path} to quarantine: {quarantine_file_path}. Error: {e}")
 
-
+        results = list()
+        if max_scan_threads > 1:
         # Process files in parallel using a ProcessPoolExecutor with graceful shutdown
-        with ProcessPoolExecutor(max_workers=max_scan_threads) as executor:
-            try:
-                results = list(executor.map(scan_and_process_file, quarantine_files))
-            except Exception as e:
-                logger.error(f"An error occurred during parallel processing: {e}")
-                executor.shutdown(wait=False, cancel_futures=True)
-                raise
+            with ProcessPoolExecutor(max_workers=max_scan_threads) as executor:
+                try:
+                    results = list(executor.map(scan_and_process_file, quarantine_files))
+                except Exception as e:
+                    logger.error(f"An error occurred during parallel processing: {e}")
+                    executor.shutdown(wait=False, cancel_futures=True)
+                    raise
+        else:
+            for quarantine_file_parameters in quarantine_files:
+
+                result = scan_and_process_file(
+                        quarantine_file_parameters
+                    )
+                
+                results.append(result)  
 
         # Check if all files were processed successfully
         if not all(results):
