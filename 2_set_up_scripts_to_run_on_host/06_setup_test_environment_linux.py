@@ -64,7 +64,10 @@ config['paths'] = {
 
 config['settings'] = {
     'max_scan_threads': '1',
-    'delete_source_files_after_copying': 'True'
+    'delete_source_files_after_copying': 'True',
+    'defender_handles_suspect_files': 'True',
+    'on_demand_defender': 'True',
+    'on_demand_clam_av': 'True'
 }
 
 config['logging'] = {

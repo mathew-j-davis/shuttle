@@ -370,3 +370,108 @@ The script uses GPG encryption for securing hazard files. You'll need to:
    ```
 
 **Note:** The separation of public and private keys ensures that even if the production system is compromised, encrypted hazard files cannot be decrypted without access to the private key stored elsewhere.
+
+
+## Development 
+
+### Adding New Configuration Parameters
+
+When adding new configuration parameters, the following files and code sections need to be updated:
+
+1. **ShuttleConfig Class Definition**
+   ```python:1_deployment/shuttle/shuttle.py
+   @dataclass
+   class ShuttleConfig:
+       # Add new parameter with type hint
+       # Don't forget Optional[] for optional parameters
+   ```
+
+2. **Argument Parser**
+   ```python:1_deployment/shuttle/shuttle.py
+   def parse_config():
+       parser.add_argument('-NewParameter',
+                         help='Description of the new parameter',
+                         type=type,  # If needed
+                         default=default_value)  # If needed
+   ```
+
+3. **Settings File Processing**
+   ```python:1_deployment/shuttle/shuttle.py
+   # In parse_config():
+   new_parameter = get_setting(
+       args.NewParameter, 
+       'section_name',  # Usually 'paths' or 'settings'
+       'parameter_name', 
+       default=default_value
+   )
+   ```
+
+4. **ShuttleConfig Object Creation**
+   ```python:1_deployment/shuttle/shuttle.py
+   settings_file_config = ShuttleConfig(
+       # Add new parameter to constructor
+       new_parameter=new_parameter
+   )
+   ```
+
+5. **Example Settings File**
+   ```ini:2_set_up_scripts_to_run_on_host/settings.ini.example
+   [section_name]
+   parameter_name=default_value
+   ```
+
+6. **Function Parameters**
+   - If the parameter is used in functions like `scan_and_process_directory()`, update their signatures and calls
+   - Update any helper functions that need access to the new parameter
+
+7. **Documentation**
+   - Update README.md with parameter description
+   - Update command-line help text
+   - Update any relevant comments in the code
+
+8. **Test Files**
+   - Update test configuration files if they exist
+   - Add new test cases for the parameter
+
+### Example
+
+Adding a new parameter 'max_retries':
+
+1. **ShuttleConfig**:
+   ```python
+   @dataclass
+   class ShuttleConfig:
+       max_retries: int
+   ```
+
+2. **Argument Parser**:
+   ```python
+   parser.add_argument('-MaxRetries', 
+                      type=int,
+                      help='Maximum number of retry attempts',
+                      default=3)
+   ```
+
+3. **Settings Processing**:
+   ```python
+   max_retries = get_setting(
+       args.MaxRetries, 
+       'settings',
+       'max_retries', 
+       default=3
+   )
+   ```
+
+4. **Config Creation**:
+   ```python
+   settings_file_config = ShuttleConfig(
+       max_retries=max_retries,
+       # ... other parameters ...
+   )
+   ```
+
+5. **Settings File**:
+   ```ini
+   [settings]
+   max_retries=3
+   ```
