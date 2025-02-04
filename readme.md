@@ -24,12 +24,13 @@ output: word_document
 
 - **Malware Scanning:**
   - Utilizes `mdatp` to scan each file individually for malware.
-  - Supports parallel scanning with a configurable number of concurrent scans.
 
 - **Handling Infected Files:**
-  - If malware is detected, files are encrypted using GPG with a public key
+  - If malware is detected, typically Microsoft Defender will be configured to handle the suspect file.
+  - If Microsoft Defender is not configured to archive files, this script may be configured to encrypt files GPG with a public key
   - Encrypted files are moved to a specified hazard archive directory for further analysis
   - If hazard archive parameters are not provided, infected files are deleted
+  -  If the case that malware has been detected in a copy of a file, but Defender has not archived the original file this script will treat the original as suspect also, and depending on configuration archive or delete it.
 
 - **File Integrity Verification:**
   - Verifies that the source and destination files match by comparing their hashes.
@@ -73,6 +74,13 @@ If you lose the private key you will not be able to decrypt files suspected of c
 Copy only the public key ~/.shuttle/shuttle_public.gpg to the server
 
 DO NOT put the private key on the server
+
+CAVEATS:
+
+This script support parallel scanning with a configurable number of concurrent scans,
+however either `mdatp` or the parallel libraries seem not to have been stable when used together with reading output from `mdatp`.
+Until this is understood, ONLY USE ONE THREAD.
+
 
 ## **Deploy Scripts**
 
