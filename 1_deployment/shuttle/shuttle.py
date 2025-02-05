@@ -19,8 +19,7 @@ import gnupg
 import types
 from dataclasses import dataclass
 from typing import Optional
-
-
+import re
 
 scan_result_types = types.SimpleNamespace()
 
@@ -33,9 +32,20 @@ scan_result_types.FILE_SCAN_FAILED = 100
 
 
 # Define scan output patterns
-scan_patterns = types.SimpleNamespace()
-scan_patterns.THREAT_FOUND = "Threat(s) found"
-scan_patterns.NO_THREATS = "0 threat(s) detected"
+defender_scan_patterns = types.SimpleNamespace()
+defender_scan_patterns.THREAT_FOUND = "Threat(s) found"
+defender_scan_patterns.NO_THREATS = "0 threat(s) detected"
+
+
+
+clamav_parse_response_patterns = types.SimpleNamespace()
+clamav_parse_response_patterns.ERROR = "^ERROR"
+clamav_parse_response_patterns.TOTAL_ERRORS = "Total errors: "
+clamav_parse_response_patterns.THREAT_FOUND = "FOUND\n\n"
+clamav_parse_response_patterns.OK = "^OK\n"
+clamav_parse_response_patterns.NO_THREATS = "Infected files: 0"
+
+
 
 process_modes= types.SimpleNamespace()
 
@@ -437,18 +447,16 @@ def parse_config() -> ShuttleConfig:
     )
 
     # Get on-demand scanning settings
-    on_demand_defender = get_setting(
-        args.OnDemandDefender,
-        'settings',
-        'on_demand_defender',
-        default=True
+    on_demand_defender = args.OnDemandDefender or settings_file_config.getboolean(
+        'settings', 
+        'on_demand_defender', 
+        fallback=True
     )
-
-    on_demand_clam_av = get_setting(
-        args.OnDemandClamAV,
-        'settings',
-        'on_demand_clam_av',
-        default=True
+    
+    on_demand_clam_av = args.OnDemandClamAV or settings_file_config.getboolean(
+        'settings', 
+        'on_demand_clam_av', 
+        fallback=True
     )
 
     # Create config object with all settings
@@ -535,19 +543,20 @@ def scan_for_malware_using_defender(path):
 
 
         if child_run.returncode == 0:
+            # Always check for threat pattern first, otherwise a malicous filename could be used to add clean response text to output
             # Check for threat found pattern
-            if scan_patterns.THREAT_FOUND in output:
+            if defender_scan_patterns.THREAT_FOUND in output:
                 logger.warning(f"Threats found in {path}")
                 return scan_result_types.FILE_IS_SUSPECT
             
             # Check for clean scan pattern
-            elif output.rstrip().endswith(scan_patterns.NO_THREATS):
+            elif output.rstrip().endswith(defender_scan_patterns.NO_THREATS):
                 logger.info(f"No threat found in {path}")
                 return scan_result_types.FILE_IS_CLEAN
             
             # Output doesn't match expected patterns
             else:
-                logger.warning(f"Unexpected scan output for {path}: {child_run.stdout}")
+                logger.warning(f"Unexpected scan output for {path}: {output}")
                 
         else:
             # Non-zero return code
@@ -563,7 +572,37 @@ def scan_for_malware_using_defender(path):
 
     return scan_result_types.FILE_SCAN_FAILED
 
+def clamav_parse_response(response, path):
 
+    logger = logging.getLogger('shuttle')
+
+    response = response.strip()
+
+    # Always check for threat and error pattern first, otherwise a malicous filename could be used to add clean response text to output
+
+
+# clamav_parse_response_patterns = types.SimpleNamespace()
+# clamav_parse_response_patterns.ERROR = "^ERROR"
+# clamav_parse_response_patterns.TOTAL_ERRORS = "Total errors: "
+# clamav_parse_response_patterns.THREAT = "FOUND\n"
+# clamav_parse_response_patterns.NO_THREATS = "Infected files: 0"
+# scan_result_types.FILE_SCAN_FAILED
+
+    if re.search(clamav_parse_response_patterns.THREAT, response):
+        logger.warning(f"Threats found in {path}")
+        return scan_result_types.FILE_IS_SUSPECT
+    
+    if re.search(clamav_parse_response_patterns.ERROR, response):
+        return scan_result_types.FILE_SCAN_FAILED
+
+    if clamav_parse_response_patterns.NO_THREATS in response:
+        logger.info(f"No threat found in {path}")
+        return scan_result_types.FILE_IS_CLEAN
+    
+    if defender_scan_patterns.THREAT_FOUND in response:
+        return scan_result_types.FILE_IS_SUSPECT
+
+    return scan_result_types.FILE_SCAN_FAILED
 
 def scan_for_malware_using_clam_av(path):
     logger = logging.getLogger('shuttle')
@@ -571,37 +610,108 @@ def scan_for_malware_using_clam_av(path):
         # Scan the file for malware
         logger.info(f"Scanning file {path} for malware...")
 
-        child_run = subprocess.run(
-            [
-                "clamscan",
-                # "--no-summary",
-                # "--no-color",
-                # "--move",
-                path
-            ],
-            capture_output=True,
-            text=True 
-        )
 
+
+        cmd = [
+                "clamdscan",
+                "--fdpass", # temp until permissions issues resolved 
+                path
+            ]
+        
+        # something in the combination of :
+        #   stdout=subprocess.PIPE, stderr=subprocess.PIPE
+        #   Processing files in parallel using a ProcessPoolExecutor
+        # is unstable, and leads to commands hanging
+        # I haven't entirely solved this mystery, but I have worked around it using:
+        #   calling sequentially without ProcessPoolExecutor
+        #   calling using subprocess.Popen so I can read from stdout to make sure the buffer doesn't overflow
+        # I don't know the real problem yet, but this is relieving the symptoms so will stay until I understand
+
+        child_run = subprocess.Popen(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        output = ''
+        error = ''
+
+        last = time.time()
+        while child_run.poll() is None:
+            if time.time() - last > 5:
+                print('Process is still running')
+                last = time.time()
+
+            tmp = child_run.stdout.read(1)
+            if tmp:
+                output += tmp
+            tmp = child_run.stderr.read(1)
+            if tmp:
+                error += tmp
+
+        output += child_run.stdout.read()
+        error += child_run.stderr.read()
+
+        child_run.stdout.close() 
+        child_run.stderr.close()
+
+        # RETURN CODES
+        #        0 : No virus found.
+        #        1 : Virus(es) found.
+        #        2 : An error occurred.
+
+        if child_run.returncode == 1:
+
+            logger.warning(f"Threats found in {path}")
+            return scan_result_types.FILE_IS_SUSPECT
+
+        if child_run.returncode == 2:
+
+            logger.warning(f"Error while scanning {path}")
+            return scan_result_types.FILE_SCAN_FAILED
+        
         if child_run.returncode == 0:
-            # Check for threat found pattern
-            if scan_patterns.THREAT_FOUND in child_run.stdout:
-                logger.warning(f"Threats found in {path}")
-                return scan_result_types.FILE_IS_SUSPECT
+
+            # clamdscan
+
+            logger.info(f"No threat found in {path}")
+            return scan_result_types.FILE_IS_CLEAN
+
+
+            # the code below is not required as clamdscan returns the scan result as return code, however it may be useful for debugging
             
-            # Check for clean scan pattern
-            elif child_run.stdout.rstrip().endswith(scan_patterns.NO_THREATS):
-                logger.info(f"No threat found in {path}")
-                return scan_result_types.FILE_IS_CLEAN
+            # output.strip()
+
+            # # Always check for threat and error pattern first, otherwise a malicous filename could be used to add clean response text to output
+            # # Check for threat found pattern
+            # if re.search(clamav_parse_response_patterns.THREAT_FOUND, output):
+            #     logger.warning(f"Threats found in {path}")
+            #     return scan_result_types.FILE_IS_SUSPECT
             
-            # Output doesn't match expected patterns
-            else:
-                logger.warning(f"Unexpected scan output for {path}: {child_run.stdout}")
+            # # Check for error pattern
+            # if re.search(clamav_parse_response_patterns.ERROR, output):
+            #     return scan_result_types.FILE_SCAN_FAILED
+            
+            # # Check for clean scan pattern
+
+            # parsed_filename = output.split(': ')[0]
+            # remaining = output.split(': ')[1:]
+
+            # if isinstance(remaining,str):
+            #     result_text = remaining
+            # else:
+            #     result_text = "".join(remaining)
+
+            # if parsed_filename != path:
+            #     logger.warning(f"Unexpected scan output for {path}: {output}")
+            #     return scan_result_types.FILE_SCAN_FAILED
+            
+            # if  re.search(clamav_parse_response_patterns.OK, result_text) and clamav_parse_response_patterns.NO_THREATS in output:
+            #     logger.info(f"No threat found in {path}")
+            #     return scan_result_types.FILE_IS_CLEAN
+            
+            # # Output doesn't match expected patterns
+            # else:
+            #     logger.warning(f"Unexpected scan output for {path}: {output}")
                 
         else:
             # Non-zero return code
             logger.warning(f"Scan failed on {path} with return code {child_run.returncode}")
-
 
     except FileNotFoundError:
         logger.error(f"Files not found when scanning file: {path}")
@@ -886,7 +996,7 @@ def scan_and_process_file(args):
         #     logger.warning(f"Scan failed on {quarantine_file_path}")
      
 
-    if not suspect_file_detected and on_demand_clam_av:
+    if ((not suspect_file_detected) and on_demand_clam_av):
         clam_av_result = scan_for_malware_using_clam_av(quarantine_file_path)
 
         if clam_av_result == scan_result_types.FILE_IS_SUSPECT:
