@@ -14,7 +14,13 @@ output: word_document
 
 **Note:** This script is under active development and has not been fully tested. Use at your own risk.
 
-`shuttle.py` is a Python script designed to transfer files from a source directory to a destination directory on Ubuntu Linux systems. It includes malware scanning using Microsoft Defender ATP (`mdatp`), handling of infected files, and supports parallel processing for efficiency. It may work on other Linux distributions however the installation scripts were written for ubuntu, and you will need to check that Microsoft Defender is supported on your distribution.
+`shuttle.py` is a Python script designed to transfer files from a source directory to a destination directory on Ubuntu Linux systems. It includes malware scanning using ClamAV (preferred) and/or Microsoft Defender ATP (`mdatp`), handling of infected files, and supports parallel processing for efficiency. 
+
+The script primarily uses ClamAV for virus scanning, with Microsoft Defender available as an alternative or additional scanner. When both scanners are enabled, files must pass both scans to be considered clean. This dual-scanning approach provides an extra layer of security when needed.
+
+The recommended configuration is to use ClamAV for on-demand scanning through the script, while disabling the script's Microsoft Defender integration. Instead, configure Microsoft Defender for real-time protection on the filesystem. This setup provides both thorough on-demand scanning via ClamAV and continuous real-time protection via Defender, while avoiding potential conflicts or performance issues that might arise from running both scanners simultaneously in on-demand mode.
+
+The script may work on other Linux distributions; however, the installation scripts were written for Ubuntu. If you plan to use Microsoft Defender as a scanner, you'll need to check that it's supported on your distribution. ClamAV is widely available across Linux distributions.
 
 ## **Features**
 
@@ -26,11 +32,26 @@ output: word_document
   - Utilizes `mdatp` to scan each file individually for malware.
 
 - **Handling Infected Files:**
-  - If malware is detected, typically Microsoft Defender will be configured to handle the suspect file.
-  - If Microsoft Defender is not configured to archive files, this script may be configured to encrypt files GPG with a public key
-  - Encrypted files are moved to a specified hazard archive directory for further analysis
-  - If hazard archive parameters are not provided, infected files are deleted
-  -  If the case that malware has been detected in a copy of a file, but Defender has not archived the original file this script will treat the original as suspect also, and depending on configuration archive or delete it.
+  - When a file is identified as suspicious, it will be handled in one of two ways:
+    
+    1. **Microsoft Defender Handling** (if configured):
+       - If Defender is enabled (either for real-time or on-demand scanning) and configured to handle suspect files
+       - Defender will automatically quarantine/archive the infected file according to its settings
+       - The script will verify that Defender has handled the file appropriately
+    
+    2. **Manual Script Handling**:
+       - Used when Defender is not configured to handle files or is not being used
+       - If hazard archive parameters are provided:
+         - Files are encrypted using GPG with the provided public key
+         - Encrypted files are moved to the specified hazard archive directory
+         - Original filenames and timestamps are preserved in the archive
+       - If hazard archive parameters are not provided:
+         - Infected files are deleted
+         
+  - **Source File Handling**:
+    - When malware is detected in a quarantine copy, the script also checks if the source file.
+    - If the source file has not been removed by defender and matches the infected quarantine copy, it will be handled according to the manual handling instructions.
+    - This ensures that infected files are not left in the source directory
 
 - **File Integrity Verification:**
   - Verifies that the source and destination files match by comparing their hashes.
@@ -100,9 +121,7 @@ eg.:
 
 ## **Environment Set Up Scripts**
 
-To install all the necessary system packages and Python dependencies, you can use the provided scripts.
-
-These scripts can be found in:
+To install all the necessary system packages and Python dependencies, use the provided scripts in:
 
 ```
 /2_set_up_scripts_to_run_on_host
@@ -137,39 +156,9 @@ is included in the deployment scripts:
    ```bash
    ./01_install_dependencies.sh
    ```
+   This installs lsof and gnupg.
 
-**Note:** The script will check for the availability of these external commands at runtime. If any are missing, it will log an error and exit.
-
-The script ensures that the following commands are installed and accessible in your system's PATH:
-
-- **lsof**:
-  - Install via package manager:
-    ```bash
-    sudo apt-get install lsof  # For Debian/Ubuntu
-    ```
-    
-- **gpg**:
-  - Install via package manager:
-- 
-    ```bash
-    sudo apt-get install gnupg  # For Debian/Ubuntu
-    ```
-  - Verify installation:
-  
-    ```bash
-    gpg --version
-    ```
-  - Note: GPG is typically pre-installed on most Linux distributions but may need updating.
-
-- **mdatp**:
-    If Microsoft Defender is not installed on your machine read the Microsoft installation Guide for further information:
-  - **Official Installation Guide**:
-    - [Install Microsoft Defender for Endpoint on Linux Manually](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/linux-install-manually)
-  - **Note**: `mdatp` requires manual installation following Microsoft's official guide due to licensing agreements and repository setup.
-
-
-- **Set up python:**
-  
+- **Set up Python Environment**
    ```bash
    ./02_install_python.sh
    ```
@@ -210,6 +199,14 @@ The script ensures that the following commands are installed and accessible in y
    pip install -r requirements.txt
    ```
 
+- **Install ClamAV**
+   ```bash
+   ./06_install_clamav.sh
+   ```
+   After installation, ClamAV will be enabled and virus definitions will be updated.
+   However ClamAV needs to have access to the directory it will scan.
+   You may need to use ACL to provide access to the `clamav` user.
+
 
    - **Set up working environment config**
   
@@ -217,11 +214,15 @@ The script ensures that the following commands are installed and accessible in y
   If you do not have permission to change exceptions on your machine this process will not work
 
   ```bash
-   python3 ./06_setup_test_environment_linux.py
+   python3 ./07_setup_test_environment_linux.py
 
    ```
+   This script:
+   - Creates working directories
+   - Generates a default settings file
+   - If using Defender, creates exclusions for working folders
 
-
+**Note:** The script will check for the availability of these external commands at runtime. If any are missing, it will log an error and exit.
 
 1. **Run the Shuttle Script:**
 
@@ -240,17 +241,23 @@ Full parameters:
 
 ### **Command-Line Arguments:**
 
-- `-SourcePath`: Path to the source directory containing files to transfer.
-- `-DestinationPath`: Path to the destination directory where clean files will be moved.
-- `-QuarantinePath`: Path to the quarantine directory used for scanning.
-- `-SettingsPath`: Path to the settings file (default: `~/.shuttle/settings.ini`).
-- `-TestSourceWriteAccess`: Test write access to the source directory.
-- `-DeleteSourceFilesAfterCopying`: Delete the source files after successful transfer.
-- `--max-scans`: Maximum number of parallel scans.
-- `--lock-file`: Path to the lock file to prevent multiple instances (default: `/tmp/shuttle.lock`).
-- `-HazardArchivePath`: Path to store encrypted infected files
-- `-HazardEncryptionKeyPath`: Path to the GPG public key file for encrypting hazard files
-- `-LogLevel`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default is INFO.
+- `-SourcePath`: Path to the source directory containing files to transfer
+- `-DestinationPath`: Path to the destination directory where clean files will be moved
+- `-QuarantinePath`: Path to the quarantine directory used for scanning
+- `-LogPath`: Path to store log files (optional)
+- `-HazardArchivePath`: Path to store encrypted infected files (optional)
+- `-HazardEncryptionKeyPath`: Path to the GPG public key file for encrypting hazard files (required if HazardArchivePath is set)
+- `-DeleteSourceFiles`: Delete source files after successful transfer (default: False)
+- `-MaxScanThreads`: Maximum number of parallel scans (default: 1)
+- `-LogLevel`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default is INFO
+- `-ProcessMode`: Processing mode (0 for passive, 1 for active)
+- `-LockFile`: Path to the lock file (default: /tmp/shuttle.lock)
+- `-DefenderHandlesSuspectFiles`: Let Defender handle infected files (default: False)
+- `-OnDemandDefender`: Use Microsoft Defender for scanning (default: False)
+- `-OnDemandClamAV`: Use ClamAV for scanning (default: True)
+- `-SettingsPath`: Path to the settings file (default: ~/.shuttle/settings.ini)
+
+**Note:** The script gives priority to command-line arguments over settings file values.
 
 ### **Settings File (`settings.ini`):**
 
@@ -268,6 +275,9 @@ hazard_encryption_key_path=/path/to/shuttle_public.gpg
 [Settings]
 max_scan_threads=4
 delete_source_files_after_copying=True
+on_demand_defender=False
+on_demand_clam_av=True
+defender_handles_suspect_files=True
 
 [Logging]
 log_level=DEBUG
@@ -320,7 +330,38 @@ This script is a work in progress. Contributions, suggestions, and feedback are 
 
 ## **Additional Commands and Tips**
 
-Here are some additional `mdatp` commands that may be useful:
+Here are some additional ClamAV commands that may be useful:
+
+```bash
+# Check virus definitions
+sudo systemctl stop clamav-freshclam
+sudo -u clamav freshclam
+sudo systemctl start clamav-freshclam
+
+# Scan a specific file
+sudo clamscan -r /path/to/file
+
+# check if freshclam is running
+sudo systemctl status clamav-freshclam
+
+# check if clamav is running
+sudo systemctl status clamav-daemon
+
+# check if clamav is enabled at startup
+sudo systemctl is-enabled clamav-daemon
+
+# check if freshclam is enabled at startup
+sudo systemctl is-enabled clamav-freshclam
+
+# check if freshclam is scheduled to run as a cron job
+sudo crontab -u clamav -l
+
+# edit the cron job for freshclam
+sudo crontab -u clamav -e
+
+```
+
+Here are some additional Microsoft Defender : `mdatp` commands that may be useful:
 
 ```bash
 # Check health status
@@ -341,6 +382,11 @@ mdatp scan full
 # Configure telemetry settings
 mdatp config telemetry --value-enabled  # Enable telemetry
 mdatp config telemetry --value-disabled # Disable telemetry
+```
+crontab configuration
+
+```crontab
+0 0 * * * /usr/bin/freshclam
 ```
 
 Feel free to explore the `mdatp` command-line options to better understand its capabilities.
@@ -483,3 +529,85 @@ Adding a new parameter 'max_retries':
    [settings]
    max_retries=3
    ```
+
+### Virus Scanning Options
+
+The script supports two virus scanners:
+- **ClamAV** (Default and preferred scanner)
+- **Microsoft Defender** (Alternative or additional scanner)
+
+You can configure which scanners to use through these parameters:
+
+```ini
+[settings]
+on_demand_defender=False  # Use Microsoft Defender for scanning
+on_demand_clam_av=True   # Use ClamAV for scanning (recommended)
+defender_handles_suspect_files=True  # Let Defender handle infected files
+```
+
+These can also be set via command line arguments:
+- `-OnDemandDefender`: Enable Microsoft Defender scanning
+- `-OnDemandClamAV`: Enable ClamAV scanning
+- `-DefenderHandlesSuspectFiles`: Let Defender handle infected files
+
+At least one scanner must be enabled. For maximum security, you can enable both scanners - files must pass both scans to be considered clean.
+
+```
+
+## Setup and Installation
+
+1. **Install Required Supporting Applications**
+   ```bash
+   ./01_install_dependencies.sh
+   ```
+
+   The script ensures these commands are installed and accessible:
+
+   - **lsof**:
+     ```bash
+     sudo apt-get install lsof
+     ```
+     
+   - **gpg**:
+     ```bash
+     sudo apt-get install gnupg
+     ```
+
+   - **ClamAV** (Primary virus scanner):
+     ```bash
+     sudo apt-get install clamav clamav-daemon
+     ```
+     After installation:
+     ```bash
+     sudo systemctl start clamav-daemon  # Start the daemon
+     sudo systemctl enable clamav-daemon # Enable at startup
+     sudo freshclam                      # Update virus definitions
+     ```
+
+   - **Microsoft Defender** (Optional):
+     If you plan to use Microsoft Defender, follow the [official installation guide](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/linux-install-manually)
+
+2. **Set up Python Environment**
+   ```bash
+   ./02_install_python.sh
+   ./03_create_venv.sh
+   source ./04_activate_venv_CALL_BY_SOURCE.sh
+   ./05_install_python_dependencies.sh
+   ```
+
+3. **Configure Working Environment**
+   ```bash
+   python3 ./06_setup_test_environment_linux.py
+   ```
+   This script:
+   - Creates working directories
+   - Generates a default settings file
+   - If using Defender, creates exclusions for working folders
+
+The recommended configuration is to:
+1. Enable ClamAV for on-demand scanning (`on_demand_clam_av=True`)
+2. Disable Defender's on-demand scanning (`on_demand_defender=False`)
+3. Configure Microsoft Defender for real-time protection if desired
+```
+
+</rewritten_file>

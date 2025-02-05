@@ -450,7 +450,7 @@ def parse_config() -> ShuttleConfig:
     on_demand_defender = args.OnDemandDefender or settings_file_config.getboolean(
         'settings', 
         'on_demand_defender', 
-        fallback=True
+        fallback=False
     )
     
     on_demand_clam_av = args.OnDemandClamAV or settings_file_config.getboolean(
@@ -481,43 +481,239 @@ def parse_config() -> ShuttleConfig:
 
 
 
-def scan_for_malware_using_defender(path):
+# def scan_for_malware_using_defender(path):
+#     logger = logging.getLogger('shuttle')
+#     try:
+
+#         cmd = [
+#                 "mdatp",
+#                 "scan",
+#                 "custom",
+#                 "--ignore-exclusions",
+#                 "--path",
+#                 path
+#             ]
+        
+#         child_run = subprocess.Popen(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#         output = ''
+#         error = ''
+
+#         last = time.time()
+#         while child_run.poll() is None:
+#             if time.time() - last > 5:
+#                 print('Process is still running')
+#                 last = time.time()
+
+#             tmp = child_run.stdout.read(1)
+#             if tmp:
+#                 output += tmp
+#             tmp = child_run.stderr.read(1)
+#             if tmp:
+#                 error += tmp
+
+#         output += child_run.stdout.read()
+#         error += child_run.stderr.read()
+
+#         child_run.stdout.close() 
+#         child_run.stderr.close()
+
+
+#         if child_run.returncode == 0:
+#             # Always check for threat pattern first, otherwise a malicous filename could be used to add clean response text to output
+#             # Check for threat found pattern
+#             if defender_scan_patterns.THREAT_FOUND in output:
+#                 logger.warning(f"Threats found in {path}")
+#                 return scan_result_types.FILE_IS_SUSPECT
+            
+#             # Check for clean scan pattern
+#             elif output.rstrip().endswith(defender_scan_patterns.NO_THREATS):
+#                 logger.info(f"No threat found in {path}")
+#                 return scan_result_types.FILE_IS_CLEAN
+            
+#             # Output doesn't match expected patterns
+#             else:
+#                 logger.warning(f"Unexpected scan output for {path}: {output}")
+                
+#         else:
+#             # Non-zero return code
+#             logger.warning(f"Scan failed on {path} with return code {child_run.returncode}")
+
+
+#     except FileNotFoundError:
+#         logger.error(f"Files not found when scanning file: {path}")
+#     except PermissionError:
+#         logger.error(f"Permission denied when scanning file: {path}")
+#     except Exception as e:
+#         logger.error(f"Failed to perform malware scan on {path}. Error: {e}")
+
+#     return scan_result_types.FILE_SCAN_FAILED
+
+# def scan_for_malware_using_clam_av(path):
+
+#     logger = logging.getLogger('shuttle')
+#     try:
+#         # Scan the file for malware
+#         logger.info(f"Scanning file {path} for malware...")
+
+#         cmd = [
+#                 "clamdscan",
+#                 "--fdpass", # temp until permissions issues resolved 
+#                 path
+#             ]
+        
+#         # something in the combination of :
+#         #   stdout=subprocess.PIPE, stderr=subprocess.PIPE
+#         #   Processing files in parallel using a ProcessPoolExecutor
+#         # is unstable, and leads to commands hanging
+#         # I haven't entirely solved this mystery, but I have worked around it using:
+#         #   calling sequentially without ProcessPoolExecutor
+#         #   calling using subprocess.Popen so I can read from stdout to make sure the buffer doesn't overflow
+#         # I don't know the real problem yet, but this is relieving the symptoms so will stay until I understand
+
+#         child_run = subprocess.Popen(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#         output = ''
+#         error = ''
+
+#         last = time.time()
+#         while child_run.poll() is None:
+#             if time.time() - last > 5:
+#                 print('Process is still running')
+#                 last = time.time()
+
+#             tmp = child_run.stdout.read(1)
+#             if tmp:
+#                 output += tmp
+#             tmp = child_run.stderr.read(1)
+#             if tmp:
+#                 error += tmp
+
+#         output += child_run.stdout.read()
+#         error += child_run.stderr.read()
+
+#         child_run.stdout.close() 
+#         child_run.stderr.close()
+
+#         # RETURN CODES
+#         #        0 : No virus found.
+#         #        1 : Virus(es) found.
+#         #        2 : An error occurred.
+
+#         if child_run.returncode == 1:
+
+#             logger.warning(f"Threats found in {path}")
+#             return scan_result_types.FILE_IS_SUSPECT
+
+#         if child_run.returncode == 2:
+
+#             logger.warning(f"Error while scanning {path}")
+#             return scan_result_types.FILE_SCAN_FAILED
+        
+#         if child_run.returncode == 0:
+
+#             logger.info(f"No threat found in {path}")
+#             return scan_result_types.FILE_IS_CLEAN
+
+#         else:
+#             # Non-zero return code
+#             logger.warning(f"Scan failed on {path} with return code {child_run.returncode}")
+
+#     except FileNotFoundError:
+#         logger.error(f"Files not found when scanning file: {path}")
+#     except PermissionError:
+#         logger.error(f"Permission denied when scanning file: {path}")
+#     except Exception as e:
+#         logger.error(f"Failed to perform malware scan on {path}. Error: {e}")
+
+#     return scan_result_types.FILE_SCAN_FAILED
+
+# scan_process_result_types = types.SimpleNamespace()
+# scan_process_result_types.CLEAN_FILE_HANDLED = 0
+# scan_process_result_types.CLEAN_FILE_HANDLE_ERROR = 1
+# scan_process_result_types.SUSPECT_FILE_AUTO_HANDLED = 2
+# scan_process_result_types.SUSPECT_FILE_MANUAL_HANDLED = 4
+# scan_process_result_types.SUSPECT_FILE_HANDLE_ERROR = 8
+# scan_process_result_types.SCAN_FAILED = 64
+
+def handle_defender_scan_result(returncode, output):
+    """
+    Process Microsoft Defender scan results.
+    
+    Args:
+        returncode (int): Process return code
+        output (str): Process output
+        
+    Returns:
+        int: scan_result_types value
+    """
+    logger = logging.getLogger('shuttle')
+    
+    if returncode == 0:
+        # Always check for threat pattern first, otherwise a malicious filename could be used to add clean response text to output
+        if defender_scan_patterns.THREAT_FOUND in output:
+            logger.warning("Threats found")
+            return scan_result_types.FILE_IS_SUSPECT
+        
+        elif output.rstrip().endswith(defender_scan_patterns.NO_THREATS):
+            logger.info("No threat found")
+            return scan_result_types.FILE_IS_CLEAN
+        
+        else:
+            logger.warning(f"Unexpected scan output: {output}")
+            
+    else:
+        logger.warning(f"Scan failed with return code {returncode}")
+    
+    return scan_result_types.FILE_SCAN_FAILED
+
+def handle_clamav_scan_result(returncode, output):
+    """
+    Process ClamAV scan results.
+    
+    Args:
+        returncode (int): Process return code
+        output (str): Process output
+        
+    Returns:
+        int: scan_result_types value
+    """
+    logger = logging.getLogger('shuttle')
+    
+    # RETURN CODES
+    #        0 : No virus found.
+    #        1 : Virus(es) found.
+    #        2 : An error occurred.
+    
+    if returncode == 1:
+        logger.warning("Threats found")
+        return scan_result_types.FILE_IS_SUSPECT
+        
+    if returncode == 2:
+        logger.warning("Error while scanning")
+        return scan_result_types.FILE_SCAN_FAILED
+        
+    if returncode == 0:
+        logger.info("No threat found")
+        return scan_result_types.FILE_IS_CLEAN
+        
+    logger.warning(f"Unexpected return code: {returncode}")
+    return scan_result_types.FILE_SCAN_FAILED
+
+def run_malware_scan(cmd, path, result_handler):
+    """
+    Run a malware scan using the specified command and process the results.
+    
+    Args:
+        cmd (list): Command to run
+        path (str): Path to file being scanned
+        result_handler (callable): Function to process scan results
+        
+    Returns:
+        int: scan_result_types value
+    """
     logger = logging.getLogger('shuttle')
     try:
-        # # Scan the file for malware
-        # logger.info(f"Scanning file {path} for malware...")
-
-        # child_run = subprocess.run(
-        #     [
-        #         "mdatp",
-        #         "scan",
-        #         "custom",
-        #         "--ignore-exclusions",
-        #         "--path",
-        #         path
-        #     ],
-        #     capture_output=True,
-        #     text=True 
-        # )
-
-        cmd = [
-                "mdatp",
-                "scan",
-                "custom",
-                "--ignore-exclusions",
-                "--path",
-                path
-            ]
+        logger.info(f"Scanning file {path} for malware...")
         
-        # something in the combination of :
-        #   stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        #   Processing files in parallel using a ProcessPoolExecutor
-        # is unstable, and leads to commands hanging
-        # I haven't entirely solved this mystery, but I have worked around it using:
-        #   calling sequentially without ProcessPoolExecutor
-        #   calling using subprocess.Popen so I can read from stdout to make sure the buffer doesn't overflow
-        # I don't know the real problem yet, but this is relieving the symptoms so will stay until I understand
-
         child_run = subprocess.Popen(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         output = ''
         error = ''
@@ -541,27 +737,7 @@ def scan_for_malware_using_defender(path):
         child_run.stdout.close() 
         child_run.stderr.close()
 
-
-        if child_run.returncode == 0:
-            # Always check for threat pattern first, otherwise a malicous filename could be used to add clean response text to output
-            # Check for threat found pattern
-            if defender_scan_patterns.THREAT_FOUND in output:
-                logger.warning(f"Threats found in {path}")
-                return scan_result_types.FILE_IS_SUSPECT
-            
-            # Check for clean scan pattern
-            elif output.rstrip().endswith(defender_scan_patterns.NO_THREATS):
-                logger.info(f"No threat found in {path}")
-                return scan_result_types.FILE_IS_CLEAN
-            
-            # Output doesn't match expected patterns
-            else:
-                logger.warning(f"Unexpected scan output for {path}: {output}")
-                
-        else:
-            # Non-zero return code
-            logger.warning(f"Scan failed on {path} with return code {child_run.returncode}")
-
+        return result_handler(child_run.returncode, output)
 
     except FileNotFoundError:
         logger.error(f"Files not found when scanning file: {path}")
@@ -572,164 +748,69 @@ def scan_for_malware_using_defender(path):
 
     return scan_result_types.FILE_SCAN_FAILED
 
-def clamav_parse_response(response, path):
-
-    logger = logging.getLogger('shuttle')
-
-    response = response.strip()
-
-    # Always check for threat and error pattern first, otherwise a malicous filename could be used to add clean response text to output
-
-
-# clamav_parse_response_patterns = types.SimpleNamespace()
-# clamav_parse_response_patterns.ERROR = "^ERROR"
-# clamav_parse_response_patterns.TOTAL_ERRORS = "Total errors: "
-# clamav_parse_response_patterns.THREAT = "FOUND\n"
-# clamav_parse_response_patterns.NO_THREATS = "Infected files: 0"
-# scan_result_types.FILE_SCAN_FAILED
-
-    if re.search(clamav_parse_response_patterns.THREAT, response):
-        logger.warning(f"Threats found in {path}")
-        return scan_result_types.FILE_IS_SUSPECT
-    
-    if re.search(clamav_parse_response_patterns.ERROR, response):
-        return scan_result_types.FILE_SCAN_FAILED
-
-    if clamav_parse_response_patterns.NO_THREATS in response:
-        logger.info(f"No threat found in {path}")
-        return scan_result_types.FILE_IS_CLEAN
-    
-    if defender_scan_patterns.THREAT_FOUND in response:
-        return scan_result_types.FILE_IS_SUSPECT
-
-    return scan_result_types.FILE_SCAN_FAILED
+def scan_for_malware_using_defender(path):
+    """Scan a file using Microsoft Defender."""
+    cmd = [
+        "mdatp",
+        "scan",
+        "custom",
+        "--ignore-exclusions",
+        "--path",
+        path
+    ]
+    return run_malware_scan(cmd, path, handle_defender_scan_result)
 
 def scan_for_malware_using_clam_av(path):
+    """Scan a file using ClamAV."""
+    cmd = [
+        "clamdscan",
+        "--fdpass",  # temp until permissions issues resolved
+        path
+    ]
+    return run_malware_scan(cmd, path, handle_clamav_scan_result)
+
+def handle_suspect_source_file(
+    source_file_path,
+    quarantine_hash,
+    hazard_archive_path,
+    key_file_path
+):
+    """
+    Handle a source file when its quarantine copy is found to be suspect.
+    
+    Args:
+        source_file_path (str): Path to the source file
+        quarantine_hash (str): Hash of the quarantine file for comparison
+        hazard_archive_path (str): Path to archive suspicious files
+        key_file_path (str): Path to GPG public key file
+        delete_source_files (bool): Whether to delete source files
+    
+    Returns:
+        bool: True if handled successfully, False otherwise
+    """
     logger = logging.getLogger('shuttle')
-    try:
-        # Scan the file for malware
-        logger.info(f"Scanning file {path} for malware...")
-
-
-
-        cmd = [
-                "clamdscan",
-                "--fdpass", # temp until permissions issues resolved 
-                path
-            ]
+    
+    if not os.path.exists(source_file_path):
+        return True
         
-        # something in the combination of :
-        #   stdout=subprocess.PIPE, stderr=subprocess.PIPE
-        #   Processing files in parallel using a ProcessPoolExecutor
-        # is unstable, and leads to commands hanging
-        # I haven't entirely solved this mystery, but I have worked around it using:
-        #   calling sequentially without ProcessPoolExecutor
-        #   calling using subprocess.Popen so I can read from stdout to make sure the buffer doesn't overflow
-        # I don't know the real problem yet, but this is relieving the symptoms so will stay until I understand
-
-        child_run = subprocess.Popen(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output = ''
-        error = ''
-
-        last = time.time()
-        while child_run.poll() is None:
-            if time.time() - last > 5:
-                print('Process is still running')
-                last = time.time()
-
-            tmp = child_run.stdout.read(1)
-            if tmp:
-                output += tmp
-            tmp = child_run.stderr.read(1)
-            if tmp:
-                error += tmp
-
-        output += child_run.stdout.read()
-        error += child_run.stderr.read()
-
-        child_run.stdout.close() 
-        child_run.stderr.close()
-
-        # RETURN CODES
-        #        0 : No virus found.
-        #        1 : Virus(es) found.
-        #        2 : An error occurred.
-
-        if child_run.returncode == 1:
-
-            logger.warning(f"Threats found in {path}")
-            return scan_result_types.FILE_IS_SUSPECT
-
-        if child_run.returncode == 2:
-
-            logger.warning(f"Error while scanning {path}")
-            return scan_result_types.FILE_SCAN_FAILED
+    source_hash = get_file_hash(source_file_path)
+    
+    if source_hash == quarantine_hash:
+        logger.error(f"Hash match for source file {source_file_path}")
+        logger.error(f"Archiving source file")
         
-        if child_run.returncode == 0:
-
-            # clamdscan
-
-            logger.info(f"No threat found in {path}")
-            return scan_result_types.FILE_IS_CLEAN
-
-
-            # the code below is not required as clamdscan returns the scan result as return code, however it may be useful for debugging
-            
-            # output.strip()
-
-            # # Always check for threat and error pattern first, otherwise a malicous filename could be used to add clean response text to output
-            # # Check for threat found pattern
-            # if re.search(clamav_parse_response_patterns.THREAT_FOUND, output):
-            #     logger.warning(f"Threats found in {path}")
-            #     return scan_result_types.FILE_IS_SUSPECT
-            
-            # # Check for error pattern
-            # if re.search(clamav_parse_response_patterns.ERROR, output):
-            #     return scan_result_types.FILE_SCAN_FAILED
-            
-            # # Check for clean scan pattern
-
-            # parsed_filename = output.split(': ')[0]
-            # remaining = output.split(': ')[1:]
-
-            # if isinstance(remaining,str):
-            #     result_text = remaining
-            # else:
-            #     result_text = "".join(remaining)
-
-            # if parsed_filename != path:
-            #     logger.warning(f"Unexpected scan output for {path}: {output}")
-            #     return scan_result_types.FILE_SCAN_FAILED
-            
-            # if  re.search(clamav_parse_response_patterns.OK, result_text) and clamav_parse_response_patterns.NO_THREATS in output:
-            #     logger.info(f"No threat found in {path}")
-            #     return scan_result_types.FILE_IS_CLEAN
-            
-            # # Output doesn't match expected patterns
-            # else:
-            #     logger.warning(f"Unexpected scan output for {path}: {output}")
-                
-        else:
-            # Non-zero return code
-            logger.warning(f"Scan failed on {path} with return code {child_run.returncode}")
-
-    except FileNotFoundError:
-        logger.error(f"Files not found when scanning file: {path}")
-    except PermissionError:
-        logger.error(f"Permission denied when scanning file: {path}")
-    except Exception as e:
-        logger.error(f"Failed to perform malware scan on {path}. Error: {e}")
-
-    return scan_result_types.FILE_SCAN_FAILED
-
-scan_process_result_types = types.SimpleNamespace()
-scan_process_result_types.CLEAN_FILE_HANDLED = 0
-scan_process_result_types.CLEAN_FILE_HANDLE_ERROR = 1
-scan_process_result_types.SUSPECT_FILE_AUTO_HANDLED = 2
-scan_process_result_types.SUSPECT_FILE_MANUAL_HANDLED = 4
-scan_process_result_types.SUSPECT_FILE_HANDLE_ERROR = 8
-scan_process_result_types.SCAN_FAILED = 64
-
+        if not handle_suspect_file(
+            source_file_path,
+            hazard_archive_path,
+            key_file_path
+        ):
+            logger.error(f"Failed to archive source file: {source_file_path}")
+            return False
+    else:
+        logger.error(f"Hash mismatch for source file {source_file_path}")
+        logger.error(f"Not archiving source file")
+        
+    return True
 
 def handle_suspect_scan_result(
     quarantine_file_path,
@@ -737,7 +818,7 @@ def handle_suspect_scan_result(
     hazard_archive_path,
     key_file_path,
     delete_source_files,
-    scanner_handled_suspect_file,
+    scanner_handling_suspect_file,
     quarantine_hash
 ):
     """
@@ -746,44 +827,36 @@ def handle_suspect_scan_result(
     Args:
         quarantine_file_path (str): Path to the file in quarantine
         source_file_path (str): Path to the original source file
-        destination_file_path (str): Path where file should be copied in destination
         hazard_archive_path (str): Path to archive suspicious files
         key_file_path (str): Path to GPG public key file
         delete_source_files (bool): Whether to delete source files
-        scanner_handled_suspect_file (bool): Whether virus scanner removed suspect files
+        scanner_handling_suspect_file (bool): Whether virus scanner removes suspect files
         quarantine_hash (str): Hash of the quarantine file for comparison
     
     Returns:
         bool: True if handled successfully, False otherwise
     """
     logger = logging.getLogger('shuttle')
+    scanner_handled_suspect_file = False
 
+    if scanner_handling_suspect_file:
+        logger.warning(f"Threats found in {quarantine_file_path}, letting Defender handle it")
+        
+        # Give Defender time to handle the file and verify it's been removed
+        time.sleep(0.5)  # 500ms pause
+        if not os.path.exists(quarantine_file_path):
+            logger.info(f"Defender has removed the suspect file: {quarantine_file_path}")
+            scanner_handled_suspect_file = True
+        else:
+            logger.warning(f"Defender did not remove the suspect file: {quarantine_file_path}, handling internally")
 
     if scanner_handled_suspect_file:
-        logger.warning(f"Threats found in {quarantine_file_path}, letting Defender handle it")
-
-        # Delete source file if requested
-        if delete_source_files:
-            logger.info(f"Checking if Defender has removed suspect source file {source_file_path}")
-            if os.path.exists(source_file_path):
-                source_hash = get_file_hash(source_file_path)
-
-                if source_hash == quarantine_hash:
-                    logger.error(f"Hash match for {source_file_path} to suspect file {quarantine_file_path}")
-                    logger.error(f"Archiving {source_file_path}")
-
-                    if not handle_suspect_file(
-                        source_file_path,
-                        hazard_archive_path,
-                        key_file_path
-                    ):
-                        logger.error(f"Failed to archive source file: {source_file_path}")
-                        return False
-                else:
-                    logger.error(f"Hash mismatch for {source_file_path} to suspect file {quarantine_file_path}")
-                    logger.error(f"Not archiving {source_file_path}")
-                    
-        return True
+        return handle_suspect_source_file(
+            source_file_path,
+            quarantine_hash,
+            hazard_archive_path,
+            key_file_path
+        )
     else:
         logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
         return handle_suspect_quarantine_file_and_delete_source(
@@ -793,123 +866,6 @@ def handle_suspect_scan_result(
             key_file_path,
             delete_source_files
         )
-
-    return True
-
-# def handle_clean_scan_result(
-
-#     quarantine_file_path,
-#     source_file_path,
-#     destination_file_path,
-#     quarantine_hash,
-#     delete_source_files
-# ):
-#     """
-#     Handle the result of a clean malware scan.
-    
-#     Args:
-
-#         quarantine_file_path (str): Path to the file in quarantine
-#         source_file_path (str): Path to the original source file
-#         destination_file_path (str): Path where file should be copied in destination
-#         quarantine_hash (str): Hash of the quarantine file for comparison
-    
-#     Returns:
-#         bool: True if handled successfully, False otherwise
-#     """
-#     logger = logging.getLogger('shuttle')
-
-#     logger.info(f"No threats found in {quarantine_file_path}")
-#     return handle_clean_file(
-#         quarantine_file_path,
-#         source_file_path,
-#         destination_file_path,
-#         delete_source_files
-#     )
-
-
-
-# def handle_scan_result(
-#     result,
-#     quarantine_file_path,
-#     source_file_path,
-#     destination_file_path,
-#     hazard_archive_path,
-#     key_file_path,
-#     delete_source_files,
-#     scanner_handles_suspect,
-#     quarantine_hash
-# ):
-#     """
-#     Handle the result of a malware scan.
-    
-#     Args:
-#         result: The scan result type
-#         quarantine_file_path (str): Path to the file in quarantine
-#         source_file_path (str): Path to the original source file
-#         destination_file_path (str): Path where file should be copied in destination
-#         hazard_archive_path (str): Path to archive suspicious files
-#         key_file_path (str): Path to GPG public key file
-#         delete_source_files (bool): Whether to delete source files
-#         defender_handles_suspect (bool): Whether Defender handles suspect files
-#         quarantine_hash (str): Hash of the quarantine file for comparison
-    
-#     Returns:
-#         bool: True if handled successfully, False otherwise
-#     """
-#     logger = logging.getLogger('shuttle')
-
-#     match result:
-#         case scan_result_types.FILE_IS_CLEAN:
-#             logger.info(f"No threats found in {quarantine_file_path}")
-#             return handle_clean_file(
-#                 quarantine_file_path,
-#                 source_file_path,
-#                 destination_file_path,
-#                 delete_source_files
-#             )
-
-#         case scan_result_types.FILE_IS_SUSPECT:
-#             if scanner_handles_suspect:
-#                 logger.warning(f"Threats found in {quarantine_file_path}, letting Defender handle it")
-
-#                 # Delete source file if requested
-#                 if delete_source_files:
-#                     logger.info(f"Checking if Defender has removed suspect source file {source_file_path}")
-#                     if os.path.exists(source_file_path):
-#                         source_hash = get_file_hash(source_file_path)
-
-#                         if source_hash == quarantine_hash:
-#                             logger.error(f"Hash match for {source_file_path} to suspect file {quarantine_file_path}")
-#                             logger.error(f"Archiving {source_file_path}")
-
-#                             if not handle_suspect_file(
-#                                 source_file_path,
-#                                 hazard_archive_path,
-#                                 key_file_path
-#                             ):
-#                                 logger.error(f"Failed to archive source file: {source_file_path}")
-#                                 return False
-#                         else:
-#                             logger.error(f"Hash mismatch for {source_file_path} to suspect file {quarantine_file_path}")
-#                             logger.error(f"Not archiving {source_file_path}")
-                            
-#                 return True
-#             else:
-#                 logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
-#                 return handle_suspect_quarantine_file_and_delete_source(
-#                     quarantine_file_path,
-#                     source_file_path,
-#                     hazard_archive_path,
-#                     key_file_path,
-#                     delete_source_files
-#                 )
-
-#         case _:
-#             logger.warning(f"Scan failed on {quarantine_file_path}")
-#             return False
-
-#     return True
 
 def scan_and_process_file(args):
     """
@@ -954,7 +910,8 @@ def scan_and_process_file(args):
     clam_av_result = None
 
     suspect_file_detected = False
-    
+    scanner_handling_suspect_file = False
+
     if on_demand_defender:
         # Scan the file for malware
         logger.info(f"Scanning file {quarantine_file_path} for malware...")
@@ -965,36 +922,11 @@ def scan_and_process_file(args):
             suspect_file_detected = True
             if defender_handles_suspect:
                 logger.warning(f"Threats found in {quarantine_file_path}, letting Defender handle it")
-
-                suspect_file_handled = True
-
-
-                # # Delete source file if requested
-                # # TODO: 
-                # # Consider reading the Defender log to check if the file has been identified as a threat
-
-                # if delete_source_files:
-                #     logger.info(f"Checking if Defender has removed suspect source file {source_file_path}")
-                #     if os.path.exists(source_file_path):
-
-                #         if not handle_suspect_file(
-                #             source_file_path,
-                #             hazard_archive_path,
-                #             key_file_path
-                #         ):
-                #             logger.error(f"Failed to archive suspect source file: {source_file_path}")
-                #             return False
-
-                # return True
+                scanner_handling_suspect_file = True
 
             else:
                 logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
-        
-        # elif defender_result == scan_result_types.FILE_IS_CLEAN:
-        #     logger.info(f"No threats found in {quarantine_file_path}")
-        # elif defender_result == scan_result_types.FILE_SCAN_FAILED:
-        #     logger.warning(f"Scan failed on {quarantine_file_path}")
-     
+             
 
     if ((not suspect_file_detected) and on_demand_clam_av):
         clam_av_result = scan_for_malware_using_clam_av(quarantine_file_path)
@@ -1012,7 +944,7 @@ def scan_and_process_file(args):
             hazard_archive_path,
             key_file_path,
             delete_source_files,
-            defender_handles_suspect,
+            scanner_handling_suspect_file,
             quarantine_hash
         )
     
@@ -1452,8 +1384,6 @@ def process_files(config):
         config.on_demand_clam_av,
         config.defender_handles_suspect_files
     )
-
-
 
 def main():
     
