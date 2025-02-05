@@ -250,7 +250,6 @@ Full parameters:
 - `-DeleteSourceFiles`: Delete source files after successful transfer (default: False)
 - `-MaxScanThreads`: Maximum number of parallel scans (default: 1)
 - `-LogLevel`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default is INFO
-- `-ProcessMode`: Processing mode (0 for passive, 1 for active)
 - `-LockFile`: Path to the lock file (default: /tmp/shuttle.lock)
 - `-DefenderHandlesSuspectFiles`: Let Defender handle infected files (default: False)
 - `-OnDemandDefender`: Use Microsoft Defender for scanning (default: False)

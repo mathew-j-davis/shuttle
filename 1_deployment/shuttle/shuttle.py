@@ -27,16 +27,10 @@ scan_result_types.FILE_IS_SUSPECT = 3
 scan_result_types.FILE_IS_CLEAN = 0
 scan_result_types.FILE_SCAN_FAILED = 100
 
-
-
-
-
 # Define scan output patterns
 defender_scan_patterns = types.SimpleNamespace()
 defender_scan_patterns.THREAT_FOUND = "Threat(s) found"
 defender_scan_patterns.NO_THREATS = "0 threat(s) detected"
-
-
 
 clamav_parse_response_patterns = types.SimpleNamespace()
 clamav_parse_response_patterns.ERROR = "^ERROR"
@@ -45,12 +39,6 @@ clamav_parse_response_patterns.THREAT_FOUND = "FOUND\n\n"
 clamav_parse_response_patterns.OK = "^OK\n"
 clamav_parse_response_patterns.NO_THREATS = "Infected files: 0"
 
-
-
-process_modes= types.SimpleNamespace()
-
-process_modes.PASSIVE = 0
-process_modes.ACTIVE = 1
 
 @dataclass
 class ShuttleConfig:
@@ -63,7 +51,6 @@ class ShuttleConfig:
     delete_source_files: bool
     max_scan_threads: int
     log_level: int
-    process_mode: int
     lock_file: str
     defender_handles_suspect_files: bool
     on_demand_defender: bool
@@ -380,10 +367,7 @@ def parse_config() -> ShuttleConfig:
     parser.add_argument('-HazardArchivePath', help='Path to the hazard archive directory')
     parser.add_argument('-HazardEncryptionKeyPath', help='Path to the GPG public key file for encrypting hazard files')
     parser.add_argument('-LogLevel', default=None, help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
-    parser.add_argument('-ProcessMode', 
-                        choices=['active', 'passive'],
-                        default='active',
-                        help='Processing mode (active or passive)')
+
     parser.add_argument('-DefenderHandlesSuspectFiles', 
                         action='store_true',
                         default=True,
@@ -436,9 +420,6 @@ def parse_config() -> ShuttleConfig:
 
     max_scan_threads = args.MaxScanThreads or settings_file_config.getint('settings', 'max_scan_threads', fallback=1)
 
-    # Convert process mode string to int
-    process_mode = process_modes.PASSIVE if args.ProcessMode == 'passive' else process_modes.ACTIVE
-
     # Get defender handling setting
     defender_handles_suspect_files = args.DefenderHandlesSuspectFiles or settings_file_config.getboolean(
         'settings', 
@@ -470,7 +451,6 @@ def parse_config() -> ShuttleConfig:
         delete_source_files=delete_source_files,
         max_scan_threads=max_scan_threads,
         log_level=numeric_level,
-        process_mode=process_mode,
         lock_file=lock_file,
         defender_handles_suspect_files= defender_handles_suspect_files,
         on_demand_defender=on_demand_defender,
@@ -478,161 +458,6 @@ def parse_config() -> ShuttleConfig:
     )
 
     return settings_file_config
-
-
-
-# def scan_for_malware_using_defender(path):
-#     logger = logging.getLogger('shuttle')
-#     try:
-
-#         cmd = [
-#                 "mdatp",
-#                 "scan",
-#                 "custom",
-#                 "--ignore-exclusions",
-#                 "--path",
-#                 path
-#             ]
-        
-#         child_run = subprocess.Popen(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-#         output = ''
-#         error = ''
-
-#         last = time.time()
-#         while child_run.poll() is None:
-#             if time.time() - last > 5:
-#                 print('Process is still running')
-#                 last = time.time()
-
-#             tmp = child_run.stdout.read(1)
-#             if tmp:
-#                 output += tmp
-#             tmp = child_run.stderr.read(1)
-#             if tmp:
-#                 error += tmp
-
-#         output += child_run.stdout.read()
-#         error += child_run.stderr.read()
-
-#         child_run.stdout.close() 
-#         child_run.stderr.close()
-
-
-#         if child_run.returncode == 0:
-#             # Always check for threat pattern first, otherwise a malicous filename could be used to add clean response text to output
-#             # Check for threat found pattern
-#             if defender_scan_patterns.THREAT_FOUND in output:
-#                 logger.warning(f"Threats found in {path}")
-#                 return scan_result_types.FILE_IS_SUSPECT
-            
-#             # Check for clean scan pattern
-#             elif output.rstrip().endswith(defender_scan_patterns.NO_THREATS):
-#                 logger.info(f"No threat found in {path}")
-#                 return scan_result_types.FILE_IS_CLEAN
-            
-#             # Output doesn't match expected patterns
-#             else:
-#                 logger.warning(f"Unexpected scan output for {path}: {output}")
-                
-#         else:
-#             # Non-zero return code
-#             logger.warning(f"Scan failed on {path} with return code {child_run.returncode}")
-
-
-#     except FileNotFoundError:
-#         logger.error(f"Files not found when scanning file: {path}")
-#     except PermissionError:
-#         logger.error(f"Permission denied when scanning file: {path}")
-#     except Exception as e:
-#         logger.error(f"Failed to perform malware scan on {path}. Error: {e}")
-
-#     return scan_result_types.FILE_SCAN_FAILED
-
-# def scan_for_malware_using_clam_av(path):
-
-#     logger = logging.getLogger('shuttle')
-#     try:
-#         # Scan the file for malware
-#         logger.info(f"Scanning file {path} for malware...")
-
-#         cmd = [
-#                 "clamdscan",
-#                 "--fdpass", # temp until permissions issues resolved 
-#                 path
-#             ]
-        
-#         # something in the combination of :
-#         #   stdout=subprocess.PIPE, stderr=subprocess.PIPE
-#         #   Processing files in parallel using a ProcessPoolExecutor
-#         # is unstable, and leads to commands hanging
-#         # I haven't entirely solved this mystery, but I have worked around it using:
-#         #   calling sequentially without ProcessPoolExecutor
-#         #   calling using subprocess.Popen so I can read from stdout to make sure the buffer doesn't overflow
-#         # I don't know the real problem yet, but this is relieving the symptoms so will stay until I understand
-
-#         child_run = subprocess.Popen(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-#         output = ''
-#         error = ''
-
-#         last = time.time()
-#         while child_run.poll() is None:
-#             if time.time() - last > 5:
-#                 print('Process is still running')
-#                 last = time.time()
-
-#             tmp = child_run.stdout.read(1)
-#             if tmp:
-#                 output += tmp
-#             tmp = child_run.stderr.read(1)
-#             if tmp:
-#                 error += tmp
-
-#         output += child_run.stdout.read()
-#         error += child_run.stderr.read()
-
-#         child_run.stdout.close() 
-#         child_run.stderr.close()
-
-#         # RETURN CODES
-#         #        0 : No virus found.
-#         #        1 : Virus(es) found.
-#         #        2 : An error occurred.
-
-#         if child_run.returncode == 1:
-
-#             logger.warning(f"Threats found in {path}")
-#             return scan_result_types.FILE_IS_SUSPECT
-
-#         if child_run.returncode == 2:
-
-#             logger.warning(f"Error while scanning {path}")
-#             return scan_result_types.FILE_SCAN_FAILED
-        
-#         if child_run.returncode == 0:
-
-#             logger.info(f"No threat found in {path}")
-#             return scan_result_types.FILE_IS_CLEAN
-
-#         else:
-#             # Non-zero return code
-#             logger.warning(f"Scan failed on {path} with return code {child_run.returncode}")
-
-#     except FileNotFoundError:
-#         logger.error(f"Files not found when scanning file: {path}")
-#     except PermissionError:
-#         logger.error(f"Permission denied when scanning file: {path}")
-#     except Exception as e:
-#         logger.error(f"Failed to perform malware scan on {path}. Error: {e}")
-
-#     return scan_result_types.FILE_SCAN_FAILED
-
-# scan_process_result_types = types.SimpleNamespace()
-# scan_process_result_types.CLEAN_FILE_HANDLED = 0
-# scan_process_result_types.CLEAN_FILE_HANDLE_ERROR = 1
-# scan_process_result_types.SUSPECT_FILE_AUTO_HANDLED = 2
-# scan_process_result_types.SUSPECT_FILE_MANUAL_HANDLED = 4
-# scan_process_result_types.SUSPECT_FILE_HANDLE_ERROR = 8
-# scan_process_result_types.SCAN_FAILED = 64
 
 def handle_defender_scan_result(returncode, output):
     """
