@@ -29,7 +29,7 @@ The script may work on other Linux distributions; however, the installation scri
   - Moves clean files from the quarantine directory to the destination directory after scanning.
 
 - **Malware Scanning:**
-  - Utilizes `mdatp` to scan each file individually for malware.
+  - Utilizes `clamdscan` and or `mdatp` to scan each file individually for malware.
 
 - **Handling Infected Files:**
   - When a file is identified as suspicious, it will be handled in one of two ways:
