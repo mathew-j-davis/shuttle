@@ -1078,7 +1078,20 @@ def scan_and_process_directory(
         # os.walk traverses the directory tree
         for source_root, dirs, source_files in os.walk(source_path, topdown=False):
             for source_file in source_files:
+                if not is_filename_safe(source_file):
+                    logger.error(f"Skipping file {source_file} because it contains unsafe characters.")
+                    continue
+
+                if not is_filename_safe(source_root):
+                    logger.error(f"Skipping {source_root} because it contains unsafe characters.")
+                    continue
+
                 source_file_path = os.path.join(source_root, source_file)
+
+                if not is_filename_safe(source_file_path):
+                    logger.error(f"Skipping path {source_file_path} because it contains unsafe characters.")
+                    continue
+                
 
                 # Skip files that are not stable (still being written to)
                 if not is_file_stable(source_file_path):
@@ -1194,6 +1207,41 @@ def scan_and_process_directory(
     except Exception as e:
         logger.error(f"Failed to copy files to quarantine: Error: {e}")
 
+
+
+
+def is_filename_safe(filename):
+    """
+    Check if a filename contains potentially dangerous characters.
+    Allows alphanumeric, spaces, and valid UTF-8 characters, but blocks
+    control characters and specific dangerous symbols.
+    
+    Args:
+        filename (str): Filename to check
+        
+    Returns:
+        bool: True if filename is safe, False otherwise
+    """
+    # Block control characters (0x00-0x1F, 0x7F)
+    if any(ord(char) < 32 or ord(char) == 0x7F for char in filename):
+        return False
+        
+    # Block specific dangerous characters
+    dangerous_chars = ['/', '\\', '..', '>', '<', '|', '*', '$', '&', ';', '`']
+    if any(char in filename for char in dangerous_chars):
+        return False
+        
+    # Block filenames starting with dash or period
+    if filename.startswith('-') or filename.startswith('.'):
+        return False
+        
+    # Ensure filename is valid UTF-8
+    try:
+        filename.encode('utf-8').decode('utf-8')
+    except UnicodeError:
+        return False
+        
+    return True
 
 def process_files(config):
 
