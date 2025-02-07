@@ -37,7 +37,7 @@ The script may work on other Linux distributions; however, the installation scri
     1. **Microsoft Defender Handling** (if configured):
        - If Defender is enabled (either for real-time or on-demand scanning) and configured to handle suspect files
        - Defender will automatically quarantine/archive the infected file according to its settings
-       - The script will verify that Defender has handled the file appropriately
+       - The script will verify that Defender has removed the file.
     
     2. **Manual Script Handling**:
        - Used when Defender is not configured to handle files or is not being used
