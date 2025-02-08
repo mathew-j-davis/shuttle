@@ -1177,7 +1177,7 @@ def scan_and_process_directory(
                 if counter >= len(results):
                     break
 
-                #transfer was successful, clean up empty directorues
+                #transfer was successful, clean up empty directories
 
                 if results[counter]:
 
@@ -1206,8 +1206,6 @@ def scan_and_process_directory(
 
     except Exception as e:
         logger.error(f"Failed to copy files to quarantine: Error: {e}")
-
-
 
 
 def is_filename_safe(filename):
