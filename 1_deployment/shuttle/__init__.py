@@ -1,14 +1,12 @@
 # Import all configuration types and functions
 from .config import (
     ShuttleConfig, 
-    parse_config, 
-    scan_result_types,
-    defender_scan_patterns,
-    clamav_parse_response_patterns
+    parse_config
 )
 
 # Import all scanning related functions
 from .scanning import (
+    scan_result_types,
     process_files,
     scan_and_process_directory,
     scan_and_process_file,
@@ -65,11 +63,12 @@ __all__ = [
     # Config
     'ShuttleConfig',
     'parse_config',
-    'scan_result_types',
+
     'defender_scan_patterns',
     'clamav_parse_response_patterns',
     
     # Main scanning functions
+    'scan_result_types',
     'process_files',
     'scan_and_process_directory',
     'scan_and_process_file',

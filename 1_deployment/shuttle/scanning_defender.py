@@ -1,7 +1,12 @@
 import logging
 import subprocess
-from .config import scan_result_types, defender_scan_patterns
-from .scanning import run_malware_scan
+import types 
+from .scanning import run_malware_scan, scan_result_types
+
+# # Define scan output patterns
+defender_scan_patterns = types.SimpleNamespace()
+defender_scan_patterns.THREAT_FOUND = "Threat(s) found"
+defender_scan_patterns.NO_THREATS = "0 threat(s) detected"
 
 def handle_defender_scan_result(returncode, output):
     """

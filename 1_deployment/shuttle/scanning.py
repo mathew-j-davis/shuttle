@@ -2,7 +2,9 @@ import os
 import subprocess
 import logging
 import time
+import types
 from datetime import datetime
+
 from concurrent.futures import ProcessPoolExecutor
 from .files import (
     is_filename_safe,
@@ -29,7 +31,14 @@ from .post_scan_processing import (
     handle_suspect_quarantine_file_and_delete_source,
     handle_suspect_source_file
 )
-from .config import scan_result_types
+
+scan_result_types = types.SimpleNamespace()
+
+scan_result_types.FILE_IS_SUSPECT = 3
+scan_result_types.FILE_IS_CLEAN = 0
+scan_result_types.FILE_SCAN_FAILED = 100
+
+
 
 def run_malware_scan(cmd, path, result_handler):
     """

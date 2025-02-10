@@ -1,7 +1,14 @@
 import logging
 import subprocess
-from .config import scan_result_types, clamav_parse_response_patterns
-from .scanning import run_malware_scan
+import types
+from .scanning import run_malware_scan, scan_result_types
+
+clamav_parse_response_patterns = types.SimpleNamespace()
+clamav_parse_response_patterns.ERROR = "^ERROR"
+clamav_parse_response_patterns.TOTAL_ERRORS = "Total errors: "
+clamav_parse_response_patterns.THREAT_FOUND = "FOUND\n\n"
+clamav_parse_response_patterns.OK = "^OK\n"
+clamav_parse_response_patterns.NO_THREATS = "Infected files: 0"
 
 def handle_clamav_scan_result(returncode, output):
     """
