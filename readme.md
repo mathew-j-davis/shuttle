@@ -230,11 +230,10 @@ Make sure the virtual environment is active.
 You do not need to provide parameters if parameters are configured in the settings file
 If you do not configure a hazard archive directory and an encryption key, suspect files will be deleted.
 
-Execute `shuttle.py` with the desired parameters or ensure the `settings.ini` file is properly configured.
+Execute `run_shuttle.py` with the desired parameters or ensure the `settings.ini` file is properly configured.
 
 ```bash
-cd ~/shuttle
-python3 shuttle.py
+python3 run_shuttle.py
 ```
 
 Full parameters:
@@ -608,5 +607,3 @@ The recommended configuration is to:
 2. Disable Defender's on-demand scanning (`on_demand_defender=False`)
 3. Configure Microsoft Defender for real-time protection if desired
 ```
-
-</rewritten_file>
