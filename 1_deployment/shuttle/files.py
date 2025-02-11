@@ -19,27 +19,66 @@ def is_filename_safe(filename):
     Returns:
         bool: True if filename is safe, False otherwise
     """
+        
+    return is_name_safe(filename)
+
+
+def is_pathname_safe(pathname):
+    """
+    Check if a filename contains potentially dangerous characters.
+    Allows alphanumeric, spaces, and valid UTF-8 characters, but blocks
+    control characters and specific dangerous symbols.
+    
+    Args:
+        filename (str): Filename to check
+        
+    Returns:
+        bool: True if filename is safe, False otherwise
+    """
+        
+    return is_name_safe(pathname, True)
+
+def is_name_safe(name, is_path = False):
+    """
+    Check if a filename contains potentially dangerous characters.
+    Allows alphanumeric, spaces, and valid UTF-8 characters, but blocks
+    control characters and specific dangerous symbols.
+    
+    Args:
+        filename (str): Filename to check
+        
+    Returns:
+        bool: True if filename is safe, False otherwise
+    """
     # Block control characters (0x00-0x1F, 0x7F)
-    if any(ord(char) < 32 or ord(char) == 0x7F for char in filename):
+    if any(ord(char) < 32 or ord(char) == 0x7F for char in name):
         return False
         
     # Block specific dangerous characters
-    dangerous_chars = ['/', '\\', '..', '>', '<', '|', '*', '$', '&', ';', '`']
-    if any(char in filename for char in dangerous_chars):
+    dangerous_chars_file = ['/', '\\', '..', '>', '<', '|', '*', '$', '&', ';', '`']
+    dangerous_chars_path = ['\\', '..', '>', '<', '|', '*', '$', '&', ';', '`']
+
+    dangerous_chars = []
+    if is_path:
+        dangerous_chars = dangerous_chars_path
+    else:
+        dangerous_chars_file = dangerous_chars_file
+
+
+    if any(char in name for char in dangerous_chars):
         return False
         
     # Block filenames starting with dash or period
-    if filename.startswith('-') or filename.startswith('.'):
+    if name.startswith('-') or name.startswith('.'):
         return False
         
     # Ensure filename is valid UTF-8
     try:
-        filename.encode('utf-8').decode('utf-8')
+        name.encode('utf-8').decode('utf-8')
     except UnicodeError:
         return False
         
     return True
-
 
 def get_file_hash(file_path):
     """

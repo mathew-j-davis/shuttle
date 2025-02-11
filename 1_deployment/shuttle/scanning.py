@@ -8,6 +8,7 @@ from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
 from .files import (
     is_filename_safe,
+    is_pathname_safe,
     is_file_stable,
     is_file_open,
     normalize_path,
@@ -15,21 +16,11 @@ from .files import (
     remove_directory_contents,
     remove_directory,
     get_file_hash,
-    handle_suspect_file,
-    verify_file_integrity,
-    remove_file_with_logging,
-    encrypt_file
 )
-from .scanning_defender import (
-    scan_for_malware_using_defender
-)
-from .scanning_clamav import (
-    scan_for_malware_using_clam_av
-)
+
 from .post_scan_processing import (
-    handle_suspect_scan_result,
-    handle_suspect_quarantine_file_and_delete_source,
-    handle_suspect_source_file
+    handle_clean_file,
+    handle_suspect_scan_result
 )
 
 scan_result_types = types.SimpleNamespace()
@@ -243,13 +234,13 @@ def scan_and_process_directory(
                     logger.error(f"Skipping file {source_file} because it contains unsafe characters.")
                     continue
 
-                if not is_filename_safe(source_root):
+                if not is_pathname_safe(source_root):
                     logger.error(f"Skipping {source_root} because it contains unsafe characters.")
                     continue
 
                 source_file_path = os.path.join(source_root, source_file)
 
-                if not is_filename_safe(source_file_path):
+                if not is_pathname_safe(source_file_path):
                     logger.error(f"Skipping path {source_file_path} because it contains unsafe characters.")
                     continue
                 
@@ -382,3 +373,104 @@ def process_files(config):
         config.on_demand_clam_av,
         config.defender_handles_suspect_files
     )
+
+clamav_parse_response_patterns = types.SimpleNamespace()
+clamav_parse_response_patterns.ERROR = "^ERROR"
+clamav_parse_response_patterns.TOTAL_ERRORS = "Total errors: "
+clamav_parse_response_patterns.THREAT_FOUND = "FOUND\n\n"
+clamav_parse_response_patterns.OK = "^OK\n"
+clamav_parse_response_patterns.NO_THREATS = "Infected files: 0"
+
+def handle_clamav_scan_result(returncode, output):
+    """
+    Process ClamAV scan results.
+    
+    Args:
+        returncode (int): Process return code
+        output (str): Process output
+        
+    Returns:
+        int: scan_result_types value
+    """
+    logger = logging.getLogger('shuttle')
+    
+    # RETURN CODES
+    #        0 : No virus found.
+    #        1 : Virus(es) found.
+    #        2 : An error occurred.
+    
+    if returncode == 1:
+        logger.warning("Threats found")
+        return scan_result_types.FILE_IS_SUSPECT
+        
+    if returncode == 2:
+        logger.warning("Error while scanning")
+        return scan_result_types.FILE_SCAN_FAILED
+        
+    if returncode == 0:
+        logger.info("No threat found")
+        return scan_result_types.FILE_IS_CLEAN
+        
+    logger.warning(f"Unexpected return code: {returncode}")
+    return scan_result_types.FILE_SCAN_FAILED
+
+
+def scan_for_malware_using_clam_av(path):
+    """Scan a file using ClamAV."""
+    cmd = [
+        "clamdscan",
+        "--fdpass",  # temp until permissions issues resolved
+        path
+    ]
+    return run_malware_scan(cmd, path, handle_clamav_scan_result)
+
+
+
+# # Define scan output patterns
+defender_scan_patterns = types.SimpleNamespace()
+defender_scan_patterns.THREAT_FOUND = "Threat(s) found"
+defender_scan_patterns.NO_THREATS = "0 threat(s) detected"
+
+def handle_defender_scan_result(returncode, output):
+    """
+    Process Microsoft Defender scan results.
+    
+    Args:
+        returncode (int): Process return code
+        output (str): Process output
+        
+    Returns:
+        int: scan_result_types value
+    """
+    logger = logging.getLogger('shuttle')
+    
+    if returncode == 0:
+        # Always check for threat pattern first, otherwise a malicious filename could be used to add clean response text to output
+        if defender_scan_patterns.THREAT_FOUND in output:
+            logger.warning("Threats found")
+            return scan_result_types.FILE_IS_SUSPECT
+        
+        elif output.rstrip().endswith(defender_scan_patterns.NO_THREATS):
+            logger.info("No threat found")
+            return scan_result_types.FILE_IS_CLEAN
+        
+        else:
+            logger.warning(f"Unexpected scan output: {output}")
+            
+    else:
+        logger.warning(f"Scan failed with return code {returncode}")
+    
+    return scan_result_types.FILE_SCAN_FAILED
+
+def scan_for_malware_using_defender(path):
+    """Scan a file using Microsoft Defender."""
+    cmd = [
+        "mdatp",
+        "scan",
+        "custom",
+        "--ignore-exclusions",
+        "--path",
+        path
+    ]
+    return run_malware_scan(cmd, path, handle_defender_scan_result)
+

@@ -6,20 +6,12 @@ import gnupg
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
 from .files import (
-    is_filename_safe,
-    is_file_stable,
-    is_file_open,
-    normalize_path,
     copy_temp_then_rename,
-    remove_directory_contents,
-    remove_directory,
     get_file_hash,
-    handle_suspect_file,
     verify_file_integrity,
     remove_file_with_logging,
     encrypt_file
 )
-
 
 def handle_suspect_source_file(
     source_file_path,
