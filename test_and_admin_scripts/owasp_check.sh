@@ -3,6 +3,9 @@
 set -e  # Exit on error
 
 # Constants
+# This the public key of the owasp dependency check developer
+# This key is not secret. 
+# It is openly published on the net to be used to verify downloads
 OWASP_KEY="259A55407DD6C00299E6607EFFDE55BE73A2D1ED"
 INSTALL_DIR="$HOME/.owasp"
 VERSION_PATTERN="^[0-9]+\.[0-9]+\.[0-9]+$"

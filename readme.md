@@ -578,7 +578,7 @@ At least one scanner must be enabled. For maximum security, you can enable both 
      After installation:
      ```bash
      sudo systemctl start clamav-daemon  # Start the daemon
-     sudo systemctl enable clamav-daemon # Enable at startup
+     sudo systemctl enable clamav-daemon # Enable at start-up
      sudo freshclam                      # Update virus definitions
      ```
 
