@@ -13,11 +13,13 @@ source_dir = os.path.join(work_dir, "source")
 quarantine_dir = os.path.join(work_dir, "quarantine")
 dest_dir = os.path.join(work_dir, "destination")
 log_dir = os.path.join(work_dir, "logs")
+status_log_dir = os.path.join(work_dir, "status")
 hazard_archive_dir = os.path.join(work_dir, "hazard")
 
 settings_dir = os.path.expanduser("~/.shuttle")
 settings_file = os.path.join(settings_dir, "settings.ini")
 hazard_encryption_key_path = os.path.join(settings_dir, "hazard_public.gpg")
+status_log_path = os.path.join(status_log_dir, "status_log.json")
 
 # Create directories if they don't exist
 os.makedirs(source_dir, exist_ok=True)
@@ -25,6 +27,7 @@ os.makedirs(quarantine_dir, exist_ok=True)
 os.makedirs(dest_dir, exist_ok=True)
 os.makedirs(log_dir, exist_ok=True)
 os.makedirs(settings_dir, exist_ok=True)
+os.makedirs(status_log_dir, exist_ok=True)
 os.makedirs(hazard_archive_dir, exist_ok=True)
 
 inner_dir = os.path.join(source_dir, 'inner/') 
@@ -59,7 +62,8 @@ config['paths'] = {
     'quarantine_path': quarantine_dir,
     'log_path': log_dir,
     'hazard_archive_path': hazard_archive_dir,
-    'hazard_encryption_key_path': hazard_encryption_key_path
+    'hazard_encryption_key_path': hazard_encryption_key_path,
+    'status_log_path': status_log_path
 }
 
 config['settings'] = {
@@ -67,7 +71,10 @@ config['settings'] = {
     'delete_source_files_after_copying': 'True',
     'defender_handles_suspect_files': 'True',
     'on_demand_defender': 'False',
-    'on_demand_clam_av': 'True'
+    'on_demand_clam_av': 'True',
+    'max_file_volume_per_day': '1048576',
+    'max_file_count_per_day': '1000'
+    
 }
 
 config['logging'] = {
