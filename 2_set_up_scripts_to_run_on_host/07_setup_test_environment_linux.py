@@ -21,6 +21,7 @@ settings_file = os.path.join(settings_dir, "settings.ini")
 hazard_encryption_key_path = os.path.join(settings_dir, "hazard_public.gpg")
 status_log_path = os.path.join(status_log_dir, "status_log.json")
 
+
 # Create directories if they don't exist
 os.makedirs(source_dir, exist_ok=True)
 os.makedirs(quarantine_dir, exist_ok=True)
@@ -72,13 +73,25 @@ config['settings'] = {
     'defender_handles_suspect_files': 'True',
     'on_demand_defender': 'False',
     'on_demand_clam_av': 'True',
-    'max_file_volume_per_day': '1048576',
-    'max_file_count_per_day': '1000'
-    
+    'throttle': 'False',
+    'throttle_free_space': '10000',
+    'throttle_max_file_volume_per_day': '1000000',
+    'throttle_max_file_count_per_day': '1000'
 }
 
 config['logging'] = {
     'log_level': 'DEBUG'
+}
+
+config['notification'] = {
+    'notify': 'False',
+    'recipient_email': 'admin@example.com',
+    'sender_email': 'shuttle@yourdomain.com',
+    'smtp_server': 'smtp.yourdomain.com', 
+    'smtp_port': '587',
+    'username': 'shuttle_notifications',
+    'password': 'your_secure_password_here',
+    'use_tls': 'True'
 }
 
 with open(settings_file, 'w') as configfile:

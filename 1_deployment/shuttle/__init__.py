@@ -44,12 +44,17 @@ from .files import (
 # Import logging setup
 from .logging_setup import setup_logging
 
+# Import notification system
+from .notifier import Notifier
+
 # Define what gets imported with "from shuttle import *"
 __all__ = [
     # Config
     'ShuttleConfig',
     'parse_config'
 
+    # Notification
+    'Notifier',
     
     # Main scanning functions
     'scan_result_types',

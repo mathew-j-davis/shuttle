@@ -4,6 +4,7 @@ import logging
 import time
 import types
 from datetime import datetime
+import shutil
 
 from concurrent.futures import ProcessPoolExecutor
 from .files import (
@@ -199,7 +200,10 @@ def scan_and_process_directory(
     max_scan_threads,
     on_demand_defender,
     on_demand_clam_av,
-    defender_handles_suspect_files
+    defender_handles_suspect_files,
+    notifier,
+    throttle=True,
+    throttle_free_space=10000
     ):
     """
     Process all files in the source directory:
@@ -217,10 +221,51 @@ def scan_and_process_directory(
         delete_source_files (bool): Whether to delete source files
         max_scan_threads (int): Maximum number of parallel scans
         defender_handles_suspect_files (bool): Whether to let Defender handle suspect files
+        throttle (bool): Whether to enable throttling
+        throttle_free_space (int): Minimum free space required in MB
     """
     quarantine_files = []
 
     logger = logging.getLogger('shuttle')
+    
+    # Throttling status flags
+    quarantine_has_space = False
+    destination_has_space = False
+    hazard_has_space = False
+    disk_error = False
+
+    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, directory_name):
+        """
+        Check if a directory has enough free space for a file, leaving a minimum amount free after copy.
+        
+        Args:
+            directory_path (str): Path to the directory to check
+            file_size_mb (float): Size of the file in MB
+            min_free_space_mb (int): Minimum free space to maintain after copy in MB
+            directory_name (str): Name of the directory for logging purposes
+            
+        Returns:
+            bool: True if directory has enough space, False otherwise
+        """
+        logger = logging.getLogger('shuttle')
+        
+        try:
+            if not os.path.exists(directory_path):
+                os.makedirs(directory_path, exist_ok=True)
+                
+            stats = shutil.disk_usage(directory_path)
+            free_mb = stats.free / (1024 * 1024)  # Convert bytes to MB
+            
+            has_space = (free_mb - file_size_mb) >= min_free_space_mb
+            
+            if not has_space:
+                logger.error(f"{directory_name} is full. Free: {free_mb:.2f} MB, Required: {min_free_space_mb + file_size_mb:.2f} MB")
+            
+            return has_space
+            
+        except Exception as e:
+            logger.error(f"Error checking space in {directory_name}: {e}")
+            return False
 
     try:
         # Create quarantine directory if it doesn't exist
@@ -268,6 +313,44 @@ def scan_and_process_directory(
                 destination_file_copy_dir = os.path.join(normalize_path(os.path.join(destination_path, rel_dir)))
                 destination_file_path = os.path.join(normalize_path(os.path.join(destination_file_copy_dir, source_file)))
 
+                # Check disk space if throttling is enabled 
+                if throttle:
+                    try:
+                        # Get file size in MB
+                        file_size_mb = os.path.getsize(source_file_path) / (1024 * 1024)
+                        
+                        # Check space in all target directories
+                        quarantine_has_space = check_directory_space(
+                            quarantine_path, 
+                            file_size_mb, 
+                            throttle_free_space, 
+                            "Quarantine directory"
+                        )
+                        
+                        destination_has_space = check_directory_space(
+                            destination_path, 
+                            file_size_mb, 
+                            throttle_free_space, 
+                            "Destination directory"
+                        )
+                        
+                        hazard_has_space = check_directory_space(
+                            hazard_archive_path, 
+                            file_size_mb, 
+                            throttle_free_space, 
+                            "Hazard archive directory"
+                        )
+                        
+                        # If any directory is full, break out of the inner loop
+                        if not quarantine_has_space or not destination_has_space or not hazard_has_space:
+                            logger.warning(f"Stopping file processing due to insufficient disk space")
+                            break   
+
+                    except Exception as e:
+                        logger.error(f"Error checking disk space: {e}")
+                        disk_error = True
+                        break
+                
                 # Copy the file to the appropriate directory in the quarantine directory
                 # quarantine_temp_path = os.path.join(quarantine_file_path + '.tmp')
 
@@ -291,6 +374,10 @@ def scan_and_process_directory(
                     
                 except Exception as e:
                     logger.error(f"Failed to copy file from source: {source_file_path} to quarantine: {quarantine_file_path}. Error: {e}")
+            
+            # If directories are full, break out of the outer loop too
+            if not quarantine_has_space or not destination_has_space or not hazard_has_space or disk_error:
+                break
 
         results = list()
         if max_scan_threads > 1:
@@ -314,6 +401,29 @@ def scan_and_process_directory(
         # Check if all files were processed successfully
         if not all(results):
             logger.error(f"Some files failed to be processed.")
+
+            if(notifier):
+                notifier.notify(
+                    subject="Shuttle Error: Some files failed to be processed",
+                    body="Some files failed to be processed."
+                )
+
+        # Send notifications for disk space issues if applicable
+        if throttle and notifier:
+            if not quarantine_has_space or not destination_has_space or not hazard_has_space or disk_error:
+                full_dirs = []
+                if not quarantine_has_space:
+                    full_dirs.append("Quarantine directory Space Low    ")
+                if not destination_has_space:
+                    full_dirs.append("Destination directory Space Low")
+                if  not hazard_has_space:
+                    full_dirs.append("Hazard archive directory Space Low")
+                if disk_error:
+                    full_dirs.append("Disk error when checking space")
+                notifier.notify(
+                    subject="Shuttle Warning: Disk Issue",
+                    body=f"File processing was stopped due to insufficient disk space in: {', '.join(full_dirs)}. Please free up space."
+                )
 
         # After processing all files, remove contents of quarantine directory
         remove_directory_contents(quarantine_path)
@@ -359,7 +469,7 @@ def scan_and_process_directory(
     except Exception as e:
         logger.error(f"Failed to copy files to quarantine: Error: {e}")
 
-def process_files(config):
+def process_files(config, notifier):
 
     scan_and_process_directory(
         config.source_path,
@@ -371,7 +481,10 @@ def process_files(config):
         config.max_scan_threads,
         config.on_demand_defender,
         config.on_demand_clam_av,
-        config.defender_handles_suspect_files
+        config.defender_handles_suspect_files,
+        notifier,
+        throttle=config.throttle,
+        throttle_free_space=config.throttle_free_space
     )
 
 clamav_parse_response_patterns = types.SimpleNamespace()
@@ -473,4 +586,3 @@ def scan_for_malware_using_defender(path):
         path
     ]
     return run_malware_scan(cmd, path, handle_defender_scan_result)
-

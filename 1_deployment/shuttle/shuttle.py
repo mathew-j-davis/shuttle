@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 from . import (
     ShuttleConfig,
+    Notifier,
     parse_config,
     setup_logging,
     process_files
@@ -39,6 +40,20 @@ def main():
         # Set up logging with the configured log level
         logger = setup_logging(log_file=log_file, log_level=config.log_level)
 
+        notifier = None;
+        
+        if config.notify:
+            notifier = Notifier(
+                recipient_email=config.notify_recipient_email,
+                sender_email=config.notify_sender_email,
+                smtp_server=config.notify_smtp_server,
+                smtp_port=config.notify_smtp_port,
+                username=config.notify_username,
+                password=config.notify_password,
+                use_tls=config.notify_use_tls,
+                logger=logger
+            )
+        
         logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
 
         # Check for required external commands
@@ -83,7 +98,7 @@ def main():
             logger.error("While a real time virus scanner may make on-demand scanning redundant, this application is for on-demand scanning.")
             sys.exit(1)
 
-        process_files(config)   
+        process_files(config, notifier)   
 
     except Exception as e:
         logger.error(f"An error occurred: {e}")
