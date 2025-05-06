@@ -85,6 +85,7 @@ config['logging'] = {
 
 config['notification'] = {
     'notify': 'False',
+    'notify_summary': 'False',
     'recipient_email': 'admin@example.com',
     'sender_email': 'shuttle@yourdomain.com',
     'smtp_server': 'smtp.yourdomain.com', 

@@ -95,6 +95,8 @@ def scan_and_process_file(args):
             - hazard_archive_path (str): Path to the hazard archive directory
             - key_file_path (str): Full path to the public encryption key file
             - delete_source_files (bool): Whether to delete source files after processing
+            - on_demand_defender (bool): Whether to use Defender for on-demand scanning
+            - on_demand_clam_av (bool): Whether to use ClamAV for on-demand scanning
             - defender_handles_suspect (bool): Whether to let Defender handle suspect files
 
     Returns:
@@ -203,7 +205,8 @@ def scan_and_process_directory(
     defender_handles_suspect_files,
     notifier,
     throttle=True,
-    throttle_free_space=10000
+    throttle_free_space=10000,
+    notify_summary=False
     ):
     """
     Process all files in the source directory:
@@ -223,10 +226,16 @@ def scan_and_process_directory(
         defender_handles_suspect_files (bool): Whether to let Defender handle suspect files
         throttle (bool): Whether to enable throttling
         throttle_free_space (int): Minimum free space required in MB
+        notify_summary (bool): Whether to send notification on on completion of every run
     """
     quarantine_files = []
 
     logger = logging.getLogger('shuttle')
+    
+    # File processing statistics
+    successful_files = 0
+    failed_files = 0
+    suspect_files = 0
     
     # Throttling status flags
     quarantine_has_space = False
@@ -398,32 +407,12 @@ def scan_and_process_directory(
                 
                 results.append(result)  
 
-        # Check if all files were processed successfully
-        if not all(results):
-            logger.error(f"Some files failed to be processed.")
-
-            if(notifier):
-                notifier.notify(
-                    title="Shuttle Error: Some files failed to be processed",
-                    body="Some files failed to be processed."
-                )
-
-        # Send notifications for disk space issues if applicable
-        if throttle and notifier:
-            if not quarantine_has_space or not destination_has_space or not hazard_has_space or disk_error:
-                full_dirs = []
-                if not quarantine_has_space:
-                    full_dirs.append("Quarantine directory Space Low    ")
-                if not destination_has_space:
-                    full_dirs.append("Destination directory Space Low")
-                if  not hazard_has_space:
-                    full_dirs.append("Hazard archive directory Space Low")
-                if disk_error:
-                    full_dirs.append("Disk error when checking space")
-                notifier.notify(
-                    title="Shuttle Warning: Disk Issue",
-                    body=f"File processing was stopped due to insufficient disk space in: {', '.join(full_dirs)}. Please free up space."
-                )
+        # Process successful results
+        for counter in range(len(results)):
+            if results[counter]:
+                successful_files += 1
+            else:
+                failed_files += 1
 
         # After processing all files, remove contents of quarantine directory
         remove_directory_contents(quarantine_path)
@@ -465,9 +454,72 @@ def scan_and_process_directory(
                     else:
                         logger.info(f"Directory removed during cleanup: {directory_to_remove}")
 
+        # Check if all files were processed successfully
+        if not all(results):
+            logger.error(f"Some files failed to be processed.")
+
+        if notifier:
+
+            summary_title = f"Shuttle Summary: "
+
+            total_files = successful_files + failed_files
+            
+            # Prepare summary message that may be used for both summary and disk space notifications
+            summary_message = f"File processing completed at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            summary_message += f"Source directory: {source_path}\n"
+            summary_message += f"Destination directory: {destination_path}\n\n"
+            summary_message += f"Total files processed: {total_files}\n"
+            summary_message += f"Successfully processed: {successful_files}\n"
+            summary_message += f"Failed to process: {failed_files}\n"
+            summary_message += f"Suspect files: {suspect_files}\n"
+            
+            disk_error = False
+
+            # Add disk space warnings to summary if applicable
+            if throttle:
+                if not quarantine_has_space or not destination_has_space or not hazard_has_space or disk_error:
+                    
+                    disk_error = True
+                    disk_message = ""
+                    summary_title += f" Disk Issue "  
+                    
+                    if not quarantine_has_space:
+                        disk_message += "Quarantine directory space low."
+                    if not destination_has_space:
+                        disk_message += "Destination directory space low."
+                    if not hazard_has_space:
+                        disk_message += "Hazard archive directory space low."
+                    if disk_error:
+                        disk_message += "Disk error when checking space."
+                    
+                    summary_message += disk_message
+
+                    logger.warning(f"Disk space warning: {disk_message}")
+            
+            # Send summary notification if configured or if there were failures
+            if (disk_error) or (notify_summary and total_files > 0) or (failed_files > 0):
+                
+                if failed_files > 0:
+                    summary_title += f"{failed_files} failed"
+                if successful_files > 0:
+                    if failed_files > 0:
+                        summary_title += ", "
+                    summary_title += f"{successful_files} successful"
+
+                notifier.notify(summary_title, summary_message)
+                logger.info(f"Sent summary notification: {failed_files} failed, {successful_files} successful")
 
     except Exception as e:
         logger.error(f"Failed to copy files to quarantine: Error: {e}")
+        failed_files += 1
+        
+        # Send notification about the critical error
+        if notifier:
+            error_message = f"Critical error occurred during file processing: {str(e)}\n\n"
+            error_message += f"Source directory: {source_path}\n"
+            error_message += f"Destination directory: {destination_path}\n"
+            notifier.notify("Shuttle: Critical Processing Error", error_message)
+
 
 def process_files(config, notifier):
 
@@ -484,7 +536,8 @@ def process_files(config, notifier):
         config.defender_handles_suspect_files,
         notifier,
         throttle=config.throttle,
-        throttle_free_space=config.throttle_free_space
+        throttle_free_space=config.throttle_free_space,
+        notify_summary=config.notify_summary
     )
 
 clamav_parse_response_patterns = types.SimpleNamespace()

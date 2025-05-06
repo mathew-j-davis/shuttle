@@ -31,6 +31,7 @@ class ShuttleConfig:
     throttle_free_space: int = 10000
     # Notification settings
     notify: bool = False
+    notify_summary: bool = False
     notify_recipient_email: Optional[str] = None
     notify_sender_email: Optional[str] = None
     notify_smtp_server: Optional[str] = None
@@ -93,6 +94,10 @@ def parse_config() -> ShuttleConfig:
     # Add notification arguments
     parser.add_argument('-Notify', 
                        help='Enable email notifications for important events',
+                       type=bool,
+                       default=None)
+    parser.add_argument('-NotifySummary', 
+                       help='Enable email notifications on completion of all transfers',
                        type=bool,
                        default=None)
     parser.add_argument('-NotifyRecipientEmail', 
@@ -210,6 +215,13 @@ def parse_config() -> ShuttleConfig:
     else:
         notify = False
     
+    notify_summary = args.NotifySummary
+    if notify_summary is None and settings_file_config.has_option('notification', 'notify_summary'):
+        notify_summary = settings_file_config.getboolean('notification', 'notify_summary')
+    else:
+        notify_summary = False
+    
+    
     notify_recipient_email = get_setting(args.NotifyRecipientEmail, 'notification', 'recipient_email')
     notify_sender_email = get_setting(args.NotifySenderEmail, 'notification', 'sender_email')
     notify_smtp_server = get_setting(args.NotifySmtpServer, 'notification', 'smtp_server')
@@ -250,6 +262,7 @@ def parse_config() -> ShuttleConfig:
         throttle_max_file_count_per_day=throttle_max_file_count_per_day,
         throttle_free_space=throttle_free_space,
         notify=notify,
+        notify_summary=notify_summary,
         notify_recipient_email=notify_recipient_email,
         notify_sender_email=notify_sender_email,
         notify_smtp_server=notify_smtp_server,
