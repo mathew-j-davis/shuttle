@@ -404,7 +404,7 @@ def scan_and_process_directory(
 
             if(notifier):
                 notifier.notify(
-                    subject="Shuttle Error: Some files failed to be processed",
+                    title="Shuttle Error: Some files failed to be processed",
                     body="Some files failed to be processed."
                 )
 
@@ -421,7 +421,7 @@ def scan_and_process_directory(
                 if disk_error:
                     full_dirs.append("Disk error when checking space")
                 notifier.notify(
-                    subject="Shuttle Warning: Disk Issue",
+                    title="Shuttle Warning: Disk Issue",
                     body=f"File processing was stopped due to insufficient disk space in: {', '.join(full_dirs)}. Please free up space."
                 )
 
