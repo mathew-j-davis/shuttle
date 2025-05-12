@@ -2,6 +2,7 @@ import os
 import shutil
 import sys
 import time
+import defender_utils
 from datetime import datetime
 from . import (
     ShuttleConfig,
@@ -97,6 +98,31 @@ def main():
             logger.error("No virus scanner or defender specified. Please specify at least one.")
             logger.error("While a real time virus scanner may make on-demand scanning redundant, this application is for on-demand scanning.")
             sys.exit(1)
+
+        if config.on_demand_defender and config.defender_ledger_path is not None:
+            
+            # Get current version of Microsoft Defender
+            result = defender_utils.get_mdatp_version()
+            
+            if not result:
+                logger.error("Could not get Microsoft Defender version")
+                sys.exit(1)
+            
+            # Check status file
+            #method to check if the current version of Microsoft Defender 
+            # has been tested and this successful testing has been confirmed in the status file.
+            # use value of result to check status file
+            current_defender_tested = False
+
+            ledger = Ledger(logger=logger)    
+            
+            if not ledger.load(config.defender_ledger_path):
+                logger.error("Could not load ledger file")
+                sys.exit(1)
+            
+            if not ledger.is_version_tested(result):
+                logger.error("This application requires that the current version Microsoft Defender has been tested and this successful testing has been confirmed in the status file.")
+                sys.exit(1)
 
         process_files(config, notifier)   
 

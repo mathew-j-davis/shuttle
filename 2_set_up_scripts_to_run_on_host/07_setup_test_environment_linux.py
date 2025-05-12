@@ -5,21 +5,23 @@ import random
 import string
 import configparser  # Added import for configparser
 import subprocess
+import yaml        # For YAML status file
+import datetime    # For timestamps
 
 # Define directories
 
-work_dir = os.path.expanduser("~/shuttlework/")
+work_dir = os.path.expanduser("~/shuttle_work/")
 source_dir = os.path.join(work_dir, "source")
 quarantine_dir = os.path.join(work_dir, "quarantine")
 dest_dir = os.path.join(work_dir, "destination")
 log_dir = os.path.join(work_dir, "logs")
-status_log_dir = os.path.join(work_dir, "status")
+ledger_file_dir = os.path.join(work_dir, "ledger")
 hazard_archive_dir = os.path.join(work_dir, "hazard")
 
 settings_dir = os.path.expanduser("~/.shuttle")
 settings_file = os.path.join(settings_dir, "settings.ini")
 hazard_encryption_key_path = os.path.join(settings_dir, "hazard_public.gpg")
-status_log_path = os.path.join(status_log_dir, "status_log.json")
+ledger_file_path = os.path.join(ledger_file_dir, "ledger.yaml")
 
 
 # Create directories if they don't exist
@@ -28,7 +30,7 @@ os.makedirs(quarantine_dir, exist_ok=True)
 os.makedirs(dest_dir, exist_ok=True)
 os.makedirs(log_dir, exist_ok=True)
 os.makedirs(settings_dir, exist_ok=True)
-os.makedirs(status_log_dir, exist_ok=True)
+os.makedirs(ledger_file_dir, exist_ok=True)
 os.makedirs(hazard_archive_dir, exist_ok=True)
 
 inner_dir = os.path.join(source_dir, 'inner/') 
@@ -64,7 +66,7 @@ config['paths'] = {
     'log_path': log_dir,
     'hazard_archive_path': hazard_archive_dir,
     'hazard_encryption_key_path': hazard_encryption_key_path,
-    'status_log_path': status_log_path
+    'ledger_file_path': ledger_file_path
 }
 
 config['settings'] = {
@@ -74,10 +76,12 @@ config['settings'] = {
     'on_demand_defender': 'False',
     'on_demand_clam_av': 'True',
     'throttle': 'False',
-    'throttle_free_space': '10000',
-    'throttle_max_file_volume_per_day': '1000000',
-    'throttle_max_file_count_per_day': '1000'
+    'throttle_free_space': '10000'
+
 }
+
+    # 'throttle_max_file_volume_per_day': '1000000',
+    # 'throttle_max_file_count_per_day': '1000'
 
 config['logging'] = {
     'log_level': 'DEBUG'
@@ -98,7 +102,41 @@ config['notification'] = {
 with open(settings_file, 'w') as configfile:
     config.write(configfile)
 
+print(f"Created settings file at {settings_file}")
 
+# Create default ledger.yaml file
+print("Creating default ledger.yaml file...")
+
+
+
+# defender:
+#   tested_versions:
+#     - version: "101.12345.123"
+#       test_time: "2025-05-09T10:30:00"
+#       test_result: "pass"
+#       test_details: "All detection tests passed"
+#     - version: "101.12345.456"
+#       test_time: "2025-05-01T14:22:00"
+#       test_result: "pass" 
+#       test_details: "All detection tests passed"
+
+# Create YAML structure with empty tested_versions list
+status_data = {
+    'defender': {
+        'tested_versions': [],
+        'current_version': ''
+    }
+}
+
+# Write the ledger.yaml file
+with open( ledger_file_path, 'w') as yaml_file:
+    yaml.dump(status_data, yaml_file, default_flow_style=False, sort_keys=False)
+
+print(f"Created ledger file at {ledger_file_path}")
+
+
+# Add exclusions for Microsoft Defender
+try:
     result = subprocess.run(
         [
             "mdatp",
@@ -120,7 +158,7 @@ with open(settings_file, 'w') as configfile:
     print(result.stdout)
 
     if result.returncode == 0:
-        print("Source folder excluded from automatic malware scan: {source_dir}")
+        print(f"Source folder excluded from automatic malware scan: {source_dir}")
     
     result = subprocess.run(
         [
@@ -143,7 +181,11 @@ with open(settings_file, 'w') as configfile:
     print(result.stdout)
 
     if result.returncode == 0:
-        print("Quarantine folder excluded from automatic malware scan: {quarantine_dir}")
+        print(f"Quarantine folder excluded from automatic malware scan: {quarantine_dir}")
+
+except Exception as e:
+    print(f"Error setting up Microsoft Defender exclusions: {e}")
+    print("Continuing setup without exclusions. You may need to manually configure them.")
 
 # Output messages
 print("Test environment setup complete:")
