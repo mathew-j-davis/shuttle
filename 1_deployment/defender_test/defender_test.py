@@ -192,9 +192,7 @@ def main():
     # Add common arguments from the shared config module
     add_common_arguments(parser)
     
-    # Add defender_test specific arguments
-    parser.add_argument('--daily-test', action='store_true', 
-                        help='Run as daily automated test (affects notification behavior)')
+    # Add any defender_test specific arguments here if needed in the future
     
     # Parse arguments and configuration
     args = parser.parse_args()
@@ -237,7 +235,14 @@ def main():
         # Determine overall test result
         if clean_result and eicar_result:
             message = "✅ Defender test PASSED: Output patterns match expected formats"
-            send_notification(message, error=False, config=config)
+            
+            # Send notification if there's an error or if notify_summary is enabled
+            if config.notify and config.notify_summary:
+                # Add timestamp for daily runs
+                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                message = f"{timestamp}: {message}"
+                send_notification(message, error=False, config=config)
+                
             logger.info("Test completed successfully")
             result = 0
             
@@ -247,7 +252,14 @@ def main():
                 update_ledger(config.ledger_file, current_version, "pass", test_details, logger)
         else:
             message = "❌ Defender test FAILED: Output patterns do not match expected formats"
-            send_notification(message, error=True, config=config)
+            
+            # Always send notification for failures if notification is enabled
+            if config.notify:
+                # Add timestamp for daily runs
+                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                message = f"{timestamp}: {message}"
+                send_notification(message, error=True, config=config)
+                
             logger.error("Test failed")
             result = 1
             
@@ -259,7 +271,11 @@ def main():
     except Exception as e:
         logger.error(f"Test error: {e}", exc_info=True)
         if config.notify:
-            send_notification(f"❌ Defender test ERROR: {e}", error=True, config=config)
+            error_message = f"❌ Defender test ERROR: {e}"
+            # Add timestamp for daily runs
+            timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            error_message = f"{timestamp}: {error_message}"
+            send_notification(error_message, error=True, config=config)
         result = 2
     
     finally:
@@ -267,7 +283,11 @@ def main():
         if temp_dir:
             cleanup(temp_dir)
         
-        logger.info("=== Defender Output Test Complete ===")
+        # Generate summary message for logging
+        summary = "=== Defender Output Test Complete ==="
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        summary = f"{summary} (Daily Test: {timestamp})"
+        logger.info(summary)
         
     return result
 

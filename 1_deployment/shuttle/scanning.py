@@ -28,64 +28,9 @@ from .post_scan_processing import (
 # Import defender utilities from common module
 from ..common.defender_utils import (
     scan_for_malware_using_defender,
-    handle_defender_scan_result,
-    scan_result_types as defender_scan_result_types
+    run_malware_scan,
+    scan_result_types
 )
-
-# Use scan result types from defender_utils to ensure consistency
-scan_result_types = defender_scan_result_types
-
-
-
-def run_malware_scan(cmd, path, result_handler):
-    """
-    Run a malware scan using the specified command and process the results.
-    
-    Args:
-        cmd (list): Command to run
-        path (str): Path to file being scanned
-        result_handler (callable): Function to process scan results
-        
-    Returns:
-        int: scan_result_types value
-    """
-    logger = logging.getLogger('shuttle')
-    try:
-        logger.info(f"Scanning file {path} for malware...")
-        
-        child_run = subprocess.Popen(cmd, universal_newlines=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output = ''
-        error = ''
-
-        last = time.time()
-        while child_run.poll() is None:
-            if time.time() - last > 5:
-                print('Process is still running')
-                last = time.time()
-
-            tmp = child_run.stdout.read(1)
-            if tmp:
-                output += tmp
-            tmp = child_run.stderr.read(1)
-            if tmp:
-                error += tmp
-
-        output += child_run.stdout.read()
-        error += child_run.stderr.read()
-
-        child_run.stdout.close() 
-        child_run.stderr.close()
-
-        return result_handler(child_run.returncode, output)
-
-    except FileNotFoundError:
-        logger.error(f"Files not found when scanning file: {path}")
-    except PermissionError:
-        logger.error(f"Permission denied when scanning file: {path}")
-    except Exception as e:
-        logger.error(f"Failed to perform malware scan on {path}. Error: {e}")
-
-    return scan_result_types.FILE_SCAN_FAILED
 
 
 def scan_and_process_file(args):
