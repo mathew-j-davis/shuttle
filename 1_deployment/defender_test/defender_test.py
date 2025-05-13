@@ -23,24 +23,25 @@ import tempfile
 import argparse
 from pathlib import Path
 
-# Import defender and ledger related modules
-from defender_utils import get_mdatp_version
-from read_write_ledger import ReadWriteLedger
-
-# Set up logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("defender_test.log"),
-        logging.StreamHandler(sys.stdout)
-    ]
+# Import modules from common package using relative imports
+from ..common.defender_utils import (
+    get_mdatp_version,
+    scan_for_malware_using_defender,
+    handle_defender_scan_result,
+    defender_scan_patterns,
+    run_malware_scan
 )
-logger = logging.getLogger("defender_test")
+from ..common.logging_setup import setup_logging
+from ..common.config import CommonConfig, add_common_arguments, parse_common_config
+from ..common.notifier import Notifier
+from .read_write_ledger import ReadWriteLedger
 
-# Expected scan output patterns - must match those in scanning.py
-THREAT_FOUND_PATTERN = "Threat(s) found"
-NO_THREATS_PATTERN = "0 threat(s) detected"
+# Set up logging using the common module's setup function
+logger = setup_logging(logger_name="defender_test")
+
+# Use the scan patterns from the common module
+THREAT_FOUND_PATTERN = defender_scan_patterns.THREAT_FOUND
+NO_THREATS_PATTERN = defender_scan_patterns.NO_THREATS
 
 # EICAR test string (standard test file for antivirus)
 # This is the official EICAR test string that all antivirus programs should detect
@@ -65,24 +66,31 @@ def create_test_files():
     
     return temp_dir, clean_file_path, eicar_file_path
 
+def test_result_handler(returncode, output):
+    """
+    Custom result handler for testing that returns returncode and output directly.
+    This differs from the standard handlers that return a scan result type.
+    
+    Args:
+        returncode (int): Process return code
+        output (str): Process output
+        
+    Returns:
+        tuple: (returncode, output)
+    """
+    logger.info(f"Scan return code: {returncode}")
+    logger.debug(f"Scan stdout: {output}")
+    return returncode, output
+
+
 def run_defender_scan(file_path):
     """Run Microsoft Defender scan on a file and return the output."""
-    cmd = ["mdatp", "scan", "custom", "--ignore-exclusions", "--path", file_path]
-    logger.info(f"Running scan: {' '.join(cmd)}")
+    logger.info(f"Running scan on file: {file_path}")
     
     try:
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False
-        )
-        
-        logger.info(f"Scan return code: {result.returncode}")
-        logger.debug(f"Scan stdout: {result.stdout}")
-        logger.debug(f"Scan stderr: {result.stderr}")
-        
-        return result.returncode, result.stdout
+        # Use the scan_for_malware_using_defender with our custom test_result_handler
+        # that returns (returncode, output) instead of a scan result type
+        return scan_for_malware_using_defender(file_path, custom_handler=test_result_handler)
     except Exception as e:
         logger.error(f"Error running scan: {e}")
         return -1, str(e)
@@ -109,19 +117,37 @@ def cleanup(temp_dir):
     except Exception as e:
         logger.warning(f"Error cleaning up: {e}")
 
-def send_notification(message, error=False):
-    """Send a notification about test results."""
-    # This could be enhanced to use email, Slack, etc.
+def send_notification(message, error=False, config=None):
+    """Send a notification about test results.
+    
+    Args:
+        message (str): The message to send
+        error (bool): Whether this is an error message
+        config (CommonConfig): Configuration containing notification settings
+    """
+    # Log the message first
     if error:
         logger.error(message)
     else:
         logger.info(message)
     
-    # If you have a notification system, integrate it here
-    # For example:
-    # from shuttle.notifier import Notifier
-    # notifier = Notifier(...)
-    # notifier.notify(...)
+    # Send notification if configured
+    if config and config.notify:
+        try:
+            notifier = Notifier(
+                recipient=config.notify_recipient_email,
+                smtp_server=config.notify_smtp_server,
+                smtp_port=config.notify_smtp_port,
+                username=config.notify_username,
+                password=config.notify_password,
+                sender=config.notify_sender_email,
+                use_tls=config.notify_use_tls
+            )
+            subject = "Defender Test " + ("ERROR" if error else "INFO")
+            notifier.notify(subject, message)
+            logger.info(f"Notification sent to {config.notify_recipient_email}")
+        except Exception as e:
+            logger.error(f"Failed to send notification: {e}", exc_info=True)
 
 def update_ledger(ledger_file_path, version, test_result, test_details, logger):
     """Update the ledger file with the test results.
@@ -160,26 +186,34 @@ def update_ledger(ledger_file_path, version, test_result, test_details, logger):
         return False
 
 def main():
+    # Create argument parser
     parser = argparse.ArgumentParser(description='Test Microsoft Defender scan output patterns')
-    parser.add_argument('--notify', action='store_true', help='Send notifications on results')
-    parser.add_argument('--log-dir', type=str, default=None, help='Directory to store logs')
-    parser.add_argument('--ledger-file', type=str, help='Path to the ledger file to update when tests pass')
-    args = parser.parse_args()
     
-    # Set up logging to file if log directory specified
-    if args.log_dir:
-        log_dir = Path(args.log_dir)
+    # Add common arguments from the shared config module
+    add_common_arguments(parser)
+    
+    # Add defender_test specific arguments
+    parser.add_argument('--daily-test', action='store_true', 
+                        help='Run as daily automated test (affects notification behavior)')
+    
+    # Parse arguments and configuration
+    args = parser.parse_args()
+    config = parse_common_config(args)
+    
+    # Set up logging with the log path from config
+    log_file = None
+    if config.log_path:
+        log_dir = Path(config.log_path)
         log_dir.mkdir(exist_ok=True, parents=True)
         log_file = log_dir / f"defender_test_{datetime.datetime.now().strftime('%Y%m%d')}.log"
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-        logger.addHandler(file_handler)
+        logger = setup_logging(log_file, config.log_level, logger_name="defender_test")
+        logger.info(f"Logging to file: {log_file}")
     
     logger.info("=== Starting Microsoft Defender Output Test ===")
     
     # Get the current Microsoft Defender version
     current_version = None
-    if args.ledger_file:
+    if config.ledger_file:
         logger.info("Getting Microsoft Defender version...")
         current_version = get_mdatp_version(logger)
         if not current_version:
@@ -203,29 +237,29 @@ def main():
         # Determine overall test result
         if clean_result and eicar_result:
             message = "✅ Defender test PASSED: Output patterns match expected formats"
-            send_notification(message, error=False)
+            send_notification(message, error=False, config=config)
             logger.info("Test completed successfully")
             result = 0
             
             # Update ledger if version is available and ledger file is specified
-            if args.ledger_file and current_version:
+            if config.ledger_file and current_version:
                 test_details = "All detection tests passed successfully"
-                update_ledger(args.ledger_file, current_version, "pass", test_details, logger)
+                update_ledger(config.ledger_file, current_version, "pass", test_details, logger)
         else:
             message = "❌ Defender test FAILED: Output patterns do not match expected formats"
-            send_notification(message, error=True)
+            send_notification(message, error=True, config=config)
             logger.error("Test failed")
             result = 1
             
             # Optionally record failed tests in ledger too
-            if args.ledger_file and current_version:
+            if config.ledger_file and current_version:
                 test_details = "One or more detection tests failed"
-                update_ledger(args.ledger_file, current_version, "fail", test_details, logger)
+                update_ledger(config.ledger_file, current_version, "fail", test_details, logger)
     
     except Exception as e:
         logger.error(f"Test error: {e}", exc_info=True)
-        if args.notify:
-            send_notification(f"❌ Defender test ERROR: {e}", error=True)
+        if config.notify:
+            send_notification(f"❌ Defender test ERROR: {e}", error=True, config=config)
         result = 2
     
     finally:
@@ -237,5 +271,3 @@ def main():
         
     return result
 
-if __name__ == "__main__":
-    sys.exit(main())

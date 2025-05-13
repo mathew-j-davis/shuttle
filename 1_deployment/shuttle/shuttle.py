@@ -2,7 +2,10 @@ import os
 import shutil
 import sys
 import time
-import defender_utils
+
+# Add parent directory to path to allow importing from common
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from common import defender_utils
 from datetime import datetime
 from . import (
     ShuttleConfig,

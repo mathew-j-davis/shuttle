@@ -1,7 +1,7 @@
 """
 ReadWriteLedger Module
 
-# This file extends the Ledger class from ledger.py
+# This file extends the Ledger class from the common module
 
 This module extends the Ledger class to provide read-write functionality
 for working with the defender version ledger file.
@@ -11,15 +11,14 @@ import yaml
 from typing import List, Dict, Any
 from datetime import datetime
 
-from ledger import Ledger
+# Import Ledger from common module using relative imports
+from ..common.ledger import Ledger
 
 
 class ReadWriteLedger(Ledger):
     """
     Extended class for working with the Defender ledger file that adds write capabilities.
-    
-    # This class demonstrates the use of inheritance to extend functionality
-    
+            
     This class inherits the read functionality from the Ledger class and adds
     methods to save changes and add new tested versions.
     """

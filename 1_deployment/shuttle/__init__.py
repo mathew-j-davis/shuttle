@@ -13,8 +13,7 @@ from .scanning import (
     run_malware_scan,
 )
 
-# Import all post scan processing  related functions
-
+# Import all post scan processing related functions
 from .post_scan_processing import (
     handle_clean_file,
     handle_suspect_file,
@@ -41,17 +40,23 @@ from .files import (
     remove_file_with_logging
 )
 
-# Import logging setup
-from .logging_setup import setup_logging
+# Import throttler for disk space management
+from .throttler import Throttler, SpaceCheckResult
 
-# Import notification system
-from .notifier import Notifier
+# Import shared components from common module using relative imports
+from ..common.logging_setup import setup_logging
+from ..common.notifier import Notifier
+from ..common.defender_utils import get_mdatp_version
+from ..common.ledger import Ledger
+
+# Import main Shuttle application
+from .shuttle import main as shuttle_main
 
 # Define what gets imported with "from shuttle import *"
 __all__ = [
     # Config
     'ShuttleConfig',
-    'parse_config'
+    'parse_config',
 
     # Notification
     'Notifier',
@@ -91,5 +96,18 @@ __all__ = [
     'remove_file_with_logging',
     
     # Logging
-    'setup_logging'
+    'setup_logging',
+    
+    # Throttling functionality
+    'Throttler',
+    'SpaceCheckResult',
+    
+    # Defender utilities
+    'get_mdatp_version',
+    
+    # Ledger system
+    'Ledger',
+    
+    # Main application
+    'shuttle_main'
 ]

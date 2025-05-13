@@ -25,11 +25,15 @@ from .post_scan_processing import (
     handle_suspect_scan_result
 )
 
-scan_result_types = types.SimpleNamespace()
+# Import defender utilities from common module
+from ..common.defender_utils import (
+    scan_for_malware_using_defender,
+    handle_defender_scan_result,
+    scan_result_types as defender_scan_result_types
+)
 
-scan_result_types.FILE_IS_SUSPECT = 3
-scan_result_types.FILE_IS_CLEAN = 0
-scan_result_types.FILE_SCAN_FAILED = 100
+# Use scan result types from defender_utils to ensure consistency
+scan_result_types = defender_scan_result_types
 
 
 
@@ -554,50 +558,4 @@ def scan_for_malware_using_clam_av(path):
 
 
 
-# # Define scan output patterns
-defender_scan_patterns = types.SimpleNamespace()
-defender_scan_patterns.THREAT_FOUND = "Threat(s) found"
-defender_scan_patterns.NO_THREATS = "0 threat(s) detected"
-
-def handle_defender_scan_result(returncode, output):
-    """
-    Process Microsoft Defender scan results.
-    
-    Args:
-        returncode (int): Process return code
-        output (str): Process output
-        
-    Returns:
-        int: scan_result_types value
-    """
-    logger = logging.getLogger('shuttle')
-    
-    if returncode == 0:
-        # Always check for threat pattern first, otherwise a malicious filename could be used to add clean response text to output
-        if defender_scan_patterns.THREAT_FOUND in output:
-            logger.warning("Threats found")
-            return scan_result_types.FILE_IS_SUSPECT
-        
-        elif output.rstrip().endswith(defender_scan_patterns.NO_THREATS):
-            logger.info("No threat found")
-            return scan_result_types.FILE_IS_CLEAN
-        
-        else:
-            logger.warning(f"Unexpected scan output: {output}")
-            
-    else:
-        logger.warning(f"Scan failed with return code {returncode}")
-    
-    return scan_result_types.FILE_SCAN_FAILED
-
-def scan_for_malware_using_defender(path):
-    """Scan a file using Microsoft Defender."""
-    cmd = [
-        "mdatp",
-        "scan",
-        "custom",
-        "--ignore-exclusions",
-        "--path",
-        path
-    ]
-    return run_malware_scan(cmd, path, handle_defender_scan_result)
+# The defender scan patterns and functions have been moved to common/defender_utils.py
