@@ -7,6 +7,7 @@ By centralizing these shared components, we maintain consistency and reduce dupl
 
 # Import all shared components to make them easily accessible
 from .defender_utils import get_mdatp_version
+from .scan_utils import run_malware_scan, scan_result_types
 from .ledger import Ledger
 from .notifier import Notifier
 from .logging_setup import setup_logging
@@ -15,6 +16,10 @@ from .logging_setup import setup_logging
 __all__ = [
     # Defender utilities
     'get_mdatp_version',
+    
+    # Scan utilities
+    'run_malware_scan',
+    'scan_result_types',
     
     # Ledger system
     'Ledger',

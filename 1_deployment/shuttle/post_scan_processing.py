@@ -1,8 +1,6 @@
 import os
-import subprocess
 import logging
 import time
-import gnupg
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
 from .files import (

@@ -1,7 +1,7 @@
 """
-Microsoft Defender Utilities
+Scan Utilities
 
-This module provides utility functions for working with Microsoft Defender
+This module provides utility functions for working with Microsoft Defender and ClamAV
 that can be shared between the main application and test scripts.
 """
 
@@ -10,7 +10,8 @@ import logging
 import re
 import types
 import time
-from typing import Optional
+import files
+from typing import List, Callable, Any, Optional
 
 # Define scan output patterns
 defender_scan_patterns = types.SimpleNamespace()
@@ -74,9 +75,11 @@ def get_mdatp_version(logger=None) -> Optional[str]:
 def run_malware_scan(cmd, path, result_handler):
     """
     Run a malware scan using the specified command and process the results.
-    
+    SECURITY NOTE: This function executes external commands. Only use with trusted,
+    hardcoded command lists. Never pass user-controlled input to the cmd parameter.
+        
     Args:
-        cmd (list): Command to run
+        cmd (list): Command to run as a list of strings (not shell string)
         path (str): Path to file being scanned
         result_handler (callable): Function to process scan results
         
@@ -84,6 +87,20 @@ def run_malware_scan(cmd, path, result_handler):
         int: scan_result_types value
     """
     logger = logging.getLogger('shuttle')
+
+    # Security validation
+    if not isinstance(cmd, list):
+        logger.error("Security error: cmd must be a list, not a string")
+        return scan_result_types.FILE_SCAN_FAILED
+    
+    # Add validation for the path
+    if not files.is_filename_safe(path):
+        logger.error(f"Security error: Unsafe filename detected: {path}")
+        return scan_result_types.FILE_SCAN_FAILED
+    
+    # Append the path to the command
+    cmd.append(path)
+    
     try:
         logger.info(f"Scanning file {path} for malware...")
         
@@ -150,21 +167,57 @@ def scan_for_malware_using_defender(path, custom_handler=handle_defender_scan_re
     Returns:
         The result from the handler function
     """
+
+    # path appended to cmd after safety check in run_malware_scan
+
     cmd = [
         "mdatp",
         "scan",
         "custom",
         "--ignore-exclusions",
-        "--path",
-        path
+        "--path"
     ]
     return run_malware_scan(cmd, path, custom_handler)
 
+def handle_clamav_scan_result(returncode, output):
+    """
+    Process ClamAV scan results.
+    
+    Args:
+        returncode (int): Process return code
+        output (str): Process output
+        
+    Returns:
+        int: scan_result_types value
+    """
+    logger = logging.getLogger('shuttle')
+    
+    # RETURN CODES
+    #        0 : No virus found.
+    #        1 : Virus(es) found.
+    #        2 : An error occurred.
+    
+    if returncode == 1:
+        logger.warning("Threats found")
+        return scan_result_types.FILE_IS_SUSPECT
+        
+    if returncode == 2:
+        logger.warning("Error while scanning")
+        return scan_result_types.FILE_SCAN_FAILED
+        
+    if returncode == 0:
+        logger.info("No threat found")
+        return scan_result_types.FILE_IS_CLEAN
+        
+    logger.warning(f"Unexpected return code: {returncode}")
+    return scan_result_types.FILE_SCAN_FAILED
 
-# if __name__ == "__main__":
-#     # Simple test if run directly
-#     version = get_mdatp_version()
-#     if version:
-#         print(f"Microsoft Defender version: {version}")
-#     else:
-#         print("Could not determine Microsoft Defender version")
+
+def scan_for_malware_using_clam_av(path):
+    """Scan a file using ClamAV."""
+    # path appended to cmd after safety check in run_malware_scan
+    cmd = [
+        "clamdscan",
+        "--fdpass"  # temp until permissions issues resolved
+    ]
+    return run_malware_scan(cmd, path, handle_clamav_scan_result)

@@ -6,11 +6,9 @@ from .config import (
 
 # Import all scanning related functions
 from .scanning import (
-    scan_result_types,
     process_files,
     scan_and_process_directory,
     scan_and_process_file,
-    run_malware_scan,
 )
 
 # Import all post scan processing related functions
@@ -21,7 +19,6 @@ from .post_scan_processing import (
     handle_suspect_quarantine_file_and_delete_source,
     handle_suspect_source_file
 )
-
 # Import file handling functions
 from .files import (
     is_filename_safe,
@@ -43,12 +40,6 @@ from .files import (
 # Import throttler for disk space management
 from .throttler import Throttler, SpaceCheckResult
 
-# Import shared components from common module using relative imports
-from ..common.logging_setup import setup_logging
-from ..common.notifier import Notifier
-from ..common.defender_utils import get_mdatp_version
-from ..common.ledger import Ledger
-
 # Import main Shuttle application
 from .shuttle import main as shuttle_main
 
@@ -57,19 +48,11 @@ __all__ = [
     # Config
     'ShuttleConfig',
     'parse_config',
-
-    # Notification
-    'Notifier',
     
     # Main scanning functions
-    'scan_result_types',
     'process_files',
     'scan_and_process_directory',
     'scan_and_process_file',
-    'handle_suspect_scan_result',
-    'run_malware_scan',
-    'handle_suspect_quarantine_file_and_delete_source',
-    'handle_suspect_source_file',
     
     # post_scan_processing
     'handle_clean_file',
@@ -91,22 +74,12 @@ __all__ = [
     'remove_directory',
     'remove_empty_directories',
     'verify_file_integrity',
-    'handle_suspect_file',
     'encrypt_file',
     'remove_file_with_logging',
-    
-    # Logging
-    'setup_logging',
     
     # Throttling functionality
     'Throttler',
     'SpaceCheckResult',
-    
-    # Defender utilities
-    'get_mdatp_version',
-    
-    # Ledger system
-    'Ledger',
     
     # Main application
     'shuttle_main'
