@@ -16,7 +16,7 @@ python tests/run_defender_test_no_ledger.py
 python tests/run_defender_test_no_ledger.py -Notify true -LogPath "/path/to/logs"
 
 # Even if you specify a ledger file, it will be ignored
-python tests/run_defender_test_no_ledger.py -LedgerFile "/some/path" -Notify true
+python tests/run_defender_test_no_ledger.py -LedgerPath "/some/path" -Notify true
 
 """
 
@@ -34,15 +34,15 @@ if __name__ == '__main__':
     # This will prevent any ledger updates during the test
     if len(sys.argv) == 1:
         # No arguments supplied, add just the empty ledger
-        sys.argv.extend(['-LedgerFile', ''])
+        sys.argv.extend(['-LedgerPath', ''])
     else:
         # Check if ledger file is already specified
-        if '-LedgerFile' not in sys.argv:
+        if '-LedgerPath' not in sys.argv:
             # Add empty ledger file parameter
-            sys.argv.extend(['-LedgerFile', ''])
+            sys.argv.extend(['-LedgerPath', ''])
         else:
-            # Find the position of -LedgerFile and set its value to empty
-            ledger_index = sys.argv.index('-LedgerFile')
+            # Find the position of -LedgerPath and set its value to empty
+            ledger_index = sys.argv.index('-LedgerPath')
             if ledger_index + 1 < len(sys.argv):
                 sys.argv[ledger_index + 1] = ''
     

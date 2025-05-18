@@ -117,7 +117,7 @@ def parse_config() -> ShuttleConfig:
         notify_username=common_config.notify_username,
         notify_password=common_config.notify_password,
         notify_use_tls=common_config.notify_use_tls,
-        ledger_file=common_config.ledger_file
+        ledger_path=common_config.ledger_path
     )
     
     # Load settings from the settings file using configparser

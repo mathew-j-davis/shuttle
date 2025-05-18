@@ -126,7 +126,7 @@ class TestThrottling(unittest.TestCase):
         self.assertIn("Disk Space Low", notify_args[0])  # Title
         
         # We might need to adjust this test depending on exact implementation details
-        # of the notification content in the process_directory function
+        # of the notification content in the scan_and_process_directory function
     
     @patch('os.statvfs')
     def test_throttling_disabled(self, mock_statvfs):

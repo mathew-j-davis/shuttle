@@ -39,7 +39,7 @@ class CommonConfig:
     notify_use_tls: bool = True
     
     # Ledger settings
-    ledger_file: Optional[str] = None
+    ledger_path: Optional[str] = None  # Path to track tested defender versions
 
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
@@ -98,7 +98,7 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
                       default=None)
     
     # Add ledger arguments
-    parser.add_argument('-LedgerFile',
+    parser.add_argument('-LedgerPath',
                       help='Path to the ledger file for tracking tested versions',
                       default=None)
 
@@ -205,10 +205,10 @@ def parse_common_config(args=None, settings_file_path=None) -> CommonConfig:
     
     # Parse ledger settings
     if args:
-        ledger_file = args.LedgerFile if hasattr(args, 'LedgerFile') else None
+        ledger_path = args.LedgerPath if hasattr(args, 'LedgerPath') else None
     else:
-        ledger_file = None
+        ledger_path = None
     
-    config.ledger_file = get_setting(ledger_file, 'defender', 'ledger_file')
+    config.ledger_path = get_setting(ledger_path, 'defender', 'ledger_path')
     
     return config

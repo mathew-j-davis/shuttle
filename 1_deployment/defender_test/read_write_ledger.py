@@ -13,6 +13,7 @@ from datetime import datetime
 
 # Import Ledger from common module using relative imports
 from ..common.ledger import Ledger
+from ..common.logging_setup import setup_logging, LoggingOptions
 
 
 class ReadWriteLedger(Ledger):
@@ -22,6 +23,15 @@ class ReadWriteLedger(Ledger):
     This class inherits the read functionality from the Ledger class and adds
     methods to save changes and add new tested versions.
     """
+    
+    def __init__(self, logging_options=None):
+        """
+        Initialize the ReadWriteLedger.
+        
+        Args:
+            logging_options (LoggingOptions): Logging configuration options
+        """
+        super().__init__(logging_options)
     
     def save(self, ledger_file_path) -> bool:
         """

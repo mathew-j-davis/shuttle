@@ -3,6 +3,12 @@ import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+from .logging_setup import (
+    LoggingOptions,
+    setup_logging
+)
+
+
 class Notifier:
     """
     A class for sending notifications when important events or errors occur in Shuttle.
@@ -17,7 +23,7 @@ class Notifier:
                  username=None, 
                  password=None, 
                  use_tls=True,
-                 logger=None):
+                 logging_options=None):
         """
         Initialize the notification system with recipient and sender details.
         
@@ -29,7 +35,7 @@ class Notifier:
             username (str): SMTP authentication username
             password (str): SMTP authentication password
             use_tls (bool): Whether to use TLS encryption
-            logger (logging.Logger): Logger object to use for logging
+            logging_options (LoggingOptions): Logger properties to use for logging
         """
         self.recipient_email = recipient_email
         self.sender_email = sender_email
@@ -38,8 +44,8 @@ class Notifier:
         self.username = username
         self.password = password
         self.use_tls = use_tls
-        self.logger = logger or logging.getLogger(__name__)
-    
+        self.logger = setup_logging('shuttle.common.notifier', logging_options)
+
     def notify(self, title, message):
         """
         Send a notification with the given title and message.
@@ -47,10 +53,13 @@ class Notifier:
         Args:
             title (str): The notification title
             message (str): The notification message body
+            logging_options (LoggingOptions): Logger properties to use for logging
             
         Returns:
             bool: True if the notification was sent successfully, False otherwise
         """
+        
+
         if not self.recipient_email or not self.smtp_server:
             self.logger.warning("Notification not sent: Missing recipient email or SMTP server configuration")
             return False

@@ -9,6 +9,7 @@ import shutil
 import logging
 import types
 from typing import Optional
+from ..common.logging_setup import setup_logging
 
 
 class Throttler:
@@ -25,7 +26,7 @@ class Throttler:
     """
     
     @staticmethod
-    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, logger=None):
+    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, logging_options=None):
         """
         Check if a directory has enough free space for a file, leaving a minimum amount free after copy.
         
@@ -33,13 +34,13 @@ class Throttler:
             directory_path (str): Path to the directory to check
             file_size_mb (float): Size of the file in MB
             min_free_space_mb (int): Minimum free space to maintain after copy in MB
-            logger (logging.Logger, optional): Logger object to use, defaults to 'shuttle' logger
+            logging_options (LoggingOptions, optional): logging configuration details
             
         Returns:
             bool: True if directory has enough space, False otherwise
         """
-        if logger is None:
-            logger = logging.getLogger('shuttle')
+
+        logger = setup_logging('shuttle.throttler.check_directory_space', logging_options)
         
         try:
             if not os.path.exists(directory_path):
@@ -61,7 +62,7 @@ class Throttler:
             
     @staticmethod
     def can_process_file(source_file_path, quarantine_path, destination_path, 
-                         hazard_path, min_free_space_mb, logger=None):
+                         hazard_path, min_free_space_mb, logging_options=None):
         """
         Check if a file can be processed with the given paths and return detailed status.
         
@@ -71,7 +72,7 @@ class Throttler:
             destination_path (str): Path to the destination directory
             hazard_path (str): Path to the hazard archive directory
             min_free_space_mb (int): Minimum free space to maintain after copy in MB
-            logger (logging.Logger, optional): Logger object to use, defaults to 'shuttle' logger
+            logging_options (LoggingOptions, optional): logging configuration details
             
         Returns:
             SimpleNamespace: Object with the following attributes:
@@ -81,8 +82,7 @@ class Throttler:
                 - hazard_has_space: Whether the hazard directory has space (bool)
                 - diskError: Whether a disk error occurred (bool)
         """
-        if logger is None:
-            logger = logging.getLogger('shuttle')
+        logger = setup_logging('shuttle.throttler.can_process_file', logging_options)
         
         disk_error = False
         
@@ -95,21 +95,21 @@ class Throttler:
                 quarantine_path, 
                 file_size_mb, 
                 min_free_space_mb,
-                logger
+                logging_options
             )
             
             destination_has_space = Throttler.check_directory_space(
                 destination_path, 
                 file_size_mb, 
                 min_free_space_mb,
-                logger
+                logging_options
             )
             
             hazard_has_space = Throttler.check_directory_space(
                 hazard_path, 
                 file_size_mb, 
                 min_free_space_mb,
-                logger
+                logging_options
             )
             
             # Log warning if any directory is full

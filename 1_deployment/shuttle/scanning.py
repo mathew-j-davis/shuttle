@@ -1,9 +1,10 @@
 import os
 import logging
 from datetime import datetime
+from ..common.logging_setup import setup_logging
 
 from concurrent.futures import ProcessPoolExecutor
-from .files import (
+from ..common.files import (
     is_filename_safe,
     is_pathname_safe,
     is_file_stable,
@@ -21,6 +22,7 @@ from .post_scan_processing import (
     handle_suspect_scan_result
 )
 
+
 # Import scan utilities from common module
 from ..common.scan_utils import (
     scan_for_malware_using_defender,
@@ -30,21 +32,31 @@ from ..common.scan_utils import (
     scan_for_malware_using_clam_av
 )
 
-def scan_and_process_file(args):
+def scan_and_process_file(
+        paths,     
+        hazard_encryption_key_file_path, 
+        delete_source_files, 
+        on_demand_defender, 
+        on_demand_clam_av, 
+        defender_handles_suspect_files, 
+        logging_options
+    ):
     """
     Scan a file for malware and process it accordingly.
 
     Args:
-        args (tuple): Contains all necessary arguments.
+        paths (tuple): Contains all necessary paths for the file being processed.
             - quarantine_file_path (str): Full path to the file in quarantine
             - source_file_path (str): Full path to the original source file
             - destination_file_path (str): Full path where the file should be copied in destination
-            - hazard_archive_path (str): Path to the hazard archive directory
-            - key_file_path (str): Full path to the public encryption key file
-            - delete_source_files (bool): Whether to delete source files after processing
-            - on_demand_defender (bool): Whether to use Defender for on-demand scanning
-            - on_demand_clam_av (bool): Whether to use ClamAV for on-demand scanning
-            - defender_handles_suspect (bool): Whether to let Defender handle suspect files
+
+        - hazard_archive_path (str): Path to the hazard archive directory
+        - hazard_encryption_key_file_path (str): Full path to the public encryption key file
+        - delete_source_files (bool): Whether to delete source files after processing
+        - on_demand_defender (bool): Whether to use Defender for on-demand scanning
+        - on_demand_clam_av (bool): Whether to use ClamAV for on-demand scanning
+        - defender_handles_suspect_files (bool): Whether to let Defender handle suspect files
+        - logging_options (tuple): details for logging configuration
 
     Returns:
         bool: True if the file was processed successfully, False otherwise
@@ -54,22 +66,17 @@ def scan_and_process_file(args):
         quarantine_file_path,
         source_file_path,
         destination_file_path,
-        hazard_archive_path,
-        key_file_path,
-        delete_source_files,
-        on_demand_defender,
-        on_demand_clam_av,
-        defender_handles_suspect
-    ) = args
+        hazard_archive_path
+    ) = paths
 
-    logger = logging.getLogger('shuttle')
-
+    logger = setup_logging('shuttle.scanning.scan_and_process_file', logging_options)
+ 
     if not on_demand_defender and not on_demand_clam_av:
         logger.error("No virus scanner or defender specified. Please specify at least one.")
         return False
 
     logger.info(f"getting file hash: {quarantine_file_path}.")
-    quarantine_hash = get_file_hash(quarantine_file_path)
+    quarantine_hash = get_file_hash(quarantine_file_path, logging_options)
 
     defender_result = None
     clam_av_result = None
@@ -80,12 +87,12 @@ def scan_and_process_file(args):
     if on_demand_defender:
         # Scan the file for malware
         logger.info(f"Scanning file {quarantine_file_path} for malware...")
-        defender_result = scan_for_malware_using_defender(quarantine_file_path)
+        defender_result = scan_for_malware_using_defender(quarantine_file_path, logging_options)
 
 
         if defender_result == scan_result_types.FILE_IS_SUSPECT:
             suspect_file_detected = True
-            if defender_handles_suspect:
+            if defender_handles_suspect_files:
                 logger.warning(f"Threats found in {quarantine_file_path}, letting Defender handle it")
                 scanner_handling_suspect_file = True
 
@@ -94,7 +101,7 @@ def scan_and_process_file(args):
              
 
     if ((not suspect_file_detected) and on_demand_clam_av):
-        clam_av_result = scan_for_malware_using_clam_av(quarantine_file_path)
+        clam_av_result = scan_for_malware_using_clam_av(quarantine_file_path, logging_options)
 
         if clam_av_result == scan_result_types.FILE_IS_SUSPECT:
             suspect_file_detected = True
@@ -107,10 +114,11 @@ def scan_and_process_file(args):
             quarantine_file_path,
             source_file_path,
             hazard_archive_path,
-            key_file_path,
+            hazard_encryption_key_file_path,
             delete_source_files,
             scanner_handling_suspect_file,
-            quarantine_hash
+            quarantine_hash,
+            logging_options
         )
     
 
@@ -132,7 +140,8 @@ def scan_and_process_file(args):
             quarantine_file_path,
             source_file_path,
             destination_file_path,
-            delete_source_files
+            delete_source_files,
+            logging_options
         )
 
     else:
@@ -150,10 +159,15 @@ def scan_and_process_directory(
     on_demand_defender,
     on_demand_clam_av,
     defender_handles_suspect_files,
-    notifier,
+
     throttle=True,
     throttle_free_space=10000,
-    notify_summary=False
+    
+    notifier=None,
+    notify_summary=False,
+
+    logging_options=None,
+    
     ):
     """
     Process all files in the source directory:
@@ -173,10 +187,13 @@ def scan_and_process_directory(
         on_demand_defender (bool): Whether to use Microsoft Defender for on-demand scanning
         on_demand_clam_av (bool): Whether to use ClamAV for on-demand scanning
         defender_handles_suspect_files (bool): Whether to let Defender handle suspect files
-        notifier (Notifier): Notifier for sending notifications
+
         throttle (bool): Whether to enable throttling
         throttle_free_space (int): Minimum free space required in MB
+        
+        notifier (Notifier): Notifier for sending notifications
         notify_summary (bool): Whether to send notification on completion of every run
+        logging_options (tuple) : 
     """
     
     quarantine_files = []
@@ -191,7 +208,7 @@ def scan_and_process_directory(
     assume_hazard_has_space = True
     disk_error = False   
     
-    logger = logging.getLogger('shuttle')
+    logger = setup_logging('shuttle.scanning.scan_and_process_directory', logging_options)
     
     try:
         # Create quarantine directory if it doesn't exist
@@ -201,29 +218,29 @@ def scan_and_process_directory(
         # os.walk traverses the directory tree
         for source_root, dirs, source_files in os.walk(source_path, topdown=False):
             for source_file in source_files:
-                if not is_filename_safe(source_file):
+                if not is_filename_safe(source_file, logging_options):
                     logger.error(f"Skipping file {source_file} because it contains unsafe characters.")
                     continue
 
-                if not is_pathname_safe(source_root):
+                if not is_pathname_safe(source_root, logging_options):
                     logger.error(f"Skipping {source_root} because it contains unsafe characters.")
                     continue
 
                 source_file_path = os.path.join(source_root, source_file)
 
-                if not is_pathname_safe(source_file_path):
+                if not is_pathname_safe(source_file_path, logging_options):
                     logger.error(f"Skipping path {source_file_path} because it contains unsafe characters.")
                     continue
                 
 
                 # Skip files that are not stable (still being written to)
-                if not is_file_stable(source_file_path):
-                    print(f"Skipping file {source_file_path} because it may still be written to.")
+                if not is_file_stable(source_file_path, logging_options=logging_options):
+                    logger.debug(f"Skipping file {source_file_path} because it may still be written to.")
                     continue  # Skip this file and proceed to the next one
 
                 # Skip files that are currently open
-                if is_file_open(source_file_path):
-                    print(f"Skipping file {source_file_path} because it is being written to.")
+                if is_file_open(source_file_path, logging_options=logging_options):
+                    logger.debug(f"Skipping file {source_file_path} because it is being written to.")
                     continue  # Skip this file and proceed to the next one
 
                 # Determine the relative directory structure
@@ -259,8 +276,28 @@ def scan_and_process_directory(
                         disk_error = throttle_result.diskError
                         
                         # If file can't be processed, break out of the loop
-                        if not throttle_result.canProcess:
-                            logger.warning(f"Stopping file processing due to insufficient disk space")
+                        if (
+                            not throttle_result.canProcess or 
+                            not assume_quarantine_has_space or 
+                            not assume_destination_has_space or 
+                            not assume_hazard_has_space or 
+                            disk_error
+                        ):
+                            logger.warning(f"Stopping file processing due to insufficient disk problems")
+
+
+                            if (not assume_quarantine_has_space):
+                                logger.warning(f"Could not validate quarantine directory had enough space. The disk may have run out of space, or may have other issues")
+
+                            if (not assume_destination_has_space):
+                                logger.warning(f"Could not validate destination directory had enough space. The disk may have run out of space, or may have other issues")
+
+                            if (not assume_hazard_has_space):
+                                logger.warning(f"Could not validate hazard directory had enough space. The disk may have run out of space, or may have other issues")
+
+                            if (disk_error):
+                                logger.warning(f"when attempting to check disk space and error occurred.")
+
                             break
                             
                     except Exception as e:
@@ -272,7 +309,7 @@ def scan_and_process_directory(
                 # quarantine_temp_path = os.path.join(quarantine_file_path + '.tmp')
 
                 try:
-                    copy_temp_then_rename(source_file_path, quarantine_file_path)
+                    copy_temp_then_rename(source_file_path, quarantine_file_path, logging_options)
 
                     logger.info(f"Copied file {source_file_path} to quarantine: {quarantine_file_path}")
 
@@ -281,19 +318,13 @@ def scan_and_process_directory(
                         quarantine_file_path,       # Full path to the quarantined file
                         source_file_path,           # Full path to the original source file
                         destination_file_path,      # Full path to the destination file
-                        hazard_archive_path,        # Path to the hazard archive directory
-                        hazard_encryption_key_file_path, # Path to the encryption key file
-                        delete_source_files,        # Whether to delete source files
-                        on_demand_defender,         # Whether to use on-demand Defender scanning
-                        on_demand_clam_av,          # Whether to use on-demand ClamAV scanning
-                        defender_handles_suspect_files  # Whether to let Defender handle suspect files
                     ))
                     
                 except Exception as e:
                     logger.error(f"Failed to copy file from source: {source_file_path} to quarantine: {quarantine_file_path}. Error: {e}")
             
             # If directories are full, break out of the outer loop too
-            if throttle and (not assume_quarantine_has_space or not assume_destination_has_space or not assume_hazard_has_space or disk_error):
+            if throttle and (not throttle_result.canProcess or not assume_quarantine_has_space or not assume_destination_has_space or not assume_hazard_has_space or disk_error):
                 break
 
         results = list()
@@ -301,16 +332,38 @@ def scan_and_process_directory(
         # Process files in parallel using a ProcessPoolExecutor with graceful shutdown
             with ProcessPoolExecutor(max_workers=max_scan_threads) as executor:
                 try:
-                    results = list(executor.map(scan_and_process_file, quarantine_files))
+                    #results = list(executor.map(scan_and_process_file, quarantine_files))
+
+                    results = list(
+                        executor.map(
+                            lambda file_paths: scan_and_process_file(
+                                file_paths,                                                                  
+                                hazard_encryption_key_file_path, 
+                                delete_source_files, 
+                                on_demand_defender, 
+                                on_demand_clam_av, 
+                                defender_handles_suspect_files, 
+                                logging_options
+                            ), 
+                            quarantine_files
+                        )
+                    )
+
                 except Exception as e:
                     logger.error(f"An error occurred during parallel processing: {e}")
                     executor.shutdown(wait=False, cancel_futures=True)
                     raise
         else:
-            for quarantine_file_parameters in quarantine_files:
+            for file_paths in quarantine_files:
 
                 result = scan_and_process_file(
-                        quarantine_file_parameters
+                        file_paths,
+                        hazard_encryption_key_file_path, 
+                        delete_source_files, 
+                        on_demand_defender, 
+                        on_demand_clam_av, 
+                        defender_handles_suspect_files, 
+                        logging_options
                     )
                 
                 results.append(result)  
@@ -323,7 +376,7 @@ def scan_and_process_directory(
                 failed_files += 1
 
         # After processing all files, remove contents of quarantine directory
-        remove_directory_contents(quarantine_path)
+        remove_directory_contents(quarantine_path, logging_options)
 
         # clean up empty subdirectories
         #  this can be made more efficient
@@ -357,7 +410,7 @@ def scan_and_process_directory(
                 # this won't remove directories that contain subdirectories from which no files were transferred
                 # remove_empty_directories() will remove recursively remove subfolders
                 if len(os.listdir(directory_to_remove)) == 0:
-                    if not remove_directory(directory_to_remove):
+                    if not remove_directory(directory_to_remove, logging_options):
                         logger.error(f"Could not remove directory during cleanup: {directory_to_remove}")
                     else:
                         logger.info(f"Directory removed during cleanup: {directory_to_remove}")
@@ -429,7 +482,7 @@ def scan_and_process_directory(
             notifier.notify("Shuttle: Critical Processing Error", error_message)
 
 
-def process_files(config, notifier):
+def process_files(config, notifier, logging_options):
 
     scan_and_process_directory(
         config.source_path,
@@ -442,12 +495,13 @@ def process_files(config, notifier):
         config.on_demand_defender,
         config.on_demand_clam_av,
         config.defender_handles_suspect_files,
-        notifier,
         throttle=config.throttle,
         throttle_free_space=config.throttle_free_space,
-        notify_summary=config.notify_summary
+        notifier=notifier,
+        notify_summary=config.notify_summary,
+        logging_options=logging_options,
     )
 
 
 
-# The defender scan patterns and functions have been moved to common/defender_utils.py
+# The defender scan patterns and functions are now in common/scan_utils.py

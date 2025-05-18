@@ -16,7 +16,7 @@ sys.path.append(parent_dir)
 
 # Import the Notifier class
 sys.path.append(os.path.join(parent_dir, "1_deployment"))
-from shuttle.notifier import Notifier
+from common.notifier import Notifier
 
 def setup_logging():
     """Set up basic logging configuration."""
@@ -46,7 +46,7 @@ def parse_arguments():
 def main():
     """Main function to run the notifier test."""
     args = parse_arguments()
-    logger = setup_logging()
+    logger = setup_logging('test.notifier_test')
     
     logger.info("Initializing Notifier with provided credentials")
     notifier = Notifier(
@@ -57,7 +57,7 @@ def main():
         username=args.username,
         password=args.password,
         use_tls=not args.no_tls,
-        logger=logger
+        logging_options=None
     )
     
     logger.info(f"Sending test notification with title: {args.title}")

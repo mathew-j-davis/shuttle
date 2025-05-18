@@ -19,8 +19,8 @@ from .post_scan_processing import (
     handle_suspect_quarantine_file_and_delete_source,
     handle_suspect_source_file
 )
-# Import file handling functions
-from .files import (
+# Import file handling functions from common module
+from ..common.files import (
     is_filename_safe,
     is_pathname_safe,
     get_file_hash,
@@ -38,7 +38,7 @@ from .files import (
 )
 
 # Import throttler for disk space management
-from .throttler import Throttler, SpaceCheckResult
+from .throttler import Throttler
 
 # Import main Shuttle application
 from .shuttle import main as shuttle_main
@@ -79,7 +79,6 @@ __all__ = [
     
     # Throttling functionality
     'Throttler',
-    'SpaceCheckResult',
     
     # Main application
     'shuttle_main'

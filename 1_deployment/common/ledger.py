@@ -9,7 +9,7 @@ import yaml
 import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
-
+from .logging_setup import setup_logging
 
 class Ledger:
     """
@@ -25,15 +25,14 @@ class Ledger:
           test_details: "All detection tests passed"
     """
     
-    def __init__(self, logger=None):
+    def __init__(self, logging_options):
         """
-        Initialize the Ledger with a file path.
+        Initialize the Ledger
         
         Args:
-            ledger_file_path (str): Path to the ledger.yaml file
-            logger: Optional logger instance
+            logging_options (LoggingOptions): Logger properties to use for logging
         """
-        self.logger = logger or logging.getLogger('shuttle')
+        self.logger = setup_logging('shuttle.common.ledger', logging_options)
         self.data = None
         
     def load(self,ledger_file_path: str) -> bool:
