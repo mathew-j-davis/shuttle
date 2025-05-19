@@ -1,0 +1,9 @@
+# Requirements for shuttle_defender_test package
+# Python >= 3.6 required
+
+# Internal dependencies
+# The path below assumes you're installing from the same parent directory
+-e ../shared_library
+
+# External dependencies
+PyYAML>=6.0  # For ledger operations

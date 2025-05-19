@@ -10,6 +10,9 @@ Main components:
 - read_write_ledger.py: Handles recording and retrieving tested Defender versions
 """
 
+__version__ = '0.1.0'
+__author__ = 'Mat Davis'
+
 # Import main functionality for easy access
 from .defender_test import main, run_defender_scan, verify_output_patterns
 from .read_write_ledger import ReadWriteLedger

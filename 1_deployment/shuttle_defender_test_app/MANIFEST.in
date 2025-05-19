@@ -1,0 +1,3 @@
+include shuttle_defender_test/*.md
+include shuttle_defender_test/*.json
+recursive-include shuttle_defender_test/data *

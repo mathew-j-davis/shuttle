@@ -1,0 +1,3 @@
+include shuttle_common/README.md
+include shuttle_common/*.json
+recursive-include shuttle_common/data *

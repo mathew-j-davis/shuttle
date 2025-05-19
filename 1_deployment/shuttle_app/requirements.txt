@@ -1,0 +1,9 @@
+# Requirements for shuttle package
+# Python >= 3.6 required
+
+# Internal dependencies
+# The path below assumes you're installing from the same parent directory
+-e ../shared_library
+
+# External dependencies
+PyYAML>=6.0  # For configuration file parsing

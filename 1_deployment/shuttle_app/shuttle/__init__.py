@@ -1,3 +1,13 @@
+"""Shuttle Package
+
+A file transfer and scanning utility with disk space throttling capability.
+This package handles secure file transfers with malware scanning and ensures
+sufficient disk space is available during operations.
+"""
+
+__version__ = '0.1.0'
+__author__ = 'Mat Davis'
+
 # Import all configuration types and functions
 from .config import (
     ShuttleConfig, 
@@ -19,8 +29,8 @@ from .post_scan_processing import (
     handle_suspect_quarantine_file_and_delete_source,
     handle_suspect_source_file
 )
-# Import file handling functions from common module
-from ..common.files import (
+# Import file handling functions from shuttle_common module
+from shuttle_common.files import (
     is_filename_safe,
     is_pathname_safe,
     get_file_hash,

@@ -1,0 +1,9 @@
+# Required dependencies for shuttle_common package
+# Python >= 3.6 required
+
+# External dependencies
+PyYAML>=6.0       # For YAML file handling in ledger.py
+python-gnupg>=0.5.0  # For GPG encryption/decryption in files.py
+
+# Safety checks - from original requirements
+safety>=3.2.11

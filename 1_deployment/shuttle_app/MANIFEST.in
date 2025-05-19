@@ -1,0 +1,5 @@
+include shuttle/*.md
+include shuttle/*.json
+include shuttle/*.yaml
+include shuttle/*.yml
+recursive-include shuttle/data *
