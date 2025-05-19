@@ -16,7 +16,7 @@ from shuttle_common.logging_setup import (
     setup_logging
 )
 from .shuttle_config import (
-    parse_config
+    parse_shuttle_config
 )
 
 from .scanning import (
@@ -27,7 +27,7 @@ def main():
     
     logger = None
     
-    config = parse_config()
+    config = parse_shuttle_config()
 
     # Lock file handling
     if os.path.exists(config.lock_file):

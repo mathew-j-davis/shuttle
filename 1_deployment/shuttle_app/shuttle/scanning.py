@@ -301,7 +301,8 @@ def scan_and_process_directory(
                             break
                             
                     except Exception as e:
-                        logger.error(f"Error in throttling checks: {e}")
+                        if logger:
+                            logger.error(f"Error in throttling checks: {e}")
                         disk_error = True
                         break
 
@@ -321,7 +322,8 @@ def scan_and_process_directory(
                     ))
                     
                 except Exception as e:
-                    logger.error(f"Failed to copy file from source: {source_file_path} to quarantine: {quarantine_file_path}. Error: {e}")
+                    if logger:
+                        logger.error(f"Failed to copy file from source: {source_file_path} to quarantine: {quarantine_file_path}. Error: {e}")
             
             # If directories are full, break out of the outer loop too
             if throttle and (not throttle_result.canProcess or not assume_quarantine_has_space or not assume_destination_has_space or not assume_hazard_has_space or disk_error):
@@ -350,7 +352,8 @@ def scan_and_process_directory(
                     )
 
                 except Exception as e:
-                    logger.error(f"An error occurred during parallel processing: {e}")
+                    if logger:
+                        logger.error(f"An error occurred during parallel processing: {e}")
                     executor.shutdown(wait=False, cancel_futures=True)
                     raise
         else:
@@ -471,7 +474,8 @@ def scan_and_process_directory(
                 logger.info(f"Sent summary notification: {failed_files} failed, {successful_files} successful")
 
     except Exception as e:
-        logger.error(f"Failed to copy files to quarantine: Error: {e}")
+        if logger:
+            logger.error(f"Failed to copy files to quarantine: Error: {e}")
         failed_files += 1
         
         # Send notification about the critical error

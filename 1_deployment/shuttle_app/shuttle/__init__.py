@@ -11,7 +11,7 @@ __author__ = 'Mat Davis'
 # Import all configuration types and functions
 from .config import (
     ShuttleConfig, 
-    parse_config
+    parse_shuttle_config
 )
 
 # Import all scanning related functions
@@ -57,7 +57,7 @@ from .shuttle import main as shuttle_main
 __all__ = [
     # Config
     'ShuttleConfig',
-    'parse_config',
+    'parse_shuttle_config',
     
     # Main scanning functions
     'process_files',

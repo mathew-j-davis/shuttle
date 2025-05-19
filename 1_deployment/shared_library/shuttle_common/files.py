@@ -249,15 +249,18 @@ def copy_temp_then_rename(from_path, to_path, logging_options=None):
         logger.info(f"Copied file {from_path} to : {to_path}")
 
     except FileNotFoundError as e:
-        logger.error(f"File not found during copying: {from_path} to: {to_path}. Error: {e}")
+        if logger:
+            logger.error(f"File not found during copying: {from_path} to: {to_path}. Error: {e}")
         raise
 
     except PermissionError as e:
-        logger.error(f"Permission denied when copying file: {from_path} to: {to_path}. Error: {e}")
+        if logger:
+            logger.error(f"Permission denied when copying file: {from_path} to: {to_path}. Error: {e}")
         raise
 
     except Exception as e:
-        logger.error(f"Failed to copy file: {from_path} to : {to_path}. Error: {e}")
+        if logger:
+            logger.error(f"Failed to copy file: {from_path} to : {to_path}. Error: {e}")
         raise
 
     finally:
@@ -287,7 +290,8 @@ def remove_empty_directories(root, keep_root=False, logging_options=None):
             os.rmdir(path)
             logger.debug(f"Removed empty directory: {path}")
         except OSError as ex:
-            logger.debug(f"Could not remove directory: {path}, {ex}")
+            if logger:
+                logger.debug(f"Could not remove directory: {path}, {ex}")
 
 def remove_directory(path, logging_options=None):
     """
@@ -304,10 +308,12 @@ def remove_directory(path, logging_options=None):
         
     try:
         os.rmdir(path)
-        logger.debug(f"Removed directory: {path}")
+        if logger:
+            logger.debug(f"Removed directory: {path}")
         return True
     except OSError as ex:
-        logger.debug(f"Could not remove directory: {path}, {ex}")
+        if logger:
+            logger.debug(f"Could not remove directory: {path}, {ex}")
         return False
 
 def remove_directory_contents(root, logging_options=None):
@@ -330,7 +336,8 @@ def remove_directory_contents(root, logging_options=None):
                 shutil.rmtree(file_path)
                 logger.debug(f"Removed directory tree: {file_path}")
         except Exception as e:
-            logger.error(f"Failed to delete {file_path}. Reason: {e}")
+            if logger:
+                logger.error(f"Failed to delete {file_path}. Reason: {e}")
 
 
 
@@ -365,13 +372,16 @@ def is_file_open(file_path, logging_options=None):
                 logger.error(f"Error checking if file is open: {result.stderr.strip()}")
             return False
     except FileNotFoundError:
-        logger.error(f"'lsof' command not found. Please ensure it is installed.")
+        if logger:
+            logger.error(f"'lsof' command not found. Please ensure it is installed.")
         return False
     except PermissionError:
-        logger.error(f"Permission denied when accessing 'lsof' or file: {file_path}")
+        if logger:
+            logger.error(f"Permission denied when accessing 'lsof' or file: {file_path}")
         return False
     except Exception as e:
-        logger.error(f"Exception occurred while checking if file is open: {e}")
+        if logger:
+            logger.error(f"Exception occurred while checking if file is open: {e}")
         return False
     
 def is_file_stable(file_path, stability_time=5, logging_options=None):
@@ -396,13 +406,16 @@ def is_file_stable(file_path, stability_time=5, logging_options=None):
             logger.debug(f"File is not yet stable: {file_path}")
         return is_stable
     except FileNotFoundError:
-        logger.error(f"File not found when checking if file is stable: {file_path}")
+        if logger:
+            logger.error(f"File not found when checking if file is stable: {file_path}")
         return False
     except PermissionError:
-        logger.error(f"Permission denied when accessing file size: {file_path}")
+        if logger:
+            logger.error(f"Permission denied when accessing file size: {file_path}")
         return False
     except Exception as e:
-        logger.error(f"Error checking if file is stable {file_path}: {e}")
+        if logger:
+            logger.error(f"Error checking if file is stable {file_path}: {e}")
         return False
     
 
@@ -451,8 +464,10 @@ def encrypt_file(file_path, output_path, key_file_path, logging_options=None):
             return False
             
     except FileNotFoundError:
-        logger.error(f"Key file not found: {key_file_path}")
+        if logger:
+            logger.error(f"Key file not found: {key_file_path}")
         return False
     except Exception as e:
-        logger.error(f"Error during encryption: {e}")
+        if logger:
+            logger.error(f"Error during encryption: {e}")
         return False

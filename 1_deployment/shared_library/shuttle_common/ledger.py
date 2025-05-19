@@ -99,5 +99,6 @@ class Ledger:
             return False
             
         except Exception as e:
-            self.logger.error(f"Error checking tested versions: {e}")
+            if self.logger:
+                self.logger.error(f"Error checking tested versions: {e}")
             return False

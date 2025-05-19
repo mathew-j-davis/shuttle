@@ -91,5 +91,6 @@ class Notifier:
             return True
             
         except Exception as e:
-            self.logger.error(f"Failed to send notification: {str(e)}")
+            if self.logger:
+                self.logger.error(f"Failed to send notification: {str(e)}")
             return False

@@ -57,7 +57,8 @@ class Throttler:
             return has_space
             
         except Exception as e:
-            logger.error(f"Error checking space in directory {directory_path}: {e}")
+            if logger:
+                logger.error(f"Error checking space in directory {directory_path}: {e}")
             return False
             
     @staticmethod
@@ -117,7 +118,8 @@ class Throttler:
                 logger.warning(f"Stopping file processing due to insufficient disk space")
             
         except Exception as e:
-            logger.error(f"Error checking disk space: {e}")
+            if logger:
+                logger.error(f"Error checking disk space: {e}")
             quarantine_has_space = False
             destination_has_space = False
             hazard_has_space = False

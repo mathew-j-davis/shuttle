@@ -141,7 +141,8 @@ def handle_clean_file(
         copy_temp_then_rename(quarantine_file_path, destination_file_path, logging_options)
 
     except Exception as e:
-        logger.error(f"Failed to copy clean file from {quarantine_file_path} to {destination_file_path}: {e}")
+        if logger:
+            logger.error(f"Failed to copy clean file from {quarantine_file_path} to {destination_file_path}: {e}")
         return False
     
     if delete_source_files:
@@ -157,15 +158,18 @@ def handle_clean_file(
                 return False
   
         except FileNotFoundError as e:
-            logger.error(f"File not found during handling of clean file: {e}")
+            if logger:
+                logger.error(f"File not found during handling of clean file: {e}")
             return False
         
         except PermissionError as e:
-            logger.error(f"Permission denied during handling of clean file: {e}")
+            if logger:
+                logger.error(f"Permission denied during handling of clean file: {e}")
             return False
         
         except Exception as e:
-            logger.error(f"Failed to handle clean file {quarantine_file_path}: {e}")
+            if logger:
+                logger.error(f"Failed to handle clean file {quarantine_file_path}: {e}")
             return False
         
     return True
@@ -245,7 +249,8 @@ def handle_suspect_quarantine_file_and_delete_source(
         return True
 
     except Exception as e:
-        logger.error(f"Unexpected error handling suspect file {quarantine_file_path}: {e}")
+        if logger:
+            logger.error(f"Unexpected error handling suspect file {quarantine_file_path}: {e}")
         return False
     
 def handle_suspect_file(
@@ -282,10 +287,12 @@ def handle_suspect_file(
     try:
         os.makedirs(hazard_archive_path, exist_ok=True)
     except PermissionError as e:
-        logger.error(f"Permission denied when creating hazard archive directory {hazard_archive_path}: {e}")
+        if logger:
+            logger.error(f"Permission denied when creating hazard archive directory {hazard_archive_path}: {e}")
         return False
     except OSError as e:
-        logger.error(f"OS error when creating hazard archive directory {hazard_archive_path}: {e}")
+        if logger:
+            logger.error(f"OS error when creating hazard archive directory {hazard_archive_path}: {e}")
         return False
 
     # Generate encrypted file path with timestamp

@@ -45,7 +45,7 @@ class ShuttleConfig(CommonConfig):
     throttle_max_file_count_per_day: int = 1000
 
 
-def parse_config() -> ShuttleConfig:
+def parse_shuttle_config() -> ShuttleConfig:
     """
     Parse Shuttle configuration from command line arguments and settings file.
     
