@@ -9,7 +9,7 @@ import shutil
 import logging
 import types
 from typing import Optional
-from ..common.logging_setup import setup_logging
+from shuttle_common.logging_setup import setup_logging
 
 
 class Throttler:

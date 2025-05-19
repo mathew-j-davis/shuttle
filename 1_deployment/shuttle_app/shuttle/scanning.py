@@ -1,10 +1,10 @@
 import os
 import logging
 from datetime import datetime
-from ..common.logging_setup import setup_logging
+from shuttle_common.logging_setup import setup_logging
 
 from concurrent.futures import ProcessPoolExecutor
-from ..common.files import (
+from shuttle_common.files import (
     is_filename_safe,
     is_pathname_safe,
     is_file_stable,
@@ -24,7 +24,7 @@ from .post_scan_processing import (
 
 
 # Import scan utilities from common module
-from ..common.scan_utils import (
+from shuttle_common.scan_utils import (
     scan_for_malware_using_defender,
     run_malware_scan,
     scan_result_types,

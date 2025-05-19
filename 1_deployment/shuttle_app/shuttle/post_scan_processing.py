@@ -2,8 +2,8 @@ import os
 import time
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
-from ..common.logging_setup import setup_logging
-from ..common.files import (
+from shuttle_common.logging_setup import setup_logging
+from shuttle_common.files import (
     copy_temp_then_rename,
     get_file_hash,
     verify_file_integrity,

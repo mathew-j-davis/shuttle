@@ -5,13 +5,13 @@ import logging
 from datetime import datetime
 
 # Import common modules using relative imports
-from ..common.ledger import Ledger
-from ..common.notifier import Notifier
+from shuttle_common.ledger import Ledger
+from shuttle_common.notifier import Notifier
 
-from ..common.scan_utils import (
+from shuttle_common.scan_utils import (
     get_mdatp_version
 )
-from ..common.logging_setup import (
+from shuttle_common.logging_setup import (
     LoggingOptions,
     setup_logging
 )

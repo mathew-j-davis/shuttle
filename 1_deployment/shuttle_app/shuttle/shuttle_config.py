@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 # Import common configuration using relative imports
-from ..common.config import CommonConfig, add_common_arguments, parse_common_config
+from shuttle_common.config import CommonConfig, add_common_arguments, parse_common_config
 
 
 @dataclass

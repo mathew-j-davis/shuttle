@@ -23,8 +23,8 @@ import tempfile
 import argparse
 from pathlib import Path
 
-# Import modules from common package using relative imports
-from ..common.scan_utils import (
+# Import modules from shuttle_common package using absolute imports
+from shuttle_common.scan_utils import (
     get_mdatp_version,
     scan_for_malware_using_defender,
     handle_defender_scan_result,
@@ -32,9 +32,9 @@ from ..common.scan_utils import (
     run_malware_scan,
     scan_result_types
 )
-from ..common.logging_setup import setup_logging, LoggingOptions
-from ..common.config import CommonConfig, add_common_arguments, parse_common_config
-from ..common.notifier import Notifier
+from shuttle_common.logging_setup import setup_logging, LoggingOptions
+from shuttle_common.config import CommonConfig, add_common_arguments, parse_common_config
+from shuttle_common.notifier import Notifier
 from .read_write_ledger import ReadWriteLedger
 
 # Use the scan patterns from the common module

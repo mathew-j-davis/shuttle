@@ -11,9 +11,9 @@ import yaml
 from typing import List, Dict, Any
 from datetime import datetime
 
-# Import Ledger from common module using relative imports
-from ..common.ledger import Ledger
-from ..common.logging_setup import setup_logging, LoggingOptions
+# Import Ledger from shuttle_common package using absolute imports
+from shuttle_common.ledger import Ledger
+from shuttle_common.logging_setup import setup_logging, LoggingOptions
 
 
 class ReadWriteLedger(Ledger):
