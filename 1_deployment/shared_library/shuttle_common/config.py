@@ -23,10 +23,6 @@ class CommonConfig:
     log_path: Optional[str] = None
     log_level: int = logging.INFO
     
-    # Throttle settings
-    throttle: bool = False
-    throttle_free_space: int = 10000  # Minimum MB of free space required
-    
     # Notification settings
     notify: bool = False
     notify_summary: bool = False
@@ -140,21 +136,7 @@ def parse_common_config(args=None, settings_file_path=None) -> CommonConfig:
     log_level_str = get_setting(log_level_str, 'logging', 'log_level', 'INFO').upper()
     config.log_level = getattr(logging, log_level_str, logging.INFO)
     
-    # Parse throttle settings
-    if args:
-        throttle = args.Throttle if hasattr(args, 'Throttle') else None
-        throttle_free_space = args.ThrottleFreeSpace if hasattr(args, 'ThrottleFreeSpace') else None
-    else:
-        throttle = None
-        throttle_free_space = None
-    
-    config.throttle = get_setting(throttle, 'settings', 'throttle', False)
-    if isinstance(config.throttle, str):
-        config.throttle = config.throttle.lower() in ('true', 'yes', '1')
-    
-    config.throttle_free_space = get_setting(throttle_free_space, 'settings', 'throttle_free_space', 10000)
-    if isinstance(config.throttle_free_space, str):
-        config.throttle_free_space = int(config.throttle_free_space)
+    # Throttle settings removed - now handled in ShuttleConfig
     
     # Parse notification settings
     if args:

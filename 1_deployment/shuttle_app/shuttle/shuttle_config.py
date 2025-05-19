@@ -40,9 +40,13 @@ class ShuttleConfig(CommonConfig):
     on_demand_defender: bool = False
     on_demand_clam_av: bool = True
     
-    # Shuttle-specific throttle settings
-    throttle_max_file_volume_per_day: int = 1000000
-    throttle_max_file_count_per_day: int = 1000
+    # Throttle settings
+    throttle: bool = False
+    throttle_free_space: int = 10000  # Minimum MB of free space required
+    
+    # Shuttle-specific throttle settings (commented out for now)
+    # throttle_max_file_volume_per_day: int = 1000000
+    # throttle_max_file_count_per_day: int = 1000
 
 
 def parse_shuttle_config() -> ShuttleConfig:
@@ -94,6 +98,7 @@ def parse_shuttle_config() -> ShuttleConfig:
                       type=int,
                       default=None)
     
+    # Commented out for now
     # parser.add_argument('-ThrottleMaxFileVolumePerDay',
     #                    help='Maximum volume of files (in bytes) to process per day',
     #                    type=int,
@@ -114,8 +119,6 @@ def parse_shuttle_config() -> ShuttleConfig:
         # Copy common configuration
         log_path=common_config.log_path,
         log_level=common_config.log_level,
-        throttle=common_config.throttle,
-        throttle_free_space=common_config.throttle_free_space,
         notify=common_config.notify,
         notify_summary=common_config.notify_summary,
         notify_recipient_email=common_config.notify_recipient_email,
@@ -180,19 +183,32 @@ def parse_shuttle_config() -> ShuttleConfig:
         config.on_demand_clam_av = on_demand_clam_av.lower() in ('true', 'yes', '1')
     else:
         config.on_demand_clam_av = bool(on_demand_clam_av)
-    
-    # Throttle settings specific to Shuttle
-    throttle_max_file_volume_per_day = get_setting(args.ThrottleMaxFileVolumePerDay, 'settings', 'throttle_max_file_volume_per_day', 1000000)
-    if isinstance(throttle_max_file_volume_per_day, str):
-        config.throttle_max_file_volume_per_day = int(throttle_max_file_volume_per_day)
+        
+    # Parse throttle settings
+    throttle = get_setting(args.Throttle, 'settings', 'throttle', False)
+    if isinstance(throttle, str):
+        config.throttle = throttle.lower() in ('true', 'yes', '1')
     else:
-        config.throttle_max_file_volume_per_day = throttle_max_file_volume_per_day
+        config.throttle = bool(throttle)
     
-    throttle_max_file_count_per_day = get_setting(args.ThrottleMaxFileCountPerDay, 'settings', 'throttle_max_file_count_per_day', 1000)
-    if isinstance(throttle_max_file_count_per_day, str):
-        config.throttle_max_file_count_per_day = int(throttle_max_file_count_per_day)
+    throttle_free_space = get_setting(args.ThrottleFreeSpace, 'settings', 'throttle_free_space', 10000)
+    if isinstance(throttle_free_space, str):
+        config.throttle_free_space = int(throttle_free_space)
     else:
-        config.throttle_max_file_count_per_day = throttle_max_file_count_per_day
+        config.throttle_free_space = throttle_free_space
+    
+    # Throttle settings specific to Shuttle (commented out for now)
+    # throttle_max_file_volume_per_day = get_setting(args.ThrottleMaxFileVolumePerDay, 'settings', 'throttle_max_file_volume_per_day', 1000000)
+    # if isinstance(throttle_max_file_volume_per_day, str):
+    #     config.throttle_max_file_volume_per_day = int(throttle_max_file_volume_per_day)
+    # else:
+    #     config.throttle_max_file_volume_per_day = throttle_max_file_volume_per_day
+    # 
+    # throttle_max_file_count_per_day = get_setting(args.ThrottleMaxFileCountPerDay, 'settings', 'throttle_max_file_count_per_day', 1000)
+    # if isinstance(throttle_max_file_count_per_day, str):
+    #     config.throttle_max_file_count_per_day = int(throttle_max_file_count_per_day)
+    # else:
+    #     config.throttle_max_file_count_per_day = throttle_max_file_count_per_day
     
     # Validate required settings
     if not config.source_path:
