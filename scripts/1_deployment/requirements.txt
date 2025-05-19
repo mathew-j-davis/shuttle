@@ -2,3 +2,4 @@
 # Requires Python version >= 3.6 
 safety>=3.2.11
 python-gnupg>=0.5.0
+PyYAML>=6.0  # For ledger operations

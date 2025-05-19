@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 # Import common configuration using relative imports
-from shuttle_common.config import CommonConfig, add_common_arguments, parse_common_config
+from shuttle_common.config import CommonConfig, add_common_arguments, parse_common_config, get_setting_from_arg_or_file
 
 
 @dataclass
@@ -134,81 +134,31 @@ def parse_shuttle_config() -> ShuttleConfig:
     # Load settings from the settings file using configparser
     settings_file_config = configparser.ConfigParser()
     settings_file_config.read(args.SettingsPath)
-
-    # Helper function to get settings with priority: CLI args > settings file > default
-    def get_setting(arg_value, section, option, default=None):
-        if arg_value is not None:
-            return arg_value
-        elif settings_file_config.has_section(section) and settings_file_config.has_option(section, option):
-            return settings_file_config.get(section, option)
-        else:
-            return default
-
+    
     # Get path settings
-    config.source_path = get_setting(args.SourcePath, 'paths', 'source_path')
-    config.destination_path = get_setting(args.DestinationPath, 'paths', 'destination_path')
-    config.quarantine_path = get_setting(args.QuarantinePath, 'paths', 'quarantine_path')
-    config.lock_file = get_setting(args.LockFile, 'paths', 'lock_path', '/tmp/shuttle.lock')
-    config.hazard_archive_path = get_setting(args.HazardArchivePath, 'paths', 'hazard_archive_path')
-    config.hazard_encryption_key_file_path = get_setting(args.HazardEncryptionKeyPath, 'paths', 'hazard_encryption_key_path')
+    config.source_path = get_setting_from_arg_or_file(args, 'SourcePath', 'paths', 'source_path')
+    config.destination_path = get_setting_from_arg_or_file(args, 'DestinationPath', 'paths', 'destination_path')
+    config.quarantine_path = get_setting_from_arg_or_file(args, 'QuarantinePath', 'paths', 'quarantine_path')
+    config.lock_file = get_setting_from_arg_or_file(args, 'LockFile', 'paths', 'lock_path', '/tmp/shuttle.lock')
+    config.hazard_archive_path = get_setting_from_arg_or_file(args, 'HazardArchivePath', 'paths', 'hazard_archive_path')
+    config.hazard_encryption_key_file_path = get_setting_from_arg_or_file(args, 'HazardEncryptionKeyPath', 'paths', 'hazard_encryption_key_path')
 
     # Get processing settings
-    delete_source_files = get_setting(args.DeleteSourceFilesAfterCopying, 'settings', 'delete_source_files_after_copying', False)
-    if isinstance(delete_source_files, str):
-        config.delete_source_files = delete_source_files.lower() in ('true', 'yes', '1')
-    else:
-        config.delete_source_files = bool(delete_source_files)
-    
-    max_scan_threads = get_setting(args.MaxScanThreads, 'settings', 'max_scan_threads', 1)
-    if isinstance(max_scan_threads, str):
-        config.max_scan_threads = int(max_scan_threads)
-    else:
-        config.max_scan_threads = max_scan_threads
+    config.delete_source_files = get_setting_from_arg_or_file(args, 'DeleteSourceFilesAfterCopying', 'settings', 'delete_source_files_after_copying', False, bool)
+    config.max_scan_threads = get_setting_from_arg_or_file(args, 'MaxScanThreads', 'settings', 'max_scan_threads', 1, int)
 
     # Get scanning settings
-    defender_handles_suspect_files = get_setting(args.DefenderHandlesSuspectFiles, 'settings', 'defender_handles_suspect_files', True)
-    if isinstance(defender_handles_suspect_files, str):
-        config.defender_handles_suspect_files = defender_handles_suspect_files.lower() in ('true', 'yes', '1')
-    else:
-        config.defender_handles_suspect_files = bool(defender_handles_suspect_files)
-    
-    on_demand_defender = get_setting(args.OnDemandDefender, 'settings', 'on_demand_defender', False)
-    if isinstance(on_demand_defender, str):
-        config.on_demand_defender = on_demand_defender.lower() in ('true', 'yes', '1')
-    else:
-        config.on_demand_defender = bool(on_demand_defender)
-    
-    on_demand_clam_av = get_setting(args.OnDemandClamAV, 'settings', 'on_demand_clam_av', True)
-    if isinstance(on_demand_clam_av, str):
-        config.on_demand_clam_av = on_demand_clam_av.lower() in ('true', 'yes', '1')
-    else:
-        config.on_demand_clam_av = bool(on_demand_clam_av)
+    config.defender_handles_suspect_files = get_setting_from_arg_or_file(args, 'DefenderHandlesSuspectFiles', 'settings', 'defender_handles_suspect_files', True, bool)
+    config.on_demand_defender = get_setting_from_arg_or_file(args, 'OnDemandDefender', 'settings', 'on_demand_defender', False, bool)
+    config.on_demand_clam_av = get_setting_from_arg_or_file(args, 'OnDemandClamAV', 'settings', 'on_demand_clam_av', True, bool)
         
     # Parse throttle settings
-    throttle = get_setting(args.Throttle, 'settings', 'throttle', False)
-    if isinstance(throttle, str):
-        config.throttle = throttle.lower() in ('true', 'yes', '1')
-    else:
-        config.throttle = bool(throttle)
-    
-    throttle_free_space = get_setting(args.ThrottleFreeSpace, 'settings', 'throttle_free_space', 10000)
-    if isinstance(throttle_free_space, str):
-        config.throttle_free_space = int(throttle_free_space)
-    else:
-        config.throttle_free_space = throttle_free_space
+    config.throttle = get_setting_from_arg_or_file(args, 'Throttle', 'settings', 'throttle', False, bool)
+    config.throttle_free_space = get_setting_from_arg_or_file(args, 'ThrottleFreeSpace', 'settings', 'throttle_free_space', 10000, int)
     
     # Throttle settings specific to Shuttle (commented out for now)
-    # throttle_max_file_volume_per_day = get_setting(args.ThrottleMaxFileVolumePerDay, 'settings', 'throttle_max_file_volume_per_day', 1000000)
-    # if isinstance(throttle_max_file_volume_per_day, str):
-    #     config.throttle_max_file_volume_per_day = int(throttle_max_file_volume_per_day)
-    # else:
-    #     config.throttle_max_file_volume_per_day = throttle_max_file_volume_per_day
-    # 
-    # throttle_max_file_count_per_day = get_setting(args.ThrottleMaxFileCountPerDay, 'settings', 'throttle_max_file_count_per_day', 1000)
-    # if isinstance(throttle_max_file_count_per_day, str):
-    #     config.throttle_max_file_count_per_day = int(throttle_max_file_count_per_day)
-    # else:
-    #     config.throttle_max_file_count_per_day = throttle_max_file_count_per_day
+    # config.throttle_max_file_volume_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileVolumePerDay', 'settings', 'throttle_max_file_volume_per_day', 1000000, int)
+    # config.throttle_max_file_count_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileCountPerDay', 'settings', 'throttle_max_file_count_per_day', 1000, int)
     
     # Validate required settings
     if not config.source_path:
