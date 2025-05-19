@@ -5,7 +5,7 @@ import time
 import subprocess
 from pathlib import Path
 import gnupg
-from logging_setup import setup_logging, LoggingOptions
+from .logging_setup import setup_logging, LoggingOptions
 
 def is_filename_safe(filename):
     """

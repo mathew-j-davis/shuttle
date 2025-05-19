@@ -62,8 +62,7 @@ def parse_config() -> ShuttleConfig:
     parser.add_argument('-SourcePath', help='Path to the source directory')
     parser.add_argument('-DestinationPath', help='Path to the destination directory')
     parser.add_argument('-QuarantinePath', help='Path to the quarantine directory')
-    parser.add_argument('-SettingsPath', default=os.path.join(os.getenv('HOME') or os.path.expanduser('~'), '.shuttle', 'settings.ini'),
-                        help='Path to the settings file')
+
     parser.add_argument('-TestSourceWriteAccess', action='store_true', help='Test write access to the source directory')
     parser.add_argument('-DeleteSourceFilesAfterCopying', action='store_true',
                         help='Delete the source files after copying them to the destination')
@@ -86,14 +85,23 @@ def parse_config() -> ShuttleConfig:
                        default=None)
     
     # Shuttle-specific throttle arguments
-    parser.add_argument('-ThrottleMaxFileVolumePerDay',
-                       help='Maximum volume of files (in bytes) to process per day',
-                       type=int,
-                       default=None)
-    parser.add_argument('-ThrottleMaxFileCountPerDay',
-                       help='Maximum number of files to process per day',
-                       type=int,
-                       default=None)
+    parser.add_argument('-Throttle',
+                      help='Enable throttling of file processing',
+                      type=bool,
+                      default=None)
+    parser.add_argument('-ThrottleFreeSpace',
+                      help='Minimum free space (in MB) required on destination drive',
+                      type=int,
+                      default=None)
+    
+    # parser.add_argument('-ThrottleMaxFileVolumePerDay',
+    #                    help='Maximum volume of files (in bytes) to process per day',
+    #                    type=int,
+    #                    default=None)
+    # parser.add_argument('-ThrottleMaxFileCountPerDay',
+    #                    help='Maximum number of files to process per day',
+    #                    type=int,
+    #                    default=None)
     
     # Parse arguments
     args = parser.parse_args()

@@ -54,16 +54,9 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('-LogLevel', default=None, 
                         help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
     
-    # Add throttle arguments
-    parser.add_argument('-Throttle',
-                      help='Enable throttling of file processing',
-                      type=bool,
-                      default=None)
-    parser.add_argument('-ThrottleFreeSpace',
-                      help='Minimum free space (in MB) required on destination drive',
-                      type=int,
-                      default=None)
-    
+
+    parser.add_argument('-SettingsPath', default=os.path.join(os.getenv('HOME') or os.path.expanduser('~'), '.shuttle', 'settings.ini'),
+                        help='Path to the settings file')
     # Add notification arguments
     parser.add_argument('-Notify', 
                       help='Enable email notifications for important events',

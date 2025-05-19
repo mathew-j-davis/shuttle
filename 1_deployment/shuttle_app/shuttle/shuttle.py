@@ -15,12 +15,17 @@ from shuttle_common.logging_setup import (
     LoggingOptions,
     setup_logging
 )
-from . import (
-    parse_config,
+from .shuttle_config import (
+    parse_config
+)
+
+from .scanning import (
     process_files
 )
 
 def main():
+    
+    logger = None
     
     config = parse_config()
 
@@ -126,7 +131,7 @@ def main():
             logger.error("While a real time virus scanner may make on-demand scanning redundant, this application is for on-demand scanning.")
             sys.exit(1)
 
-        if config.on_demand_defender and config.defender_ledger_path is not None:
+        if config.on_demand_defender and config.ledger_path is not None:
             
             # Get current version of Microsoft Defender
             defender_version = get_mdatp_version(logging_options)
@@ -143,7 +148,7 @@ def main():
 
             ledger = Ledger(logging_options)    
             
-            if not ledger.load(config.defender_ledger_path):
+            if not ledger.load(config.ledger_path):
                 logger.error("Could not load ledger file")
                 sys.exit(1)
             
@@ -154,7 +159,8 @@ def main():
         process_files(config, notifier, logging_options)   
 
     except Exception as e:
-        logger.error(f"An error occurred: {e}")
+        if logger:
+            logger.error(f"An error occurred: {e}")
         sys.exit(1)
 
     finally:
