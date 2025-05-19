@@ -1,14 +1,12 @@
 ---
 theme: base
-title: "Shuttle Linux - File Transfer and Malware Scanning ScriptRemote Access for Lab Equipment and Systems - CSIRO Energy Siemens CT Scanner Integration"
+title: "Shuttle Linux - File Transfer and Malware Scanning Script"
 author: Mat Davis
-date: 2024-12-15
-version: 0.1
+date: 2025-05-20
+version: 1.0
 output: word_document
 
 ---
-
-
 
 # Shuttle Linux - File Transfer and Malware Scanning Script
 
@@ -69,32 +67,36 @@ The script may work on other Linux distributions; however, the installation scri
   - Can load settings from a configuration file if arguments are not provided.
 
 
-## **Generate encryption keys**
+## **GPG Key Management**
 
-  This script will generate keys for testing purposes.
-  For production use, have the team responsible for managing keys provide you with a public key.
+The Shuttle application uses GPG encryption to securely handle potential malware. When a file is flagged as suspicious and cannot be automatically handled by the malware detection tool, Shuttle encrypts it using a public GPG key.
 
-  Run this script on a different machine. 
-  It will generate two keys
-  - a public key  :   ~/.shuttle/shuttle_public.gpg
-  - a private key :   ~/.shuttle/shuttle_private.gpg
+### Generate Encryption Keys
 
-  This script can be found in
-  ```
-  /0_set_up_scripts_to_run_on_other_machine
-  ```
+This script will generate keys for testing purposes. For production use, have the team responsible for managing keys provide you with a public key.
 
-  ```bash
-  ./00_generate_shuttle_keys.sh
-  ```
+```bash
+# Run this on a DIFFERENT machine (not the server):
+./scripts/0_key_generation/00_generate_shuttle_keys.sh
+```
 
-Keep these keys somewhere secure.
+This creates:
+- A public key: `shuttle_public.gpg` - Deploy this on the target machine
+- A private key: `shuttle_private.gpg` - Keep this secure elsewhere
 
-If you lose the private key you will not be able to decrypt files suspected of containing malware.
+**IMPORTANT SECURITY NOTES:**
+- Only the public key should be deployed on the target machine
+- The private key should NEVER be deployed on the server
+- If you lose the private key, you will not be able to decrypt files suspected of containing malware
 
-Copy only the public key ~/.shuttle/shuttle_public.gpg to the server
+### Configure the Public Key Path
 
-DO NOT put the private key on the server
+After generating the key pair, configure Shuttle to use the public key by adding the path to your `settings.ini` file:
+
+```ini
+[paths]
+hazard_encryption_key_path = /path/to/shuttle_public.gpg
+```
 
 CAVEATS:
 
@@ -103,138 +105,58 @@ however either `mdatp` or the parallel libraries seem not to have been stable wh
 Until this is understood, ONLY USE ONE THREAD.
 
 
-## **Deploy Scripts**
+## **Documentation**
 
-Copy the files in 
+This project includes several documentation files for different aspects of the system:
 
-```
-/1_deployment/shuttle
-```
+### [Deployment Documentation](readme_deployment.md)
+- Complete project structure
+- Step-by-step installation instructions
+- Virtual environment setup and troubleshooting
+- GPG key management for secure file handling
+- Disk space throttling configuration
 
-to your host
+### [Configuration Guide](readme_config.md)
+- Detailed explanations of all configuration options
+- Sample configuration files
 
-eg.:
+### [Cron Job Setup](readme_cron.md)
+- Instructions for setting up scheduled tasks
+- Example crontab entries
 
-```
-~/shuttle/
-```
+### [VS Code Remote Debugging](readme_vscode_remote_python_debugging.md)
+- Setting up VS Code for remote Python debugging
+- Working with virtual environments
 
-## **Environment Set Up Scripts**
+## **Running the Shuttle Application**
 
-To install all the necessary system packages and Python dependencies, use the provided scripts in:
-
-```
-/2_set_up_scripts_to_run_on_host
-```
-
-These scripts were tested running from the application root. After setup, they are not required on the host machine. However as the functionality of the virtual environment activation script may be useful on the host machine a separate copy of:
-
-```
-/set_up_scripts_to_run_on_host/04_activate_venv_CALL_BY_SOURCE.sh
-```
-
-is included in the deployment scripts:
-
-```
-1_deployment/shuttle/activate_venv_CALL_BY_SOURCE.sh
-```
-
-- **First make the scripts executable:**
+1. **Activate the virtual environment:**
 
    ```bash
-   chmod +x ./*.sh
+   source ./activate_venv_CALL_BY_SOURCE.sh
    ```
+
+2. **Run the Shuttle Script:**
+
+   Make sure the virtual environment is active.
+   You do not need to provide parameters if they are configured in the settings file.
+   If you do not configure a hazard archive directory and an encryption key, suspect files will be deleted.
 
    ```bash
-   chmod +x ./*.py
+   python3 -m shuttle.shuttle
    ```
-
-- **Run the Scripts:**
-
-- **Install required supporting applications**
-  
+   
+   When installed via pip, you can also use the console script entry point:
+   
    ```bash
-   ./01_install_dependencies.sh
+   run-shuttle
    ```
-   This installs lsof and gnupg.
-
-- **Set up Python Environment**
+   
+   Alternatively, if you've set up a bin directory with the shuttle Python script:
+   
    ```bash
-   ./02_install_python.sh
+   python3 /path/to/bin/run_shuttle.py
    ```
-
-- **Create a Virtual Environment:**
-
-   ```bash
-   ./03_create_venv.sh
-   ```
-
-  This script sets up a python virtual environment
-
-  ```bash
-   python3 -m venv venv
-   ```
-
-
-- **Activate virtual environment**
-  
-   ```bash
-   source ./04_activate_venv_CALL_BY_SOURCE.sh
-   ```
-
-  The virtual environment must be activated, this is what the script does:
-
-  ```bash
-   source venv/bin/activate
-   ```
-   - **Set up python dependencies**
-
-   ```bash
-   ./05_install_python_dependencies.sh
-   ```
-
-    After activating the virtual environment, this script installs the Python packages specified in `requirements.txt`:
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-- **Install ClamAV**
-   ```bash
-   ./06_install_clamav.sh
-   ```
-   After installation, ClamAV will be enabled and virus definitions will be updated.
-   However ClamAV needs to have access to the directory it will scan.
-   You may need to use ACL to provide access to the `clamav` user.
-
-
-   - **Set up working environment config**
-  
-  This script sets up working files, a settings file and creates a global scope exception for the working folder to stop automatic Microsoft Defender scans interfering with the scripted scanning process.
-  If you do not have permission to change exceptions on your machine this process will not work
-
-  ```bash
-   python3 ./07_setup_test_environment_linux.py
-
-   ```
-   This script:
-   - Creates working directories
-   - Generates a default settings file
-   - If using Defender, creates exclusions for working folders
-
-**Note:** The script will check for the availability of these external commands at runtime. If any are missing, it will log an error and exit.
-
-1. **Run the Shuttle Script:**
-
-Make sure the virtual environment is active.
-You do not need to provide parameters if parameters are configured in the settings file
-If you do not configure a hazard archive directory and an encryption key, suspect files will be deleted.
-
-Execute `run_shuttle.py` with the desired parameters or ensure the `settings.ini` file is properly configured.
-
-```bash
-python3 run_shuttle.py
-```
 
 Full parameters:
 
@@ -259,31 +181,74 @@ Full parameters:
 
 ### **Settings File (`settings.ini`):**
 
-If command-line arguments are not provided, the script will attempt to read from a settings file in INI format. An example `settings.ini` might look like:
+If command-line arguments are not provided, the script reads configuration from a settings file in INI format. A complete example `settings.ini` with all available options:
 
 ```ini
-[Paths]
+[paths]
+# Required path settings
 source_path=/path/to/source
 destination_path=/path/to/destination
 quarantine_path=/path/to/quarantine
+
+# Optional path settings
 log_path=/path/to/logs
 hazard_archive_path=/path/to/hazard_archive
 hazard_encryption_key_path=/path/to/shuttle_public.gpg
+ledger_file_path=/path/to/ledger.yaml
+lock_file=/tmp/shuttle.lock
 
-[Settings]
-max_scan_threads=4
+[settings]
+# Scanning settings
+max_scan_threads=1
 delete_source_files_after_copying=True
+defender_handles_suspect_files=True
 on_demand_defender=False
 on_demand_clam_av=True
-defender_handles_suspect_files=True
 
-[Logging]
-log_level=DEBUG
+# Throttle settings
+throttle=False
+throttle_free_space=10000
 
+# Notification settings
+notify=False
+notify_summary=False
+notify_recipient_email=recipient@example.com
+notify_sender_email=sender@example.com
+notify_smtp_server=smtp.example.com
+notify_smtp_port=587
+notify_username=username
+notify_password=password
+notify_use_tls=True
+
+[logging]
+log_level=INFO
 ```
 
-**Note:** The script gives priority to command-line arguments over the settings 
-file.
+#### Configuration Sections Explained:
+
+**[paths]**
+- `source_path` - Directory to scan for files to transfer
+- `destination_path` - Directory for clean files after scanning
+- `quarantine_path` - Temporary directory for scanning files
+- `log_path` - Directory for log files
+- `hazard_archive_path` - Directory for encrypted potentially malicious files
+- `hazard_encryption_key_path` - Path to GPG public key for encrypting hazard files
+- `ledger_file_path` - Path to track tested defender versions
+- `lock_file` - Lock file to prevent multiple script instances
+
+**[settings]**
+- `max_scan_threads` - Maximum number of parallel scans (default: 1)
+- `delete_source_files_after_copying` - Remove source files after successful transfer
+- `defender_handles_suspect_files` - Let Defender handle infected files
+- `on_demand_defender` - Use Microsoft Defender for scanning
+- `on_demand_clam_av` - Use ClamAV for scanning
+- `throttle` - Enable disk space throttling
+- `throttle_free_space` - Minimum MB of free space required
+
+**[logging]**
+- `log_level` - Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+
+**Note:** Command-line arguments override settings file values.
 
 **Note:** The `LogLevel` can be set to `DEBUG`, `INFO`, `WARNING`, `ERROR`, or `CRITICAL` depending on the desired verbosity.
 
@@ -424,109 +389,6 @@ The script uses GPG encryption for securing hazard files. You'll need to:
 **Note:** The separation of public and private keys ensures that even if the production system is compromised, encrypted hazard files cannot be decrypted without access to the private key stored elsewhere.
 
 
-## Development 
-
-### Adding New Configuration Parameters
-
-When adding new configuration parameters, the following files and code sections need to be updated:
-
-1. **ShuttleConfig Class Definition**
-   ```python:1_deployment/shuttle/shuttle.py
-   @dataclass
-   class ShuttleConfig:
-       # Add new parameter with type hint
-       # Don't forget Optional[] for optional parameters
-   ```
-
-2. **Argument Parser**
-   ```python:1_deployment/shuttle/shuttle.py
-   def parse_config():
-       parser.add_argument('-NewParameter',
-                         help='Description of the new parameter',
-                         type=type,  # If needed
-                         default=default_value)  # If needed
-   ```
-
-3. **Settings File Processing**
-   ```python:1_deployment/shuttle/shuttle.py
-   # In parse_config():
-   new_parameter = get_setting(
-       args.NewParameter, 
-       'section_name',  # Usually 'paths' or 'settings'
-       'parameter_name', 
-       default=default_value
-   )
-   ```
-
-4. **ShuttleConfig Object Creation**
-   ```python:1_deployment/shuttle/shuttle.py
-   settings_file_config = ShuttleConfig(
-       # Add new parameter to constructor
-       new_parameter=new_parameter
-   )
-   ```
-
-5. **Example Settings File**
-   ```ini:2_set_up_scripts_to_run_on_host/settings.ini.example
-   [section_name]
-   parameter_name=default_value
-   ```
-
-6. **Function Parameters**
-   - If the parameter is used in functions like `scan_and_process_directory()`, update their signatures and calls
-   - Update any helper functions that need access to the new parameter
-
-7. **Documentation**
-   - Update README.md with parameter description
-   - Update command-line help text
-   - Update any relevant comments in the code
-
-8. **Test Files**
-   - Update test configuration files if they exist
-   - Add new test cases for the parameter
-
-### Example
-
-Adding a new parameter 'max_retries':
-
-1. **ShuttleConfig**:
-   ```python
-   @dataclass
-   class ShuttleConfig:
-       max_retries: int
-   ```
-
-2. **Argument Parser**:
-   ```python
-   parser.add_argument('-MaxRetries', 
-                      type=int,
-                      help='Maximum number of retry attempts',
-                      default=3)
-   ```
-
-3. **Settings Processing**:
-   ```python
-   max_retries = get_setting(
-       args.MaxRetries, 
-       'settings',
-       'max_retries', 
-       default=3
-   )
-   ```
-
-4. **Config Creation**:
-   ```python
-   settings_file_config = ShuttleConfig(
-       max_retries=max_retries,
-       # ... other parameters ...
-   )
-   ```
-
-5. **Settings File**:
-   ```ini
-   [settings]
-   max_retries=3
-   ```
 
 ### Virus Scanning Options
 
@@ -550,60 +412,43 @@ These can also be set via command line arguments:
 
 At least one scanner must be enabled. For maximum security, you can enable both scanners - files must pass both scans to be considered clean.
 
+## **Shuttle Defender Test**
+
+The `shuttle_defender_test` component is a critical part of maintaining compatibility with Microsoft Defender as it receives updates.
+
+### Purpose
+
+Microsoft Defender receives automatic updates that can change its behavior or command-line interface. The Shuttle application is designed to work with specific known versions of Defender. When an unknown version is encountered, Shuttle will stop processing files to prevent potential issues.
+
+### How It Works
+
+The defender test:
+1. Tests compatibility with the currently installed version of Microsoft Defender
+2. Updates a ledger file with information about tested versions
+3. Allows Shuttle to verify it's working with a compatible Defender version
+
+### Running the Test
+
+```bash
+python3 -m shuttle_defender.shuttle_defender_test
 ```
 
-## Setup and Installation
+### Scheduling
 
-1. **Install Required Supporting Applications**
-   ```bash
-   ./01_install_dependencies.sh
-   ```
+Because Defender updates automatically, it's important to schedule this test to run regularly:
 
-   The script ensures these commands are installed and accessible:
-
-   - **lsof**:
-     ```bash
-     sudo apt-get install lsof
-     ```
-     
-   - **gpg**:
-     ```bash
-     sudo apt-get install gnupg
-     ```
-
-   - **ClamAV** (Primary virus scanner):
-     ```bash
-     sudo apt-get install clamav clamav-daemon
-     ```
-     After installation:
-     ```bash
-     sudo systemctl start clamav-daemon  # Start the daemon
-     sudo systemctl enable clamav-daemon # Enable at start-up
-     sudo freshclam                      # Update virus definitions
-     ```
-
-   - **Microsoft Defender** (Optional):
-     If you plan to use Microsoft Defender, follow the [official installation guide](https://learn.microsoft.com/en-us/microsoft-365/security/defender-endpoint/linux-install-manually)
-
-2. **Set up Python Environment**
-   ```bash
-   ./02_install_python.sh
-   ./03_create_venv.sh
-   source ./04_activate_venv_CALL_BY_SOURCE.sh
-   ./05_install_python_dependencies.sh
-   ```
-
-3. **Configure Working Environment**
-   ```bash
-   python3 ./06_setup_test_environment_linux.py
-   ```
-   This script:
-   - Creates working directories
-   - Generates a default settings file
-   - If using Defender, creates exclusions for working folders
-
-The recommended configuration is to:
-1. Enable ClamAV for on-demand scanning (`on_demand_clam_av=True`)
-2. Disable Defender's on-demand scanning (`on_demand_defender=False`)
-3. Configure Microsoft Defender for real-time protection if desired
+```bash
+# Example crontab entry to run the test daily
+0 2 * * * cd /opt/shuttle && source ./activate_venv_CALL_BY_SOURCE.sh && python3 -m shuttle_defender.shuttle_defender_test
 ```
+
+### Configuration
+
+The test requires a path to the ledger file where tested versions are recorded:
+
+```ini
+[paths]
+ledger_file_path=/path/to/ledger.yaml
+```
+
+**IMPORTANT:** Without regular testing, Shuttle may stop processing files after a Defender update. Include this test in your maintenance routine.
