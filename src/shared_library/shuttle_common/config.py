@@ -202,7 +202,7 @@ def parse_common_config(args=None, settings_file_path=None):
             return None
     
     # Helper function to get settings with priority: CLI args > settings file > default
-    def get_setting(arg_value, section, option, default: T = None, type: Callable[[Any], T] = None) -> T:
+    def get_setting(arg_value, section, option, default: T = None, type: Optional[Callable[[Any], T]] = None) -> T:
         # Try argument value first (highest priority)
         if arg_value is not None:
             converted_value = convert_to_type(arg_value, type)
@@ -222,7 +222,7 @@ def parse_common_config(args=None, settings_file_path=None):
         return default
     
     # Helper function to get settings from args or config file
-    def get_setting_from_arg_or_file(args_obj, arg_name: str, section: str, option: str, default: T = None, type: Callable[[Any], T] = None) -> T:
+    def get_setting_from_arg_or_file(args_obj, arg_name: str, section: str, option: str, default: T = None, type: Optional[Callable[[Any], T]] = None) -> T:
         """
         Get setting with priority: CLI args > settings file > default
         Extracts the arg_name from args_obj automatically
