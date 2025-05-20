@@ -1,0 +1,22 @@
+# Shuttle Ledger File
+
+# Defender version tracking
+defender:
+  versions:
+    - version: "1.367.674.0"
+      date_tested: "2025-05-01T08:15:43"
+      result: "pass"
+    - version: "1.367.689.0"
+      date_tested: "2025-05-10T12:22:17"
+      result: "pass"
+    - version: "1.367.723.0"
+      date_tested: "2025-05-18T09:45:02"
+      result: "pass"
+
+# ClamAV version tracking
+clam_av:
+  versions:
+    - version: "0.0.0"
+      date_tested: "2025-01-01T00:00:01"
+      result: "pass"
+

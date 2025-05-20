@@ -19,7 +19,7 @@ ledger_file_dir = os.path.join(work_dir, "ledger")
 hazard_archive_dir = os.path.join(work_dir, "hazard")
 
 settings_dir = os.path.expanduser("~/.shuttle")
-settings_file = os.path.join(settings_dir, "settings.ini")
+settings_file = os.path.join(settings_dir, "config.conf")
 hazard_encryption_key_path = os.path.join(settings_dir, "hazard_public.gpg")
 ledger_file_path = os.path.join(ledger_file_dir, "ledger.yaml")
 

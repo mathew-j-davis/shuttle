@@ -51,8 +51,8 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
                         help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
     
 
-    parser.add_argument('-SettingsPath', default=os.path.join(os.getenv('HOME') or os.path.expanduser('~'), '.shuttle', 'settings.ini'),
-                        help='Path to the settings file')
+    parser.add_argument('-SettingsPath', 
+                        help='Path to the settings file (if not specified, standard locations will be searched)')
     # Add notification arguments
     parser.add_argument('-Notify', 
                       help='Enable email notifications for important events',
@@ -92,7 +92,39 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
                       default=None)
 
 
-def parse_common_config(args=None, settings_file_path=None) -> CommonConfig:
+def find_config_file():
+    """
+    Search for a config file in standard locations.
+    
+    Returns:
+        Path to the first config file found, or None if no config file is found
+    """
+    # Check environment variable first
+    env_path = os.getenv('SHUTTLE_CONFIG_PATH')
+    if env_path and os.path.isfile(env_path):
+        return env_path
+        
+    # Define potential config file locations
+    home_dir = os.getenv('HOME') or os.path.expanduser('~')
+
+    # Unix/Linux/MacOS
+    potential_locations = [
+        os.path.join(home_dir, '.config', 'shuttle', 'config.conf'),
+        os.path.join(home_dir, '.shuttle', 'config.conf'),
+        os.path.join(home_dir, '.shuttle', 'settings.ini'),
+        '/etc/shuttle/config.conf',
+        '/usr/local/etc/shuttle/config.conf'
+    ]
+    
+    # Filter out None values and check each location
+    for location in filter(None, potential_locations):
+        if os.path.isfile(location):
+            return location
+            
+    return None
+
+
+def parse_common_config(args=None, settings_file_path=None):
     """
     Parse common configuration settings from command line arguments and settings file.
     
@@ -105,14 +137,24 @@ def parse_common_config(args=None, settings_file_path=None) -> CommonConfig:
     """
     config = CommonConfig()
     
-    # If no args provided, return default config
-    if args is None and settings_file_path is None:
-        return config
-    
-    # Load settings from file if path provided
+    # Initialize settings file config parser
     settings_file_config = configparser.ConfigParser()
-    if settings_file_path and os.path.exists(settings_file_path):
-        settings_file_config.read(settings_file_path)
+    
+    # Determine config file path with priority:
+    # 1. Explicitly provided settings_file_path parameter
+    # 2. Command line argument (if provided)
+    # 3. Search in standard locations
+    config_file_path = None
+    if settings_file_path:
+        config_file_path = settings_file_path
+    elif args and hasattr(args, 'SettingsPath') and args.SettingsPath:
+        config_file_path = args.SettingsPath
+    else:
+        config_file_path = find_config_file()
+    
+    # Try to load settings from file if found
+    if config_file_path:
+        settings_file_config.read(config_file_path)
     
     # Helper function to convert a value to boolean
     def convert_to_bool(value):
