@@ -10,7 +10,9 @@ import argparse
 import configparser
 import logging
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Any, Callable, TypeVar, Union
+
+T = TypeVar('T')
 
 
 @dataclass
@@ -157,7 +159,7 @@ def parse_common_config(args=None, settings_file_path=None):
         settings_file_config.read(config_file_path)
     
     # Helper function to convert a value to boolean
-    def convert_to_bool(value):
+    def convert_to_bool(value) -> bool:
         """
         Convert a value to boolean using string matching for string values.
         Strings like 'true', 'yes', and '1' are converted to True.
@@ -174,7 +176,7 @@ def parse_common_config(args=None, settings_file_path=None):
         return bool(value)
         
     # Helper function to safely convert a value to a specified type
-    def convert_to_type(value, type_func):
+    def convert_to_type(value, type_func) -> Any:
         """
         Safely convert a value to the specified type.
         Special handling for boolean conversion using string matching.
@@ -200,7 +202,7 @@ def parse_common_config(args=None, settings_file_path=None):
             return None
     
     # Helper function to get settings with priority: CLI args > settings file > default
-    def get_setting(arg_value, section, option, default=None, type=None):
+    def get_setting(arg_value, section, option, default: T = None, type: Callable[[Any], T] = None) -> T:
         # Try argument value first (highest priority)
         if arg_value is not None:
             converted_value = convert_to_type(arg_value, type)
@@ -220,7 +222,7 @@ def parse_common_config(args=None, settings_file_path=None):
         return default
     
     # Helper function to get settings from args or config file
-    def get_setting_from_arg_or_file(args_obj, arg_name, section, option, default=None, type=None):
+    def get_setting_from_arg_or_file(args_obj, arg_name: str, section: str, option: str, default: T = None, type: Callable[[Any], T] = None) -> T:
         """
         Get setting with priority: CLI args > settings file > default
         Extracts the arg_name from args_obj automatically
