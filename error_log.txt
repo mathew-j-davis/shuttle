@@ -1,6 +1,19 @@
-Traceback (most recent call last):
-  File "/home/x/.local/share/shuttle/venv/bin/run-shuttle", line 5, in <module>
-    from shuttle.shuttle import main
-  File "/home/x/shuttle/src/shuttle_app/shuttle/__init__.py", line 12, in <module>
-    from .config import (
-ModuleNotFoundError: No module named 'shuttle.config'
+2025-05-21 17:59:33,554 INFO: Starting Shuttle Linux file transfer and scanning process (PID: 461029)
+2025-05-21 17:59:33,554 INFO: SourcePath: /mnt/in
+2025-05-21 17:59:33,554 INFO: DestinationPath: /mnt/in
+2025-05-21 17:59:33,554 INFO: QuarantinePath: /mnt/quarantine
+2025-05-21 17:59:33,554 ERROR: Failed to copy files to quarantine: Error: is_filename_safe() takes 1 positional argument but 2 were given
+2025-05-21 17:59:33,554 ERROR: Failed to copy files to quarantine: Error: is_filename_safe() takes 1 positional argument but 2 were given
+2025-05-21 17:59:34,016 INFO: Notification sent: Shuttle: Critical Processing Error
+2025-05-21 17:59:34,016 INFO: Notification sent: Shuttle: Critical Processing Error
+(venv) dav717@min-wa-shuttle:~/shuttle/scripts/1_deployment$ run-shuttle
+2025-05-21 18:00:17,470 INFO: Starting Shuttle Linux file transfer and scanning process (PID: 461090)
+2025-05-21 18:00:17,470 INFO: SourcePath: /mnt/in
+2025-05-21 18:00:17,470 INFO: DestinationPath: /mnt/in
+2025-05-21 18:00:17,470 INFO: QuarantinePath: /mnt/quarantine
+2025-05-21 18:00:17,782 ERROR: Error in throttling checks: 'Logger' object has no attribute 'filePath'
+2025-05-21 18:00:17,782 ERROR: Error in throttling checks: 'Logger' object has no attribute 'filePath'
+2025-05-21 18:00:17,782 ERROR: Failed to copy files to quarantine: Error: cannot access local variable 'throttle_result' where it is not associated with a value
+2025-05-21 18:00:17,782 ERROR: Failed to copy files to quarantine: Error: cannot access local variable 'throttle_result' where it is not associated with a value
+2025-05-21 18:00:18,331 INFO: Notification sent: Shuttle: Critical Processing Error
+2025-05-21 18:00:18,331 INFO: Notification sent: Shuttle: Critical Processing Error

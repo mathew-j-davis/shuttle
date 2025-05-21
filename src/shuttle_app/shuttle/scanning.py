@@ -227,17 +227,17 @@ def scan_and_process_directory(
         # os.walk traverses the directory tree
         for source_root, dirs, source_files in os.walk(source_path, topdown=False):
             for source_file in source_files:
-                if not is_filename_safe(source_file, logging_options):
+                if not is_filename_safe(source_file):
                     logger.error(f"Skipping file {source_file} because it contains unsafe characters.")
                     continue
 
-                if not is_pathname_safe(source_root, logging_options):
+                if not is_pathname_safe(source_root):
                     logger.error(f"Skipping {source_root} because it contains unsafe characters.")
                     continue
 
                 source_file_path = os.path.join(source_root, source_file)
 
-                if not is_pathname_safe(source_file_path, logging_options):
+                if not is_pathname_safe(source_file_path):
                     logger.error(f"Skipping path {source_file_path} because it contains unsafe characters.")
                     continue
                 

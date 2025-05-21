@@ -189,7 +189,7 @@ def main():
     
     # Parse arguments and configuration
     args = parser.parse_args()
-    config = parse_common_config(args)
+    config, _ = parse_common_config(args)
     
     # Set up logging with the log path from config
     log_file_path = None
