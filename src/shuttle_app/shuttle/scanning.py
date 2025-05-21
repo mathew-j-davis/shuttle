@@ -29,7 +29,9 @@ from shuttle_common.scan_utils import (
     run_malware_scan,
     scan_result_types,
     handle_clamav_scan_result,
-    scan_for_malware_using_clam_av
+    scan_for_malware_using_clam_av,
+    DefenderScanResult,
+    process_defender_result,
 )
 
 def scan_and_process_file(
@@ -88,18 +90,25 @@ def scan_and_process_file(
         # Scan the file for malware
         logger.info(f"Scanning file {quarantine_file_path} for malware...")
         defender_result = scan_for_malware_using_defender(quarantine_file_path, logging_options)
+        
+        # Process the scan result with our helper
+        scan_result = process_defender_result(
+            defender_result,
+            quarantine_file_path,
+            defender_handles_suspect_files,
+            logging_options
+        )
+        
+        # Update our status flags based on the scan result
+        suspect_file_detected = scan_result.suspect_detected
+        scanner_handling_suspect_file = scan_result.handler_managing
+        
+        # Return early if scan failed (not completed) and no threat detected
+        # This happens when file is not found and we're not letting defender handle it
+        if not scan_result.scan_completed and not scan_result.suspect_detected:
+            return False
 
-
-        if defender_result == scan_result_types.FILE_IS_SUSPECT:
-            suspect_file_detected = True
-            if defender_handles_suspect_files:
-                logger.warning(f"Threats found in {quarantine_file_path}, letting Defender handle it")
-                scanner_handling_suspect_file = True
-
-            else:
-                logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
-             
-
+        
     if ((not suspect_file_detected) and on_demand_clam_av):
         clam_av_result = scan_for_malware_using_clam_av(quarantine_file_path, logging_options)
 

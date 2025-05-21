@@ -138,6 +138,9 @@ class CommonConfig:
     notify_password: Optional[str] = None
     notify_use_tls: bool = True
     
+    # Scanning settings
+    defender_handles_suspect_files: bool = True
+    
     # Ledger settings
     ledger_path: Optional[str] = None  # Path to track tested defender versions
 
@@ -189,6 +192,12 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
                       help='Use TLS encryption for SMTP',
                       type=bool,
                       default=None)
+    
+    # Add scanning arguments
+    parser.add_argument('-DefenderHandlesSuspectFiles', 
+                      action='store_true',
+                      default=None,
+                      help='Let Microsoft Defender handle suspect files (default: True)')
     
     # Add ledger arguments
     parser.add_argument('-LedgerPath',
@@ -289,5 +298,8 @@ def parse_common_config(args=None, settings_file_path=None):
     
     # Parse ledger settings
     config.ledger_path = get_setting_from_arg_or_file(args, 'LedgerPath', 'paths', 'ledger_path', None, None, settings_file_config)
+    
+    # Parse scanning settings
+    config.defender_handles_suspect_files = get_setting_from_arg_or_file(args, 'DefenderHandlesSuspectFiles', 'scanning', 'defender_handles_suspect_files', True, bool, settings_file_config)
     
     return config

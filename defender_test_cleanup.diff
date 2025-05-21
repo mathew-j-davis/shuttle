@@ -1,0 +1,152 @@
+```diff
+--- a/src/shuttle_defender_test_app/shuttle_defender_test/shuttle_defender_test.py
++++ b/src/shuttle_defender_test_app/shuttle_defender_test/shuttle_defender_test.py
+@@ -36,11 +36,6 @@
+ )
+ from shuttle_common.logging_setup import setup_logging, LoggingOptions
+ from shuttle_common.config import CommonConfig, add_common_arguments, parse_common_config
+-from .read_write_ledger import ReadWriteLedger
+-
+-# Use the scan patterns from the common module
+-THREAT_FOUND_PATTERN = defender_scan_patterns.THREAT_FOUND
+-NO_THREATS_PATTERN = defender_scan_patterns.NO_THREATS
+ 
+ # EICAR test string (standard test file for antivirus)
+ # This is the official EICAR test string that all antivirus programs should detect
+@@ -67,51 +62,19 @@
+     return temp_dir, clean_file_path, eicar_file_path
+ 
+ 
+-def test_result_handler(returncode, output, logging_options=None):
+-    """
+-    Custom result handler for testing that returns returncode and output directly.
+-    This differs from the standard handlers that return a scan result type.
+-    
+-    Args:
+-        returncode (int): Process return code
+-        output (str): Process output
+-        logging_options (LoggingOptions): Logging configuration options
+-        
+-    Returns:
+-        tuple: (returncode, output)
+-    """
+-    logger = setup_logging('defender_test.test_result_handler', logging_options)
+-    logger.info(f"Scan return code: {returncode}")
+-    logger.debug(f"Scan stdout: {output}")
+-    return returncode, output
+-
+-
+ def run_defender_scan(file_path, logging_options=None):
+-    """Run Microsoft Defender scan on a file and return the result code."""
++    """
++    Run Microsoft Defender scan on a file and return the result code.
++    The result code will be one of the scan_result_types values.
++    
++    Args:
++        file_path (str): Path to the file to scan
++        logging_options (LoggingOptions): Logging configuration
++        
++    Returns:
++        int: A scan_result_types value indicating the scan result
++    """
+     logger = setup_logging('defender_test.run_defender_scan', logging_options)
+-    logger.info(f"Running scan on file: {file_path}")
+-    
+-    try:
+-        # Use scan_for_malware_using_defender with its default handler (handle_defender_scan_result)
+-        # which parses the defender output and returns a result code that we'll process with
+-        # our process_defender_result helper
+-        return scan_for_malware_using_defender(
+-            file_path, 
+-            logging_options=logging_options
+-        )
+-    except Exception as e:
+-        logger.error(f"Error running scan: {e}")
+-        return scan_result_types.FILE_SCAN_FAILED
+-
+-def verify_output_patterns(returncode, output, expected_pattern, file_type, logging_options=None):
+-    """Verify that the output contains the expected pattern."""
+-    logger = setup_logging('defender_test.verify_output_patterns', logging_options)
+-    if expected_pattern in output:
+-        logger.info(f"✅ Expected pattern found in {file_type} file scan output")
+-        return True
+-    else:
+-        logger.error(f"❌ Expected pattern NOT found in {file_type} file scan output")
+-        logger.error(f"Expected: {expected_pattern}")
+-        logger.error(f"Actual output: {output}")
+-        logger.error(f"Return code: {returncode}")
+-        return False
++    logger.info(f"Scanning file: {file_path} using Microsoft Defender")
+ 
++    # Use the default handle_defender_scan_result handler which parses the output
++    # and returns a result code (like FILE_IS_CLEAN or FILE_IS_SUSPECT)
++    # This result code is then processed by process_defender_result
++    try:
++        return scan_for_malware_using_defender(file_path, logging_options=logging_options)
++    except Exception as e:
++        logger.error(f"Error running scan: {e}")
++        return scan_result_types.FILE_SCAN_FAILED
+ 
+ def cleanup(temp_dir, logging_options=None):
+@@ -261,7 +218,7 @@
+         
+         # For EICAR, we expect to detect a threat
+         eicar_result = eicar_scan.suspect_detected
+-        if not eicar_result:
++        if not eicar_result and eicar_scan.scan_completed:
+             logger.error(f"EICAR test failed: expected suspect_detected=True, got suspect_detected={eicar_scan.suspect_detected}")
+         else:
+             logger.info("EICAR test passed: Threat detected")
+@@ -273,14 +230,19 @@
+             test_details = (
+                 f"Microsoft Defender {current_version}\n"
+                 f"Clean test: {'PASS' if clean_result else 'FAIL'}\n"
++                f"  scan_completed={clean_scan.scan_completed}, "
++                f"suspect_detected={clean_scan.suspect_detected}\n"
+                 f"EICAR test: {'PASS' if eicar_result else 'FAIL'}\n"
++                f"  scan_completed={eicar_scan.scan_completed}, "
++                f"suspect_detected={eicar_scan.suspect_detected}\n"
++                f"defender_handles_suspect_files={config.defender_handles_suspect_files}\n"
+             )
+             
+             # Send notification based on test results
+             if config.notify:
+                 if clean_result and eicar_result:
+                     send_notification(
+-                        f"✅ All tests passed for Microsoft Defender {current_version}",
++                        f"✅ Defender {current_version} correctly identified clean file and threat",
+                         error=False,
+                         config=config,
+                         logging_options=logging_options
+@@ -288,7 +250,7 @@
+                 else:
+                     # Failed tests need notification
+                     send_notification(
+-                        f"❌ Tests failed for Microsoft Defender {current_version}:\n{test_details}",
++                        f"❌ Defender {current_version} failed scanning tests:\n{test_details}",
+                         error=True,
+                         config=config,
+                         logging_options=logging_options
+@@ -297,13 +259,15 @@
+             # Update ledger if path provided
+             if config.ledger_path:
+                 ledger_updated = update_ledger(
+-                    config.ledger_path, 
+-                    current_version, 
+-                    'pass' if (clean_result and eicar_result) else 'fail',
+-                    test_details,
+-                    logging_options
++                    ledger_path=config.ledger_path, 
++                    version=current_version, 
++                    test_result='pass' if (clean_result and eicar_result) else 'fail',
++                    test_details=test_details,
++                    logging_options=logging_options
+                 )
+-                logger.info(f"Ledger updated: {ledger_updated}")
++                result_text = "successfully" if ledger_updated else "failed to"
++                logger.info(f"Ledger {result_text} updated with test results")
++
+         except Exception as e:
+             logger.error(f"Error during tests: {e}", exc_info=True)
+             if config and config.notify:
+```

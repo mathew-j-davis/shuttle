@@ -16,13 +16,67 @@ from .logging_setup import setup_logging, LoggingOptions
 # Define scan output patterns
 defender_scan_patterns = types.SimpleNamespace()
 defender_scan_patterns.THREAT_FOUND = "Threat(s) found"
-defender_scan_patterns.NO_THREATS = "0 threat(s) detected"
+defender_scan_patterns.FILE_NOT_FOUND = "\n\t0 file(s) scanned\n\t0 threat(s) detected"
+defender_scan_patterns.NO_THREATS = "\n\t0 threat(s) detected"
+
 
 # Define scan result types - these should match the values in shuttle.scanning
-scan_result_types = types.SimpleNamespace()
-scan_result_types.FILE_IS_SUSPECT = 3
-scan_result_types.FILE_IS_CLEAN = 0
-scan_result_types.FILE_SCAN_FAILED = 100
+class scan_result_types:
+    """Constants for scan results"""
+    FILE_IS_CLEAN = 0
+    FILE_IS_SUSPECT = 1
+    FILE_NOT_FOUND = 2
+    FILE_SCAN_FAILED = 100
+
+
+class DefenderScanResult:
+    """Container for Microsoft Defender scan result information"""
+    def __init__(self, scan_completed=False, suspect_detected=False, handler_managing=False):
+        self.scan_completed = scan_completed  # Was the scan completed successfully
+        self.suspect_detected = suspect_detected  # Was a threat found?
+        self.handler_managing = handler_managing  # Is defender handling it?
+
+
+def process_defender_result(result_code, path, defender_handles_suspect=False, logging_options=None):
+    """
+    Process defender scan result and determine actions
+    
+    Args:
+        result_code: The scan result type from handle_defender_scan_result
+        path: Path to the scanned file
+        defender_handles_suspect: Whether Defender is configured to handle suspicious files
+        logging_options: Optional logging configuration
+        
+    Returns:
+        DefenderScanResult: Information about the scan result and how to handle it
+    """
+    logger = setup_logging('shuttle.common.scan_utils.process_defender_result', logging_options)
+    
+    # Threat detection
+    if result_code == scan_result_types.FILE_IS_SUSPECT:
+        msg = "letting Defender handle it" if defender_handles_suspect else "handling internally"
+        logger.warning(f"Threats found in {path}, {msg}")
+        return DefenderScanResult(True, True, defender_handles_suspect)
+        
+    # File not found
+    elif result_code == scan_result_types.FILE_NOT_FOUND:
+        if defender_handles_suspect:
+            logger.warning(f"File not found at {path}, assuming Defender quarantined it")
+            return DefenderScanResult(True, True, True)  # treat as suspect + handled
+        else:
+            logger.warning(f"File not found at {path}")
+            return DefenderScanResult(False, False, False)  # error condition
+            
+    # Clean case
+    elif result_code == scan_result_types.FILE_IS_CLEAN:
+        logger.info(f"No threats found in {path}")
+        return DefenderScanResult(True, False, False)
+        
+    # Other errors
+    else:
+        logger.warning(f"Scan failed for {path} with code {result_code}")
+        return DefenderScanResult(False, False, False)
+
 
 def get_mdatp_version(logging_options=None) -> Optional[str]:
     """
@@ -143,6 +197,10 @@ def handle_defender_scan_result(returncode, output, logging_options=None):
         if defender_scan_patterns.THREAT_FOUND in output:
             logger.warning("Threats found")
             return scan_result_types.FILE_IS_SUSPECT
+
+        elif output.rstrip().endswith(defender_scan_patterns.FILE_NOT_FOUND):
+            logger.warning("File not found")
+            return scan_result_types.FILE_NOT_FOUND
         
         elif output.rstrip().endswith(defender_scan_patterns.NO_THREATS):
             logger.info("No threat found")

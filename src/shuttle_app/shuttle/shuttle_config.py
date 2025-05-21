@@ -36,7 +36,6 @@ class ShuttleConfig(CommonConfig):
     max_scan_threads: int = 1
     
     # Scanning settings
-    defender_handles_suspect_files: bool = True
     on_demand_defender: bool = False
     on_demand_clam_av: bool = True
     
@@ -74,11 +73,6 @@ def parse_shuttle_config() -> ShuttleConfig:
     parser.add_argument('-LockFile', help='Optional: Path to lock file to prevent multiple instances')
     parser.add_argument('-HazardArchivePath', help='Path to the hazard archive directory')
     parser.add_argument('-HazardEncryptionKeyPath', help='Path to the GPG public key file for encrypting hazard files')
-
-    parser.add_argument('-DefenderHandlesSuspectFiles', 
-                        action='store_true',
-                        default=None,
-                        help='Let Microsoft Defender handle suspect files (default: True)')
     parser.add_argument('-OnDemandDefender',
                        help='Use on-demand scanning for Microsoft Defender',
                        type=bool,
@@ -148,7 +142,6 @@ def parse_shuttle_config() -> ShuttleConfig:
     config.max_scan_threads = get_setting_from_arg_or_file(args, 'MaxScanThreads', 'settings', 'max_scan_threads', 1, int)
 
     # Get scanning settings
-    config.defender_handles_suspect_files = get_setting_from_arg_or_file(args, 'DefenderHandlesSuspectFiles', 'settings', 'defender_handles_suspect_files', True, bool)
     config.on_demand_defender = get_setting_from_arg_or_file(args, 'OnDemandDefender', 'settings', 'on_demand_defender', False, bool)
     config.on_demand_clam_av = get_setting_from_arg_or_file(args, 'OnDemandClamAV', 'settings', 'on_demand_clam_av', True, bool)
         

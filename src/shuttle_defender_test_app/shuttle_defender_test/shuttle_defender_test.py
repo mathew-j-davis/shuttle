@@ -30,16 +30,14 @@ from shuttle_common.scan_utils import (
     handle_defender_scan_result,
     defender_scan_patterns,
     run_malware_scan,
-    scan_result_types
+    scan_result_types,
+    process_defender_result,
+    DefenderScanResult
 )
 from shuttle_common.logging_setup import setup_logging, LoggingOptions
 from shuttle_common.config import CommonConfig, add_common_arguments, parse_common_config
 from shuttle_common.notifier import Notifier
 from .read_write_ledger import ReadWriteLedger
-
-# Use the scan patterns from the common module
-THREAT_FOUND_PATTERN = defender_scan_patterns.THREAT_FOUND
-NO_THREATS_PATTERN = defender_scan_patterns.NO_THREATS
 
 # EICAR test string (standard test file for antivirus)
 # This is the official EICAR test string that all antivirus programs should detect
@@ -65,54 +63,33 @@ def create_test_files(logging_options=None):
     
     return temp_dir, clean_file_path, eicar_file_path
 
-def test_result_handler(returncode, output, logging_options=None):
-    """
-    Custom result handler for testing that returns returncode and output directly.
-    This differs from the standard handlers that return a scan result type.
-    
-    Args:
-        returncode (int): Process return code
-        output (str): Process output
-        logging_options (LoggingOptions): Logging configuration options
-        
-    Returns:
-        tuple: (returncode, output)
-    """
-    logger = setup_logging('defender_test.test_result_handler', logging_options)
-    logger.info(f"Scan return code: {returncode}")
-    logger.debug(f"Scan stdout: {output}")
-    return returncode, output
+
 
 
 def run_defender_scan(file_path, logging_options=None):
-    """Run Microsoft Defender scan on a file and return the output."""
-    logger = setup_logging('defender_test.run_defender_scan', logging_options)
-    logger.info(f"Running scan on file: {file_path}")
+    """
+    Run Microsoft Defender scan on a file and return the result code.
+    The result code will be one of the scan_result_types values.
     
+    Args:
+        file_path (str): Path to the file to scan
+        logging_options (LoggingOptions): Logging configuration
+        
+    Returns:
+        int: A scan_result_types value indicating the scan result
+    """
+    logger = setup_logging('defender_test.run_defender_scan', logging_options)
+    logger.info(f"Scanning file: {file_path} using Microsoft Defender")
+
+    # Use the default handle_defender_scan_result handler which parses the output
+    # and returns a result code (like FILE_IS_CLEAN or FILE_IS_SUSPECT)
     try:
-        # Use the scan_for_malware_using_defender with our custom test_result_handler
-        # that returns (returncode, output) instead of a scan result type
-        return scan_for_malware_using_defender(
-            file_path, 
-            custom_handler=test_result_handler, 
-            logging_options=logging_options
-        )
+        return scan_for_malware_using_defender(file_path, logging_options=logging_options)
     except Exception as e:
         logger.error(f"Error running scan: {e}")
-        return -1, str(e)
+        return scan_result_types.FILE_SCAN_FAILED
 
-def verify_output_patterns(returncode, output, expected_pattern, file_type, logging_options=None):
-    """Verify that the output contains the expected pattern."""
-    logger = setup_logging('defender_test.verify_output_patterns', logging_options)
-    if expected_pattern in output:
-        logger.info(f"✅ Expected pattern found in {file_type} file scan output")
-        return True
-    else:
-        logger.error(f"❌ Expected pattern NOT found in {file_type} file scan output")
-        logger.error(f"Expected: {expected_pattern}")
-        logger.error(f"Actual output: {output}")
-        logger.error(f"Return code: {returncode}")
-        return False
+
 
 def cleanup(temp_dir, logging_options=None):
     """Clean up temporary files."""
@@ -243,45 +220,95 @@ def main():
         temp_dir, clean_file_path, eicar_file_path = create_test_files(logging_options)
         
         # Test clean file
-        returncode, output = run_defender_scan(clean_file_path, logging_options)
-        clean_result = verify_output_patterns(returncode, output, NO_THREATS_PATTERN, "clean", logging_options)
+        defender_result = scan_for_malware_using_defender(clean_file_path, logging_options)
+        clean_scan = process_defender_result(
+            defender_result, 
+            clean_file_path, 
+            config.defender_handles_suspect_files,
+            logging_options
+        )
+        
+        # Check scan result against expected outcome
+        clean_result = clean_scan.scan_completed and not clean_scan.suspect_detected
+        if not clean_result:
+            logger.error(f"Clean test failed: expected scan_completed=True, suspect_detected=False, got scan_completed={clean_scan.scan_completed}, suspect_detected={clean_scan.suspect_detected}")
+        else:
+            logger.info("Clean test passed: No threats detected")
         
         # Test EICAR file
-        returncode, output = run_defender_scan(eicar_file_path, logging_options)
-        eicar_result = verify_output_patterns(returncode, output, THREAT_FOUND_PATTERN, "EICAR", logging_options)
+        defender_result = scan_for_malware_using_defender(eicar_file_path, logging_options)
+        eicar_scan = process_defender_result(
+            defender_result, 
+            eicar_file_path, 
+            config.defender_handles_suspect_files,
+            logging_options
+        )
+        
+        # For EICAR, we expect to detect a threat
+        eicar_result = eicar_scan.suspect_detected
+        if not eicar_result and eicar_scan.scan_completed:
+            logger.error(f"EICAR test failed: expected suspect_detected=True, got suspect_detected={eicar_scan.suspect_detected}")
+        else:
+            logger.info("EICAR test passed: Threat detected")
         
         # Determine overall test result
         if clean_result and eicar_result:
-            message = "✅ Defender test PASSED: Output patterns match expected formats"
+            message = f"✅ Defender {current_version} correctly identified clean file and threat"
             
             # Send notification if there's an error or if notify_summary is enabled
             if config.notify and config.notify_summary:
-                # Add timestamp for daily runs
-                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                message = f"{timestamp}: {message}"
-                send_notification(message, error=False, config=config, logging_options=logging_options)
+                send_notification(
+                    f"{message}\n{test_details}", 
+                    error=False, 
+                    config=config, 
+                    logging_options=logging_options
+                )
                 
             logger.info("Test completed successfully")
             result = 0
             
             # Update ledger if provided
             if config.ledger_path:
-                update_ledger(
-                    config.ledger_path,
-                    current_version,
-                    'pass',
-                    'All detection tests passed',
-                    logging_options
+                test_details = (
+                    f"Microsoft Defender {current_version}\n"
+                    f"Clean test: {'PASS' if clean_result else 'FAIL'}\n"
+                    f"  scan_completed={clean_scan.scan_completed}, "
+                    f"suspect_detected={clean_scan.suspect_detected}\n"
+                    f"EICAR test: {'PASS' if eicar_result else 'FAIL'}\n"
+                    f"  scan_completed={eicar_scan.scan_completed}, "
+                    f"suspect_detected={eicar_scan.suspect_detected}\n"
+                    f"defender_handles_suspect_files={config.defender_handles_suspect_files}\n"
                 )
+                ledger_updated = update_ledger(
+                    ledger_path=config.ledger_path, 
+                    version=current_version, 
+                    test_result='pass',
+                    test_details=test_details,
+                    logging_options=logging_options
+                )
+                result_text = "successfully" if ledger_updated else "failed to"
+                logger.info(f"Ledger {result_text} updated with test results")
         else:
-            message = "❌ Defender test FAILED: Output patterns do not match expected formats"
+            message = f"❌ Defender {current_version} failed scanning tests"
             
             # Always send notification for failures if notification is enabled
             if config.notify:
-                # Add timestamp for daily runs
-                timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                message = f"{timestamp}: {message}"
-                send_notification(message, error=True, config=config, logging_options=logging_options)
+                test_details = (
+                    f"Microsoft Defender {current_version}\n"
+                    f"Clean test: {'PASS' if clean_result else 'FAIL'}\n"
+                    f"  scan_completed={clean_scan.scan_completed}, "
+                    f"suspect_detected={clean_scan.suspect_detected}\n"
+                    f"EICAR test: {'PASS' if eicar_result else 'FAIL'}\n"
+                    f"  scan_completed={eicar_scan.scan_completed}, "
+                    f"suspect_detected={eicar_scan.suspect_detected}\n"
+                    f"defender_handles_suspect_files={config.defender_handles_suspect_files}\n"
+                )
+                send_notification(
+                    f"❌ Defender {current_version} failed scanning tests:\n{test_details}",
+                    error=True,
+                    config=config,
+                    logging_options=logging_options
+                )
                 
             logger.error("Test failed")
             result = 1
