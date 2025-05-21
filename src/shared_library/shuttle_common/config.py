@@ -15,6 +15,108 @@ from typing import Optional, Any, Callable, TypeVar, Union
 T = TypeVar('T')
 
 
+# Convert a value to boolean using string matching for string values
+def convert_to_bool(value) -> bool:
+    """
+    Convert a value to boolean using string matching for string values.
+    Strings like 'true', 'yes', and '1' are converted to True.
+    Other strings and falsy values are converted to False.
+    
+    Args:
+        value: The value to convert to boolean
+        
+    Returns:
+        bool: The converted boolean value
+    """
+    if isinstance(value, str):
+        return value.lower() in ('true', 'yes', '1')
+    return bool(value)
+    
+
+# Safely convert a value to a specified type
+def convert_to_type(value, type_func) -> Any:
+    """
+    Safely convert a value to the specified type.
+    Special handling for boolean conversion using string matching.
+    
+    Args:
+        value: The value to convert
+        type_func: The type function to use for conversion (int, str, bool, etc.)
+        
+    Returns:
+        The converted value, or None if conversion fails
+    """
+    if type_func is None:
+        return value
+        
+    # Special handling for boolean conversion
+    if type_func == bool:
+        return convert_to_bool(value)
+        
+    try:
+        return type_func(value)
+    except (ValueError, TypeError):
+        # Return None to signal conversion failure
+        return None
+
+
+# Helper function to get settings with priority: CLI args > settings file > default
+def get_setting(arg_value, section, option, default: T = None, type: Optional[Callable[[Any], T]] = None, config=None) -> T:
+    """
+    Get setting with priority: CLI args > settings file > default
+    
+    Args:
+        arg_value: Value from command line argument
+        section: Section in config file
+        option: Option name in config file
+        default: Default value if not found in args or config file
+        type: Optional type conversion function (int, str, bool, etc.)
+        config: ConfigParser object (if None, setting from file will be None)
+        
+    Returns:
+        The setting value based on priority with type conversion applied
+    """
+    # Try argument value first (highest priority)
+    if arg_value is not None:
+        converted_value = convert_to_type(arg_value, type)
+        if converted_value is not None:
+            return converted_value
+        # If conversion fails, try settings file instead
+        
+    # Next try settings file (medium priority)
+    if config and config.has_section(section) and config.has_option(section, option):
+        setting_value = config.get(section, option)
+        converted_value = convert_to_type(setting_value, type)
+        if converted_value is not None:
+            return converted_value
+        # If conversion fails, fall back to default
+        
+    # Fall back to default
+    return default
+
+
+# Helper function to get settings from args or config file
+def get_setting_from_arg_or_file(args_obj, arg_name: str, section: str, option: str, default: T = None, type: Optional[Callable[[Any], T]] = None, config=None) -> T:
+    """
+    Get setting with priority: CLI args > settings file > default
+    Extracts the arg_name from args_obj automatically
+    
+    Args:
+        args_obj: The args object containing command line arguments
+        arg_name: Name of the argument to extract from args_obj
+        section: Section in config file
+        option: Option name in config file
+        default: Default value if not found in args or config file
+        type: Optional type conversion function (int, str, bool, etc.)
+        config: ConfigParser object (if None, setting from file will be None)
+        
+    Returns:
+        The setting value based on priority with type conversion applied
+    """
+    arg_value = getattr(args_obj, arg_name, None) if args_obj else None
+    return get_setting(arg_value, section, option, default, type, config)
+
+
 @dataclass
 class CommonConfig:
     """
@@ -158,112 +260,34 @@ def parse_common_config(args=None, settings_file_path=None):
     if config_file_path:
         settings_file_config.read(config_file_path)
     
-    # Helper function to convert a value to boolean
-    def convert_to_bool(value) -> bool:
-        """
-        Convert a value to boolean using string matching for string values.
-        Strings like 'true', 'yes', and '1' are converted to True.
-        Other strings and falsy values are converted to False.
-        
-        Args:
-            value: The value to convert to boolean
-            
-        Returns:
-            bool: The converted boolean value
-        """
-        if isinstance(value, str):
-            return value.lower() in ('true', 'yes', '1')
-        return bool(value)
-        
-    # Helper function to safely convert a value to a specified type
-    def convert_to_type(value, type_func) -> Any:
-        """
-        Safely convert a value to the specified type.
-        Special handling for boolean conversion using string matching.
-        
-        Args:
-            value: The value to convert
-            type_func: The type function to use for conversion (int, str, bool, etc.)
-            
-        Returns:
-            The converted value, or None if conversion fails
-        """
-        if type_func is None:
-            return value
-            
-        # Special handling for boolean conversion
-        if type_func == bool:
-            return convert_to_bool(value)
-            
-        try:
-            return type_func(value)
-        except (ValueError, TypeError):
-            # Return None to signal conversion failure
-            return None
+    # We'll use our module-level helpers for getting settings from the config file
     
-    # Helper function to get settings with priority: CLI args > settings file > default
-    def get_setting(arg_value, section, option, default: T = None, type: Optional[Callable[[Any], T]] = None) -> T:
-        # Try argument value first (highest priority)
-        if arg_value is not None:
-            converted_value = convert_to_type(arg_value, type)
-            if converted_value is not None:
-                return converted_value
-            # If conversion fails, try settings file instead
-            
-        # Next try settings file (medium priority)
-        if settings_file_config.has_section(section) and settings_file_config.has_option(section, option):
-            setting_value = settings_file_config.get(section, option)
-            converted_value = convert_to_type(setting_value, type)
-            if converted_value is not None:
-                return converted_value
-            # If conversion fails, fall back to default
-            
-        # Fall back to default
-        return default
-    
-    # Helper function to get settings from args or config file
-    def get_setting_from_arg_or_file(args_obj, arg_name: str, section: str, option: str, default: T = None, type: Optional[Callable[[Any], T]] = None) -> T:
-        """
-        Get setting with priority: CLI args > settings file > default
-        Extracts the arg_name from args_obj automatically
-        
-        Args:
-            args_obj: The args object containing command line arguments
-            arg_name: Name of the argument to extract from args_obj
-            section: Section in config file
-            option: Option name in config file
-            default: Default value if not found in args or config file
-            type: Optional type conversion function (int, str, bool, etc.)
-            
-        Returns:
-            The setting value based on priority with type conversion applied
-        """
-        arg_value = getattr(args_obj, arg_name, None) if args_obj else None
-        return get_setting(arg_value, section, option, default, type)
+    # Use the module-level get_setting_from_arg_or_file function
+    # to get settings based on priority
     
     # Parse logging settings
-    config.log_path = get_setting_from_arg_or_file(args, 'LogPath', 'logging', 'log_path', None)
+    config.log_path = get_setting_from_arg_or_file(args, 'LogPath', 'logging', 'log_path', None, None, settings_file_config)
     
     # Get log level as a string and convert to logging constant
-    log_level_str = get_setting_from_arg_or_file(args, 'LogLevel', 'logging', 'log_level', 'INFO')
+    log_level_str = get_setting_from_arg_or_file(args, 'LogLevel', 'logging', 'log_level', 'INFO', None, settings_file_config)
     if log_level_str:
         log_level_str = log_level_str.upper()
         config.log_level = getattr(logging, log_level_str, logging.INFO)
     
     # Parse notification settings
-    config.notify = get_setting_from_arg_or_file(args, 'Notify', 'notifications', 'notify', False, bool)
-    config.notify_summary = get_setting_from_arg_or_file(args, 'NotifySummary', 'notifications', 'notify_summary', False, bool)
+    config.notify = get_setting_from_arg_or_file(args, 'Notify', 'notifications', 'notify', False, bool, settings_file_config)
+    config.notify_summary = get_setting_from_arg_or_file(args, 'NotifySummary', 'notifications', 'notify_summary', False, bool, settings_file_config)
     
-    config.notify_recipient_email = get_setting_from_arg_or_file(args, 'NotifyRecipientEmail', 'notifications', 'recipient_email', None)
-    config.notify_sender_email = get_setting_from_arg_or_file(args, 'NotifySenderEmail', 'notifications', 'sender_email', None)
-    config.notify_smtp_server = get_setting_from_arg_or_file(args, 'NotifySmtpServer', 'notifications', 'smtp_server', None)
-    config.notify_smtp_port = get_setting_from_arg_or_file(args, 'NotifySmtpPort', 'notifications', 'smtp_port', None, int)
+    config.notify_recipient_email = get_setting_from_arg_or_file(args, 'NotifyRecipientEmail', 'notifications', 'recipient_email', None, None, settings_file_config)
+    config.notify_sender_email = get_setting_from_arg_or_file(args, 'NotifySenderEmail', 'notifications', 'sender_email', None, None, settings_file_config)
+    config.notify_smtp_server = get_setting_from_arg_or_file(args, 'NotifySmtpServer', 'notifications', 'smtp_server', None, None, settings_file_config)
+    config.notify_smtp_port = get_setting_from_arg_or_file(args, 'NotifySmtpPort', 'notifications', 'smtp_port', None, int, settings_file_config)
     
-    config.notify_username = get_setting_from_arg_or_file(args, 'NotifyUsername', 'notifications', 'username', None)
-    config.notify_password = get_setting_from_arg_or_file(args, 'NotifyPassword', 'notifications', 'password', None)
-    config.notify_use_tls = get_setting_from_arg_or_file(args, 'NotifyUseTLS', 'notifications', 'use_tls', True, bool)
+    config.notify_username = get_setting_from_arg_or_file(args, 'NotifyUsername', 'notifications', 'username', None, None, settings_file_config)
+    config.notify_password = get_setting_from_arg_or_file(args, 'NotifyPassword', 'notifications', 'password', None, None, settings_file_config)
+    config.notify_use_tls = get_setting_from_arg_or_file(args, 'NotifyUseTLS', 'notifications', 'use_tls', True, bool, settings_file_config)
     
     # Parse ledger settings
-    config.ledger_path = get_setting_from_arg_or_file(args, 'LedgerPath', 'paths', 'ledger_path', None)
+    config.ledger_path = get_setting_from_arg_or_file(args, 'LedgerPath', 'paths', 'ledger_path', None, None, settings_file_config)
     
     return config
