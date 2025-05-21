@@ -237,7 +237,7 @@ def find_config_file():
     return None
 
 
-def parse_common_config(args=None, settings_file_path=None):
+def parse_common_config(args=None):
     """
     Parse common configuration settings from command line arguments and settings file.
     
@@ -246,7 +246,7 @@ def parse_common_config(args=None, settings_file_path=None):
         settings_file_path: Path to settings file (optional)
     
     Returns:
-        CommonConfig object with parsed settings
+        tuple: (CommonConfig object with parsed settings, ConfigParser object)
     """
     config = CommonConfig()
     
@@ -254,13 +254,10 @@ def parse_common_config(args=None, settings_file_path=None):
     settings_file_config = configparser.ConfigParser()
     
     # Determine config file path with priority:
-    # 1. Explicitly provided settings_file_path parameter
-    # 2. Command line argument (if provided)
-    # 3. Search in standard locations
+    # 1. Command line argument (if provided)
+    # 2. Search in standard locations
     config_file_path = None
-    if settings_file_path:
-        config_file_path = settings_file_path
-    elif args and hasattr(args, 'SettingsPath') and args.SettingsPath:
+    if args and hasattr(args, 'SettingsPath') and args.SettingsPath:
         config_file_path = args.SettingsPath
     else:
         config_file_path = find_config_file()
@@ -302,4 +299,5 @@ def parse_common_config(args=None, settings_file_path=None):
     # Parse scanning settings
     config.defender_handles_suspect_files = get_setting_from_arg_or_file(args, 'DefenderHandlesSuspectFiles', 'scanning', 'defender_handles_suspect_files', True, bool, settings_file_config)
     
-    return config
+    # Return both the config object and the ConfigParser to avoid reopening the file
+    return config, settings_file_config

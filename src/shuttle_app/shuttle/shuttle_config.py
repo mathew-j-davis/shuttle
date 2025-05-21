@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 # Import common configuration using relative imports
-from shuttle_common.config import CommonConfig, add_common_arguments, parse_common_config, get_setting_from_arg_or_file
+from shuttle_common.config import CommonConfig, add_common_arguments, parse_common_config, get_setting_from_arg_or_file, find_config_file
 
 
 @dataclass
@@ -105,8 +105,9 @@ def parse_shuttle_config() -> ShuttleConfig:
     # Parse arguments
     args = parser.parse_args()
     
-    # Parse common configuration
-    common_config = parse_common_config(args, args.SettingsPath)
+    # Parse common configuration - this will find and read the config file
+    # Now returns (config_obj, config_parser_obj)
+    common_config, settings_file_config = parse_common_config(args)
     
     # Create ShuttleConfig from common configuration
     config = ShuttleConfig(
@@ -122,36 +123,36 @@ def parse_shuttle_config() -> ShuttleConfig:
         notify_username=common_config.notify_username,
         notify_password=common_config.notify_password,
         notify_use_tls=common_config.notify_use_tls,
-        ledger_path=common_config.ledger_path
+        ledger_path=common_config.ledger_path,
+        defender_handles_suspect_files=common_config.defender_handles_suspect_files
     )
     
-    # Load settings from the settings file using configparser
-    settings_file_config = configparser.ConfigParser()
-    settings_file_config.read(args.SettingsPath)
+    # We now reuse the ConfigParser from common_config
+    # No need to reopen the file
     
     # Get path settings
-    config.source_path = get_setting_from_arg_or_file(args, 'SourcePath', 'paths', 'source_path')
-    config.destination_path = get_setting_from_arg_or_file(args, 'DestinationPath', 'paths', 'destination_path')
-    config.quarantine_path = get_setting_from_arg_or_file(args, 'QuarantinePath', 'paths', 'quarantine_path')
-    config.lock_file = get_setting_from_arg_or_file(args, 'LockFile', 'paths', 'lock_path', '/tmp/shuttle.lock')
-    config.hazard_archive_path = get_setting_from_arg_or_file(args, 'HazardArchivePath', 'paths', 'hazard_archive_path')
-    config.hazard_encryption_key_file_path = get_setting_from_arg_or_file(args, 'HazardEncryptionKeyPath', 'paths', 'hazard_encryption_key_path')
+    config.source_path = get_setting_from_arg_or_file(args, 'SourcePath', 'paths', 'source_path', None, None, settings_file_config)
+    config.destination_path = get_setting_from_arg_or_file(args, 'DestinationPath', 'paths', 'destination_path', None, None, settings_file_config)
+    config.quarantine_path = get_setting_from_arg_or_file(args, 'QuarantinePath', 'paths', 'quarantine_path', None, None, settings_file_config)
+    config.lock_file = get_setting_from_arg_or_file(args, 'LockFile', 'paths', 'lock_path', '/tmp/shuttle.lock', None, settings_file_config)
+    config.hazard_archive_path = get_setting_from_arg_or_file(args, 'HazardArchivePath', 'paths', 'hazard_archive_path', None, None, settings_file_config)
+    config.hazard_encryption_key_file_path = get_setting_from_arg_or_file(args, 'HazardEncryptionKeyPath', 'paths', 'hazard_encryption_key_path', None, None, settings_file_config)
 
     # Get processing settings
-    config.delete_source_files = get_setting_from_arg_or_file(args, 'DeleteSourceFilesAfterCopying', 'settings', 'delete_source_files_after_copying', False, bool)
-    config.max_scan_threads = get_setting_from_arg_or_file(args, 'MaxScanThreads', 'settings', 'max_scan_threads', 1, int)
-
+    config.delete_source_files = get_setting_from_arg_or_file(args, 'DeleteSourceFilesAfterCopying', 'settings', 'delete_source_files_after_copying', False, bool, settings_file_config)
+    config.max_scan_threads = get_setting_from_arg_or_file(args, 'MaxScanThreads', 'settings', 'max_scan_threads', 1, int, settings_file_config)
+    
     # Get scanning settings
-    config.on_demand_defender = get_setting_from_arg_or_file(args, 'OnDemandDefender', 'settings', 'on_demand_defender', False, bool)
-    config.on_demand_clam_av = get_setting_from_arg_or_file(args, 'OnDemandClamAV', 'settings', 'on_demand_clam_av', True, bool)
+    config.on_demand_defender = get_setting_from_arg_or_file(args, 'OnDemandDefender', 'settings', 'on_demand_defender', False, bool, settings_file_config)
+    config.on_demand_clam_av = get_setting_from_arg_or_file(args, 'OnDemandClamAV', 'settings', 'on_demand_clam_av', True, bool, settings_file_config)
         
     # Parse throttle settings
-    config.throttle = get_setting_from_arg_or_file(args, 'Throttle', 'settings', 'throttle', False, bool)
-    config.throttle_free_space = get_setting_from_arg_or_file(args, 'ThrottleFreeSpace', 'settings', 'throttle_free_space', 10000, int)
+    config.throttle = get_setting_from_arg_or_file(args, 'Throttle', 'settings', 'throttle', False, bool, settings_file_config)
+    config.throttle_free_space = get_setting_from_arg_or_file(args, 'ThrottleFreeSpace', 'settings', 'throttle_free_space', 10000, int, settings_file_config)
     
     # Throttle settings specific to Shuttle (commented out for now)
-    # config.throttle_max_file_volume_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileVolumePerDay', 'settings', 'throttle_max_file_volume_per_day', 1000000, int)
-    # config.throttle_max_file_count_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileCountPerDay', 'settings', 'throttle_max_file_count_per_day', 1000, int)
+    # config.throttle_max_file_volume_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileVolumePerDay', 'settings', 'throttle_max_file_volume_per_day', 1000000, int, settings_file_config)
+    # config.throttle_max_file_count_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileCountPerDay', 'settings', 'throttle_max_file_count_per_day', 1000, int, settings_file_config)
     
     # Validate required settings
     if not config.source_path:
