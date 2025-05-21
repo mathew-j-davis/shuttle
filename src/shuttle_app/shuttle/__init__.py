@@ -9,7 +9,7 @@ __version__ = '0.1.0'
 __author__ = 'Mat Davis'
 
 # Import all configuration types and functions
-from .config import (
+from .shuttle_config import (
     ShuttleConfig, 
     parse_shuttle_config
 )
