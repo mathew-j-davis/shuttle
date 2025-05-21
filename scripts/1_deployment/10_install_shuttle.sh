@@ -12,7 +12,7 @@ done
 # Install the shared library first (dependency)
 echo "Installing shared library dependency first..."
 # Pass arguments through to the shared library script
-"$(dirname "$0")/install_shared.sh" "$@"
+"$(dirname "$0")/08_install_shared.sh" "$@"
 
 # Install the shuttle application
 echo "Installing shuttle application..."

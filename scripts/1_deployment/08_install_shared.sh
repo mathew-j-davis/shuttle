@@ -11,7 +11,7 @@ done
 
 # Install the shared library
 echo "Installing shared library (shuttle_common)..."
-cd "$(dirname "$0")/../../src/shared_lib" || exit 1
+cd "$(dirname "$0")/../../src/shared_library" || exit 1
 
 if [ -n "$dev_mode" ]; then
   echo "Installing in development mode..."

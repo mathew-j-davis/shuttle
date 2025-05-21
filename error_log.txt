@@ -1,0 +1,17 @@
+  File "/home/  File "/home/x/shuttle/src/shuttle_defender_test_app/bin/./run_shuttle_defender_test.py", line 10, in <module>
+    from shuttle_defender_test.shuttle_defender_test import main
+  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_defender_test/__init__.py", line 17, in <module>
+    from .shuttle_defender_test import main, run_defender_scan, verify_output_patterns
+  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_defender_test/shuttle_defender_test.py", line 27, in <module>
+    from shuttle_common.scan_utils import (
+  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_common/__init__.py", line 16, in <module>
+    from .config import CommonConfig, add_common_arguments, parse_common_config, get_setting_from_arg_or_file
+ImportError: cannot import name 'get_setting_from_arg_or_file' from 'shuttle_common.config' (/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_common/config.py)/shuttle/src/shuttle_defender_test_app/bin/./run_shuttle_defender_test.py", line 10, in <module>
+    from shuttle_defender_test.shuttle_defender_test import main
+  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_defender_test/__init__.py", line 17, in <module>
+    from .shuttle_defender_test import main, run_defender_scan, verify_output_patterns
+  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_defender_test/shuttle_defender_test.py", line 27, in <module>
+    from shuttle_common.scan_utils import (
+  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_common/__init__.py", line 16, in <module>
+    from .config import CommonConfig, add_common_arguments, parse_common_config, get_setting_from_arg_or_file
+ImportError: cannot import name 'get_setting_from_arg_or_file' from 'shuttle_common.config' (/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_common/config.py)
