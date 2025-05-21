@@ -14,5 +14,5 @@ __version__ = '0.1.0'
 __author__ = 'Mat Davis'
 
 # Import main functionality for easy access
-from .shuttle_defender_test import main, run_defender_scan, verify_output_patterns
+from .shuttle_defender_test import main, run_defender_scan
 from .read_write_ledger import ReadWriteLedger

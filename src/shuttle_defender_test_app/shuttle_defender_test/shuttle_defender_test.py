@@ -152,6 +152,10 @@ def update_ledger(ledger_file_path, version, test_result, test_details, logging_
     """
     logger = setup_logging('defender_test.update_ledger', logging_options)
     try:
+        # Expand ~ to user's home directory if present
+        if ledger_file_path and ledger_file_path.startswith('~'):
+            ledger_file_path = os.path.expanduser(ledger_file_path)
+            
         logger.info(f"Updating ledger for version {version} with result {test_result}")
         
         # Initialize the ledger
@@ -220,7 +224,10 @@ def main():
         temp_dir, clean_file_path, eicar_file_path = create_test_files(logging_options)
         
         # Test clean file
-        defender_result = scan_for_malware_using_defender(clean_file_path, logging_options)
+        defender_result = scan_for_malware_using_defender(
+            path=clean_file_path, 
+            logging_options=logging_options
+        )
         clean_scan = process_defender_result(
             defender_result, 
             clean_file_path, 
@@ -236,7 +243,10 @@ def main():
             logger.info("Clean test passed: No threats detected")
         
         # Test EICAR file
-        defender_result = scan_for_malware_using_defender(eicar_file_path, logging_options)
+        defender_result = scan_for_malware_using_defender(
+            path=eicar_file_path, 
+            logging_options=logging_options
+        )
         eicar_scan = process_defender_result(
             defender_result, 
             eicar_file_path, 
