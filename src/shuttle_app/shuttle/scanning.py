@@ -37,6 +37,7 @@ from shuttle_common.scan_utils import (
 def scan_and_process_file(
         paths,     
         hazard_encryption_key_file_path, 
+        hazard_archive_path,
         delete_source_files, 
         on_demand_defender, 
         on_demand_clam_av, 
@@ -67,8 +68,7 @@ def scan_and_process_file(
     (
         quarantine_file_path,
         source_file_path,
-        destination_file_path,
-        hazard_archive_path
+        destination_file_path
     ) = paths
 
     logger = setup_logging('shuttle.scanning.scan_and_process_file', logging_options)
@@ -351,6 +351,7 @@ def scan_and_process_directory(
                             lambda file_paths: scan_and_process_file(
                                 file_paths,                                                                  
                                 hazard_encryption_key_file_path, 
+                                hazard_archive_path,
                                 delete_source_files, 
                                 on_demand_defender, 
                                 on_demand_clam_av, 
@@ -372,6 +373,7 @@ def scan_and_process_directory(
                 result = scan_and_process_file(
                         file_paths,
                         hazard_encryption_key_file_path, 
+                        hazard_archive_path,
                         delete_source_files, 
                         on_demand_defender, 
                         on_demand_clam_av, 
