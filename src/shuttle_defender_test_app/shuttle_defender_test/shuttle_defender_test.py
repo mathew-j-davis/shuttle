@@ -265,6 +265,16 @@ def main():
         if clean_result and eicar_result:
             message = f"✅ Defender {current_version} correctly identified clean file and threat"
             
+            test_details = (
+                    f"Microsoft Defender {current_version}\n"
+                    f"Clean test: {'PASS' if clean_result else 'FAIL'}\n"
+                    f"  scan_completed={clean_scan.scan_completed}, "
+                    f"suspect_detected={clean_scan.suspect_detected}\n"
+                    f"EICAR test: {'PASS' if eicar_result else 'FAIL'}\n"
+                    f"  scan_completed={eicar_scan.scan_completed}, "
+                    f"suspect_detected={eicar_scan.suspect_detected}\n"
+                    f"defender_handles_suspect_files={config.defender_handles_suspect_files}\n"
+                )
             # Send notification if there's an error or if notify_summary is enabled
             if config.notify and config.notify_summary:
                 send_notification(
@@ -279,23 +289,10 @@ def main():
             
             # Update ledger if provided
             if config.ledger_path:
-                test_details = (
-                    f"Microsoft Defender {current_version}\n"
-                    f"Clean test: {'PASS' if clean_result else 'FAIL'}\n"
-                    f"  scan_completed={clean_scan.scan_completed}, "
-                    f"suspect_detected={clean_scan.suspect_detected}\n"
-                    f"EICAR test: {'PASS' if eicar_result else 'FAIL'}\n"
-                    f"  scan_completed={eicar_scan.scan_completed}, "
-                    f"suspect_detected={eicar_scan.suspect_detected}\n"
-                    f"defender_handles_suspect_files={config.defender_handles_suspect_files}\n"
-                )
-                ledger_updated = update_ledger(
-                    ledger_path=config.ledger_path, 
-                    version=current_version, 
-                    test_result='pass',
-                    test_details=test_details,
-                    logging_options=logging_options
-                )
+
+
+                #test_details = "tests passed"
+                ledger_updated = update_ledger(config.ledger_path, current_version, "pass", test_details, logging_options)
                 result_text = "successfully" if ledger_updated else "failed to"
                 logger.info(f"Ledger {result_text} updated with test results")
         else:

@@ -1,54 +1,6 @@
-2025-05-21 12:26:23,311 INFO: === Starting Microsoft Defender Output Test ===
-2025-05-21 12:26:23,312 INFO: Getting Microsoft Defender version...
-2025-05-21 12:26:23,409 INFO: Testing Microsoft Defender version: 101.25032.0008
-2025-05-21 12:26:23,410 INFO: Created temporary directory: /tmp/defender_test_b4akskvu
-2025-05-21 12:26:23,410 INFO: Created temporary directory: /tmp/defender_test_b4akskvu
-2025-05-21 12:26:23,410 INFO: Created clean test file at /tmp/defender_test_b4akskvu/clean_test.txt
-2025-05-21 12:26:23,410 INFO: Created clean test file at /tmp/defender_test_b4akskvu/clean_test.txt
-2025-05-21 12:26:23,410 INFO: Created EICAR test file at /tmp/defender_test_b4akskvu/eicar_test.txt
-2025-05-21 12:26:23,410 INFO: Created EICAR test file at /tmp/defender_test_b4akskvu/eicar_test.txt
-2025-05-21 12:26:23,410 INFO: Running scan on file: /tmp/defender_test_b4akskvu/clean_test.txt
-2025-05-21 12:26:23,410 INFO: Running scan on file: /tmp/defender_test_b4akskvu/clean_test.txt
-2025-05-21 12:26:23,410 ERROR: Security error: Unsafe filename detected: /tmp/defender_test_b4akskvu/clean_test.txt
-2025-05-21 12:26:23,411 ERROR: Test error: cannot unpack non-iterable int object
 Traceback (most recent call last):
-  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_defender_test/shuttle_defender_test.py", line 246, in main
-    returncode, output = run_defender_scan(clean_file_path, logging_options)
-    ^^^^^^^^^^^^^^^^^^
-TypeError: cannot unpack non-iterable int object
-2025-05-21 12:26:23,412 ERROR: 2025-05-21 12:26:23: ❌ Defender test ERROR: cannot unpack non-iterable int object
-2025-05-21 12:26:23,412 ERROR: 2025-05-21 12:26:23: ❌ Defender test ERROR: cannot unpack non-iterable int object
-2025-05-21 12:26:23,412 ERROR: Failed to send notification: Notifier.__init__() got an unexpected keyword argument 'recipient'
-Traceback (most recent call last):
-  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_defender_test/shuttle_defender_test.py", line 246, in main
-    returncode, output = run_defender_scan(clean_file_path, logging_options)
-    ^^^^^^^^^^^^^^^^^^
-TypeError: cannot unpack non-iterable int object
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_defender_test/shuttle_defender_test.py", line 147, in send_notification
-    notifier = Notifier(
-               ^^^^^^^^^
-TypeError: Notifier.__init__() got an unexpected keyword argument 'recipient'
-2025-05-21 12:26:23,412 ERROR: Failed to send notification: Notifier.__init__() got an unexpected keyword argument 'recipient'
-Traceback (most recent call last):
-  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_defender_test/shuttle_defender_test.py", line 246, in main
-    returncode, output = run_defender_scan(clean_file_path, logging_options)
-    ^^^^^^^^^^^^^^^^^^
-TypeError: cannot unpack non-iterable int object
-
-During handling of the above exception, another exception occurred:
-
-Traceback (most recent call last):
-  File "/home/x/.local/share/shuttle/venv/lib/python3.12/site-packages/shuttle_defender_test/shuttle_defender_test.py", line 147, in send_notification
-    notifier = Notifier(
-               ^^^^^^^^^
-TypeError: Notifier.__init__() got an unexpected keyword argument 'recipient'
-2025-05-21 12:26:23,413 INFO: Cleaned up temporary directory: /tmp/defender_test_b4akskvu
-2025-05-21 12:26:23,413 INFO: Cleaned up temporary directory: /tmp/defender_test_b4akskvu
-2025-05-21 12:26:23,413 INFO: === Defender Output Test Complete === (Daily Test: 2025-05-21 12:26:23)
-
-
-'Scan is running\n\t0 file(s) scanned\n\t0 threat(s) detected\n\xxx[2KScan has finished\n\t0 file(s) scanned\n\t0 threat(s) detected\n'
+  File "/home/x/.local/share/shuttle/venv/bin/run-shuttle", line 5, in <module>
+    from shuttle.shuttle import main
+  File "/home/x/shuttle/src/shuttle_app/shuttle/__init__.py", line 12, in <module>
+    from .config import (
+ModuleNotFoundError: No module named 'shuttle.config'
