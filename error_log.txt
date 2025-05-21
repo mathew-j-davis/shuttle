@@ -49,3 +49,6 @@ TypeError: Notifier.__init__() got an unexpected keyword argument 'recipient'
 2025-05-21 12:26:23,413 INFO: Cleaned up temporary directory: /tmp/defender_test_b4akskvu
 2025-05-21 12:26:23,413 INFO: Cleaned up temporary directory: /tmp/defender_test_b4akskvu
 2025-05-21 12:26:23,413 INFO: === Defender Output Test Complete === (Daily Test: 2025-05-21 12:26:23)
+
+
+'Scan is running\n\t0 file(s) scanned\n\t0 threat(s) detected\n\xxx[2KScan has finished\n\t0 file(s) scanned\n\t0 threat(s) detected\n'

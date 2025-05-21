@@ -94,7 +94,7 @@ def run_malware_scan(cmd, path, result_handler, logging_options=None):
         return scan_result_types.FILE_SCAN_FAILED
     
     # Add validation for the path
-    if not files.is_filename_safe(path):
+    if not files.is_pathname_safe(path):
         logger.error(f"Security error: Unsafe filename detected: {path}")
         return scan_result_types.FILE_SCAN_FAILED
     
