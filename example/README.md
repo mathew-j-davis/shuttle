@@ -11,9 +11,9 @@ This directory contains example configuration files and directory structure for 
 
 - `shuttle_work/` - Example working directory structure for Shuttle
   - `in/` - Source directory for files to be processed
-  - `out/` - Destination directory for clean files
-  - `quarantine/` - Directory for files that need further inspection
+  - `quarantine/` - Directory for files during inspection
   - `hazard/` - Archive for encrypted hazardous files
+  - `out/` - Destination directory for clean files
 
 ## Usage
 
