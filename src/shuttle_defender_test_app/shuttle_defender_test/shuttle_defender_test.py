@@ -145,12 +145,12 @@ def send_notification(message, error=False, config=None, logging_options=None):
     if config and config.notify:
         try:
             notifier = Notifier(
-                recipient=config.notify_recipient_email,
+                recipient_email=config.notify_recipient_email,
+                sender_email=config.notify_sender_email,
                 smtp_server=config.notify_smtp_server,
                 smtp_port=config.notify_smtp_port,
                 username=config.notify_username,
                 password=config.notify_password,
-                sender=config.notify_sender_email,
                 use_tls=config.notify_use_tls,
                 logging_options=logging_options
             )

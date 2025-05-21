@@ -45,7 +45,8 @@ def is_name_safe(name, is_path = False):
     control characters and specific dangerous symbols.
     
     Args:
-        filename (str): Filename to check
+        name (str): Filename or path to check
+        is_path (bool): Whether the name is a path (allows forward slashes)
         
     Returns:
         bool: True if filename is safe, False otherwise
@@ -54,22 +55,25 @@ def is_name_safe(name, is_path = False):
     if any(ord(char) < 32 or ord(char) == 0x7F for char in name):
         return False
         
-    # Block specific dangerous characters
-    dangerous_chars_file = ['/', '\\', '..', '>', '<', '|', '*', '$', '&', ';', '`']
-    dangerous_chars_path = ['\\', '..', '>', '<', '|', '*', '$', '&', ';', '`']
-
-    dangerous_chars = []
-    if is_path:
-        dangerous_chars = dangerous_chars_path
-    else:
-        dangerous_chars = dangerous_chars_file
-
-
-    if any(char in name for char in dangerous_chars):
-        return False
+    # Define dangerous characters based on whether this is a path or filename
+    dangerous_chars = ['\\', '..', '>', '<', '|', '*', '$', '&', ';', '`']
+    
+    # For filenames (not paths), also block forward slashes
+    if not is_path:
+        dangerous_chars.append('/')
+    
+    # Check for dangerous character sequences
+    for char in dangerous_chars:
+        if char in name:
+            return False
         
-    # Block filenames starting with dash or period
-    if name.startswith('-') or name.startswith('.'):
+    # For paths, only check the filename part for starting with dash or period
+    check_name = name
+    if is_path and '/' in name:
+        check_name = name.rstrip('/').split('/')[-1]  # Get the last component
+    
+    # Block filenames starting with dash or period (unless it's . or ..)
+    if check_name not in ['.', '..'] and (check_name.startswith('-') or check_name.startswith('.')):
         return False
         
     # Ensure filename is valid UTF-8
