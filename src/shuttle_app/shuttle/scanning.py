@@ -275,7 +275,7 @@ def scan_and_process_directory(
                             destination_path,
                             hazard_archive_path,
                             throttle_free_space,
-                            logger
+                            logging_options
                         )
                         
                         # Extract results for each directory from the result object
@@ -335,7 +335,8 @@ def scan_and_process_directory(
                         logger.error(f"Failed to copy file from source: {source_file_path} to quarantine: {quarantine_file_path}. Error: {e}")
             
             # If directories are full, break out of the outer loop too
-            if throttle and (not throttle_result.canProcess or not assume_quarantine_has_space or not assume_destination_has_space or not assume_hazard_has_space or disk_error):
+            # Only check throttle_result if it exists (throttle is enabled and the check was performed)
+            if throttle and (not assume_quarantine_has_space or not assume_destination_has_space or not assume_hazard_has_space or disk_error):
                 break
 
         results = list()
