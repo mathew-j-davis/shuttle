@@ -26,7 +26,7 @@ def setup_logging(logger_name, logging_options ):
     # Clear existing handlers to avoid duplicates
     logger.handlers = []
     
-    formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s [%(filename)s:%(lineno)d %(funcName)s]: %(message)s')
 
     # Console handler
     ch = logging.StreamHandler()
