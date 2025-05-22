@@ -23,7 +23,8 @@ class Notifier:
                  username=None, 
                  password=None, 
                  use_tls=True,
-                 logging_options=None):
+                 logging_options=None,
+                 using_simulator=False):
         """
         Initialize the notification system with recipient and sender details.
         
@@ -36,6 +37,7 @@ class Notifier:
             password (str): SMTP authentication password
             use_tls (bool): Whether to use TLS encryption
             logging_options (LoggingOptions): Logger properties to use for logging
+            using_simulator (bool): Whether running in simulator mode
         """
         self.recipient_email = recipient_email
         self.sender_email = sender_email
@@ -44,6 +46,7 @@ class Notifier:
         self.username = username
         self.password = password
         self.use_tls = use_tls
+        self.using_simulator = using_simulator
         self.logger = setup_logging('shuttle.common.notifier', logging_options)
 
     def notify(self, title, message):
@@ -53,7 +56,6 @@ class Notifier:
         Args:
             title (str): The notification title
             message (str): The notification message body
-            logging_options (LoggingOptions): Logger properties to use for logging
             
         Returns:
             bool: True if the notification was sent successfully, False otherwise
@@ -69,6 +71,14 @@ class Notifier:
             msg = MIMEMultipart()
             msg['From'] = self.sender_email
             msg['To'] = self.recipient_email
+            
+            # Add simulation warning to title and message if in simulator mode
+            if self.using_simulator:
+                title = f"[SIMULATION MODE] {title}"
+                simulator_warning = "\n\n⚠️WARNING: RUNNING IN SIMULATION MODE ⚠️\n"
+                simulator_warning += "No real malware scanning is being performed!\n"
+                simulator_warning += "This mode should ONLY be used for development and testing.\n\n"
+                message = simulator_warning + message
             msg['Subject'] = f"Shuttle Notification: {title}"
             
             # Add message body

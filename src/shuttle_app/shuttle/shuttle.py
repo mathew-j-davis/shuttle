@@ -9,7 +9,8 @@ from shuttle_common.ledger import Ledger
 from shuttle_common.notifier import Notifier
 
 from shuttle_common.scan_utils import (
-    get_mdatp_version
+    get_mdatp_version,
+    is_using_simulator
 )
 from shuttle_common.logging_setup import (
     LoggingOptions,
@@ -20,7 +21,7 @@ from .shuttle_config import (
 )
 
 from .scanning import (
-    process_files
+    scan_and_process_directory
 )
 
 def main():
@@ -28,6 +29,17 @@ def main():
     logger = None
     
     config = parse_shuttle_config()
+
+    #
+    # SIMULATOR CHECK : DEV, IN FINAL PRODUCT VERSION, REMOVE THIS CODE AND ONLY USE SIMULATOR AS MOCK IN TEST CODE
+    #
+    
+    # Check if we're using the simulator (patched DEFENDER_COMMAND)
+    using_simulator = is_using_simulator()
+    
+    # Log a warning if we're in simulator mode
+    if using_simulator:
+        logger.warning("⚠️  RUNNING WITH SIMULATOR - NO REAL MALWARE SCANNING WILL BE PERFORMED ⚠️")
 
     # Lock file handling
     if os.path.exists(config.lock_file):
@@ -70,7 +82,8 @@ def main():
                 username=config.notify_username,
                 password=config.notify_password,
                 use_tls=config.notify_use_tls,
-                logging_options=logging_options
+                logging_options=logging_options,
+                using_simulator=using_simulator
             )
         
         logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
@@ -110,7 +123,7 @@ def main():
         # ENVIRONMENT CHECK
         #
 
-        # Retrieve other settings
+        
 
         # Validate required paths
         if not (config.source_path and config.destination_path and config.quarantine_path):
@@ -156,7 +169,23 @@ def main():
                 logger.error("This application requires that the current version Microsoft Defender has been tested and this successful testing has been confirmed in the status file.")
                 sys.exit(1)
 
-        process_files(config, notifier, logging_options)   
+        scan_and_process_directory(        
+            config.source_path,
+            config.destination_path,
+            config.quarantine_path,
+            config.hazard_archive_path,
+            config.hazard_encryption_key_file_path,
+            config.delete_source_files,
+            config.max_scan_threads,
+            config.on_demand_defender,
+            config.on_demand_clam_av,
+            config.defender_handles_suspect_files,
+            throttle=config.throttle,
+            throttle_free_space=config.throttle_free_space,
+            notifier=notifier,
+            notify_summary=config.notify_summary,
+            logging_options=logging_options
+        )
 
     except Exception as e:
         if logger:

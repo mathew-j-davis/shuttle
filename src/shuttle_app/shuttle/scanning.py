@@ -60,7 +60,7 @@ def scan_and_process_file(
         - on_demand_clam_av (bool): Whether to use ClamAV for on-demand scanning
         - defender_handles_suspect_files (bool): Whether to let Defender handle suspect files
         - logging_options (tuple): details for logging configuration
-
+    
     Returns:
         bool: True if the file was processed successfully, False otherwise
     """
@@ -175,7 +175,7 @@ def scan_and_process_directory(
     notifier=None,
     notify_summary=False,
 
-    logging_options=None,
+    logging_options=None
     
     ):
     """
@@ -202,7 +202,7 @@ def scan_and_process_directory(
         
         notifier (Notifier): Notifier for sending notifications
         notify_summary (bool): Whether to send notification on completion of every run
-        logging_options (tuple) : 
+        logging_options (tuple) : logging setup details
     """
     
     quarantine_files = []
@@ -496,28 +496,3 @@ def scan_and_process_directory(
             error_message += f"Source directory: {source_path}\n"
             error_message += f"Destination directory: {destination_path}\n"
             notifier.notify("Shuttle: Critical Processing Error", error_message)
-
-
-def process_files(config, notifier, logging_options):
-
-    scan_and_process_directory(
-        config.source_path,
-        config.destination_path,
-        config.quarantine_path,
-        config.hazard_archive_path,
-        config.hazard_encryption_key_file_path,
-        config.delete_source_files,
-        config.max_scan_threads,
-        config.on_demand_defender,
-        config.on_demand_clam_av,
-        config.defender_handles_suspect_files,
-        throttle=config.throttle,
-        throttle_free_space=config.throttle_free_space,
-        notifier=notifier,
-        notify_summary=config.notify_summary,
-        logging_options=logging_options,
-    )
-
-
-
-# The defender scan patterns and functions are now in common/scan_utils.py

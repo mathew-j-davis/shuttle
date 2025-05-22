@@ -143,6 +143,8 @@ class CommonConfig:
     
     # Ledger settings
     ledger_path: Optional[str] = None  # Path to track tested defender versions
+    
+ 
 
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
@@ -160,6 +162,7 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
 
     parser.add_argument('-SettingsPath', 
                         help='Path to the settings file (if not specified, standard locations will be searched)')
+    
     # Add notification arguments
     parser.add_argument('-Notify', 
                       help='Enable email notifications for important events',

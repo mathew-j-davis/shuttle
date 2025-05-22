@@ -9,7 +9,7 @@ __version__ = '0.1.0'
 __author__ = 'Mat Davis'
 
 # Import all shared components to make them easily accessible
-from .scan_utils import run_malware_scan, scan_result_types, get_mdatp_version, DefenderScanResult, process_defender_result
+from .scan_utils import run_malware_scan, scan_result_types, get_mdatp_version, DefenderScanResult, process_defender_result, is_using_simulator
 from .ledger import Ledger
 from .notifier import Notifier
 from .logging_setup import setup_logging
@@ -24,6 +24,7 @@ __all__ = [
     'scan_result_types',
     'DefenderScanResult',
     'process_defender_result',
+    'is_using_simulator',
     
     # Ledger system
     'Ledger',

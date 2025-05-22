@@ -1,0 +1,6 @@
+defender:
+  tested_versions:
+    - version: "0.0.0.0"
+      test_time: "2025-05-22T20:30:00"
+      test_result: "pass"
+      test_details: "Simulator version approved for testing"

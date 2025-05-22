@@ -13,6 +13,22 @@ from typing import List, Callable, Any, Optional
 from . import files
 from .logging_setup import setup_logging, LoggingOptions
 
+# Define commands for real defender and simulator
+REAL_DEFENDER_COMMAND = "mdatp"
+DEFENDER_COMMAND = "mdatp"
+
+def is_using_simulator():
+    """
+    Check if the DEFENDER_COMMAND has been patched to use the simulator.
+    
+    This can be used to detect if the application is running in simulator mode
+    due to patching.
+    
+    Returns:
+        bool: True if DEFAULT_DEFENDER_COMMAND has been patched, False otherwise
+    """
+    return DEFENDER_COMMAND != REAL_DEFENDER_COMMAND
+
 # Define scan output patterns
 defender_scan_patterns = types.SimpleNamespace()
 defender_scan_patterns.THREAT_FOUND = "Threat(s) found"
@@ -84,6 +100,7 @@ def get_mdatp_version(logging_options=None) -> Optional[str]:
     
     Args:
         logging_options (LoggingOptions, optional): Logging configuration options
+        use_simulator (bool, optional): Whether to use the simulator instead of real defender
          
     Returns:
         str: Version number in format XXX.XXXX.XXXX, or None if version cannot be determined
@@ -91,10 +108,11 @@ def get_mdatp_version(logging_options=None) -> Optional[str]:
 
     logger = setup_logging('shuttle.common.scan_utils.get_mdatp_version', logging_options)
     
+
     try:
         # Run mdatp version command
         result = subprocess.run(
-            ["mdatp", "version"],
+            [DEFENDER_COMMAND, "version"],
             capture_output=True,
             text=True,
             check=False  # Don't raise exception on non-zero exit
@@ -102,7 +120,7 @@ def get_mdatp_version(logging_options=None) -> Optional[str]:
         
         # Check if command succeeded
         if result.returncode != 0:
-            logger.error(f"mdatp version command failed with code {result.returncode}: {result.stderr}")
+            logger.error(f"{defender_command} version command failed with code {result.returncode}: {result.stderr}")
             return None
             
         # Parse output for version number
@@ -118,10 +136,10 @@ def get_mdatp_version(logging_options=None) -> Optional[str]:
             return None
             
     except FileNotFoundError:
-        logger.error("mdatp command not found. Microsoft Defender for Endpoint may not be installed.")
+        logger.error(f"{defender_command} command not found. Microsoft Defender for Endpoint may not be installed.")
         return None
     except Exception as e:
-        logger.error(f"Error getting mdatp version: {e}")
+        logger.error(f"Error getting {defender_command} version: {e}")
         return None
 
 
@@ -223,15 +241,16 @@ def scan_for_malware_using_defender(path, custom_handler=handle_defender_scan_re
         custom_handler (callable, optional): Custom result handler function.
                                            Default is handle_defender_scan_result.
         logging_options: Optional logging configuration options
+        use_simulator (bool, optional): Whether to use the simulator instead of real defender
     
     Returns:
         The result from the handler function
     """
 
     # path appended to cmd after safety check in run_malware_scan
-
+    
     cmd = [
-        "mdatp",
+        DEFENDER_COMMAND,
         "scan",
         "custom",
         "--ignore-exclusions",

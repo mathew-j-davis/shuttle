@@ -109,23 +109,8 @@ def parse_shuttle_config() -> ShuttleConfig:
     # Now returns (config_obj, config_parser_obj)
     common_config, settings_file_config = parse_common_config(args)
     
-    # Create ShuttleConfig from common configuration
-    config = ShuttleConfig(
-        # Copy common configuration
-        log_path=common_config.log_path,
-        log_level=common_config.log_level,
-        notify=common_config.notify,
-        notify_summary=common_config.notify_summary,
-        notify_recipient_email=common_config.notify_recipient_email,
-        notify_sender_email=common_config.notify_sender_email,
-        notify_smtp_server=common_config.notify_smtp_server,
-        notify_smtp_port=common_config.notify_smtp_port,
-        notify_username=common_config.notify_username,
-        notify_password=common_config.notify_password,
-        notify_use_tls=common_config.notify_use_tls,
-        ledger_path=common_config.ledger_path,
-        defender_handles_suspect_files=common_config.defender_handles_suspect_files
-    )
+    # Create ShuttleConfig by inheriting from the common configuration
+    config = ShuttleConfig(**vars(common_config))
     
     # We now reuse the ConfigParser from common_config
     # No need to reopen the file
