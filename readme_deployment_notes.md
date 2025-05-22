@@ -14,62 +14,35 @@ shuttle/
 │   ├── shared_library/         # Shared code used by both applications
 │   │   └── shuttle_common/     # The shuttle_common module
 │   ├── shuttle_app/            # Shuttle file transfer application
+│   │   ├── bin/                # Executable scripts
 │   │   └── shuttle/            # The shuttle module
-│   └── shuttle_defender/       # Defender test application
-│       └── shuttle_defender/   # The shuttle_defender module
+│   └── shuttle_defender_test_app/   # Defender test application
+│       ├── bin/                # Executable scripts
+│       └── shuttle_defender_test/   # The shuttle_defender module
 ├── scripts/                    # All utility scripts
-│   ├── 0_key_generation/       # Key generation script (run this on a different machine)
+│   ├── 0_key_generation/       # Key generation script
 │   ├── 1_deployment/           # Installation scripts (numbered 01-10)
-│   ├── target_machine/         # Scripts for remote target setup
-│   ├── host_setup/             # Scripts for host machine setup
-│   └── admin/                  # Admin and test utility scripts
+│   ├── health_check_tests/     # Health check and testing scripts
+│   └── vscode_debugging/      # VS Code debugging configurations
+├── example/                    # Example configurations and files
 └── tests/                      # Test suite
-    ├── unit/                   # Unit tests
-    └── integration/            # Integration tests
 ```
 
-## GPG Key Management for Malware Encryption
+## GPG Key Configuration
 
-The Shuttle application uses GPG encryption to securely handle potential malware. When a file is flagged as suspicious and cannot be automatically handled by the malware detection tool, Shuttle encrypts it using a public GPG key.
+Shuttle requires GPG for encrypting files detected as potential malware. 
 
-### Key Generation Process
+**Note:** For detailed information about key generation, security practices, and configuration, see the [Development Guide](readme_development.md#gpg-key-management-for-malware-encryption).
 
-The `scripts/0_key_generation/00_generate_shuttle_keys.sh` script is provided to generate a GPG key pair:
-
-```bash
-# Key generation script creates:
-# - shuttle_public.gpg - Public key to be deployed on the target machine
-# - shuttle_private.gpg - Private key to be kept secure elsewhere
-```
-
-**IMPORTANT SECURITY NOTES:**
-- This script is OPTIONAL and only for users without an established key management process
-- The private key should NEVER be deployed on the target machine
-- The private key should be stored securely in a separate location
-- Only the public key is needed on the machine running Shuttle
-
-### Purpose of Encryption
-
-When Shuttle identifies a potential malware file:
-1. The malware detection tool first attempts to handle it
-2. If automatic handling isn't possible, Shuttle encrypts the file using the public GPG key
-3. The encrypted file can only be decrypted using the private key
-
-This ensures that potentially harmful files remain securely encrypted while preserving the ability to analyze them later by authorized personnel with access to the private key.
-
-### Configuring the Public Key Path
-
-After generating the key pair, you must configure Shuttle to use the public key. In the settings file, add the path to your public key under the `[paths]` section:
-
-```ini
-[paths]
-...
-hazard_encryption_key_path = /path/to/shuttle_public.gpg
-```
-
-Without this configuration, Shuttle will not be able to encrypt potentially harmful files. The path should point to where you've deployed the public key on the target machine (NOT the private key).
-
-The test environment setup script (`07_setup_test_environment_linux.py`) includes this setting with a default test location, but for production deployment, you must update this path to the actual location of your public key file.
+Key points to remember for deployment:
+- Only deploy the public key on the target machine
+- Configure the key path in settings:
+  ```ini
+  [paths]
+  hazard_encryption_key_path = /path/to/shuttle_public.gpg
+  ```
+- The test environment setup (`07_setup_config.py`) includes a default test location
+- For production, update this path to your actual public key location
 
 ## Directory Structure for Deployment
 
