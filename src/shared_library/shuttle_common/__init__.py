@@ -25,6 +25,8 @@ __all__ = [
     'DefenderScanResult',
     'process_defender_result',
     'is_using_simulator',
+    'parse_defender_scan_result',
+    'handle_clamav_scan_result',
     
     # Ledger system
     'Ledger',

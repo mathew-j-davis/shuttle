@@ -58,7 +58,7 @@ def process_defender_result(result_code, path, defender_handles_suspect=False, l
     Process defender scan result and determine actions
     
     Args:
-        result_code: The scan result type from handle_defender_scan_result
+        result_code: The scan result type from parse_defender_scan_result
         path: Path to the scanned file
         defender_handles_suspect: Whether Defender is configured to handle suspicious files
         logging_options: Optional logging configuration
@@ -100,7 +100,7 @@ def get_mdatp_version(logging_options=None) -> Optional[str]:
     
     Args:
         logging_options (LoggingOptions, optional): Logging configuration options
-        use_simulator (bool, optional): Whether to use the simulator instead of real defender
+
          
     Returns:
         str: Version number in format XXX.XXXX.XXXX, or None if version cannot be determined
@@ -196,7 +196,7 @@ def run_malware_scan(cmd, path, result_handler, logging_options=None):
         return scan_result_types.FILE_SCAN_FAILED
 
 
-def handle_defender_scan_result(returncode, output, logging_options=None):
+def parse_defender_scan_result(returncode, output, logging_options=None):
     """
     Process Microsoft Defender scan results.
     
@@ -208,7 +208,7 @@ def handle_defender_scan_result(returncode, output, logging_options=None):
     Returns:
         int: scan_result_types value
     """
-    logger = setup_logging('shuttle.common.scan_utils.handle_defender_scan_result', logging_options)
+    logger = setup_logging('shuttle.common.scan_utils.parse_defender_scan_result', logging_options)
     
     if returncode == 0:
         # Always check for threat pattern first, otherwise a malicious filename could be used to add clean response text to output
@@ -233,16 +233,13 @@ def handle_defender_scan_result(returncode, output, logging_options=None):
     return scan_result_types.FILE_SCAN_FAILED
 
 
-def scan_for_malware_using_defender(path, custom_handler=handle_defender_scan_result, logging_options=None):
+def scan_for_malware_using_defender(path, logging_options=None):
     """Scan a file using Microsoft Defender.
     
     Args:
         path (str): Path to the file to scan
-        custom_handler (callable, optional): Custom result handler function.
-                                           Default is handle_defender_scan_result.
         logging_options: Optional logging configuration options
-        use_simulator (bool, optional): Whether to use the simulator instead of real defender
-    
+            
     Returns:
         The result from the handler function
     """
@@ -256,7 +253,8 @@ def scan_for_malware_using_defender(path, custom_handler=handle_defender_scan_re
         "--ignore-exclusions",
         "--path"
     ]
-    return run_malware_scan(cmd, path, custom_handler, logging_options)
+
+    return run_malware_scan(cmd, path, parse_defender_scan_result, logging_options)
 
 def handle_clamav_scan_result(returncode, output, logging_options=None):
     """

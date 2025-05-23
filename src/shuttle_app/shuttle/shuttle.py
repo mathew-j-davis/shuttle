@@ -34,12 +34,6 @@ def main():
     # SIMULATOR CHECK : DEV, IN FINAL PRODUCT VERSION, REMOVE THIS CODE AND ONLY USE SIMULATOR AS MOCK IN TEST CODE
     #
     
-    # Check if we're using the simulator (patched DEFENDER_COMMAND)
-    using_simulator = is_using_simulator()
-    
-    # Log a warning if we're in simulator mode
-    if using_simulator:
-        logger.warning("⚠️  RUNNING WITH SIMULATOR - NO REAL MALWARE SCANNING WILL BE PERFORMED ⚠️")
 
     # Lock file handling
     if os.path.exists(config.lock_file):
@@ -71,6 +65,13 @@ def main():
         # Set up logging with the configured log level
         logger = setup_logging('shuttle', logging_options)
 
+        # Check if we're using the simulator (patched DEFENDER_COMMAND)
+        using_simulator = is_using_simulator()
+        
+        # Log a warning if we're in simulator mode
+        if using_simulator:
+            logger.warning("⚠️  RUNNING WITH SIMULATOR - NO REAL MALWARE SCANNING WILL BE PERFORMED ⚠️")
+
         notifier = None;
         
         if config.notify:
@@ -93,7 +94,13 @@ def main():
         #
 
         # Check for required external commands
-        required_commands = ['lsof', 'mdatp', 'gpg']
+        required_commands = ['lsof', 'gpg']
+        if not using_simulator:
+            required_commands.append('mdatp')
+
+        if config.on_demand_clam_av:
+            required_commands.append('clamdscan')
+
         missing_commands = []
 
         for cmd in required_commands:

@@ -8,6 +8,7 @@ import subprocess
 
 # Define directories
 
+
 # Get directory paths from environment variables or use defaults
 home_dir = os.path.expanduser("~")
 work_dir = os.environ.get("SHUTTLE_WORK_DIR", os.path.join(home_dir, ".local/share/shuttle/work"))
@@ -27,7 +28,9 @@ settings_file = config_path
 hazard_encryption_key_path = os.path.join(config_dir, "public-key.gpg")
 ledger_file_path = os.path.join(ledger_file_dir, "ledger.yaml")
 
+
 # Create working directories if they don't exist
+os.makedirs(work_dir, exist_ok=True)
 os.makedirs(source_dir, exist_ok=True)
 os.makedirs(quarantine_dir, exist_ok=True)
 os.makedirs(dest_dir, exist_ok=True)
@@ -44,19 +47,11 @@ os.makedirs(inner_dir, exist_ok=True)
 
 # Create config file if it doesn't exist
 if not os.path.exists(settings_file):
-    # Try to find example config
-    example_config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
-                                     'example', 'shuttle_config', 'config.conf')
-    
-    if os.path.exists(example_config_path):
-        print(f"Copying example config to {settings_file}")
-        shutil.copy2(example_config_path, settings_file)
-    else:
-        # Create new config file
-        print("Creating new config file")
-        config = configparser.ConfigParser()
+    # Create new config file
+    print("Creating new config file")
+    config = configparser.ConfigParser()
 
-        config['paths'] = {
+    config['paths'] = {
             'source_path': source_dir,
             'destination_path': dest_dir,
             'quarantine_path': quarantine_dir,
@@ -66,7 +61,7 @@ if not os.path.exists(settings_file):
             'ledger_file_path': ledger_file_path
         }
 
-        config['settings'] = {
+    config['settings'] = {
             'max_scan_threads': '1',
             'delete_source_files_after_copying': 'True',
             'defender_handles_suspect_files': 'True',
@@ -76,11 +71,11 @@ if not os.path.exists(settings_file):
             'throttle_free_space': '10000'
         }
 
-        config['logging'] = {
+    config['logging'] = {
             'log_level': 'DEBUG'
         }
 
-        config['notification'] = {
+    config['notification'] = {
             'notify': 'False',
             'notify_summary': 'False',
             'recipient_email': 'admin@example.com',
@@ -92,8 +87,8 @@ if not os.path.exists(settings_file):
             'use_tls': 'True'
         }
 
-        with open(settings_file, 'w') as configfile:
-            config.write(configfile)
+    with open(settings_file, 'w') as configfile:
+        config.write(configfile)
 
 print(f"Created settings file at {settings_file}")
 
@@ -122,7 +117,7 @@ status_data = {
 }
 
 # Write the ledger.yaml file
-with open( ledger_file_path, 'w') as yaml_file:
+with open(ledger_file_path, 'w') as yaml_file:
     yaml.dump(status_data, yaml_file, default_flow_style=False, sort_keys=False)
 
 print(f"Created ledger file at {ledger_file_path}")
@@ -133,6 +128,7 @@ print("\nSetup complete!")
 
 # Summary of setup
 print("\nDirectories created:")
+print(f"  Work: {work_dir}")
 print(f"  Source: {source_dir}")
 print(f"  Quarantine: {quarantine_dir}")
 print(f"  Destination: {dest_dir}")

@@ -1,0 +1,627 @@
+diff --git a/.gitignore b/.gitignore
+index 0326ba2..d27de05 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -13,4 +13,6 @@ src/shuttle_app/build/
+ src/shared_library/shuttle_common.egg-info/
+ src/shuttle_defender_test_app/shuttle_defender_test.egg-info/
+ src/shuttle_app/shuttle.egg-info/
+-scripts/1_deployment/shuttle_env.sh
+\ No newline at end of file
++scripts/1_deployment/shuttle_env.sh
++config.conf
++work
+diff --git a/scripts/1_deployment/07_setup_config.py b/scripts/1_deployment/07_setup_config.py
+index 1401afd..49e7a21 100644
+--- a/scripts/1_deployment/07_setup_config.py
++++ b/scripts/1_deployment/07_setup_config.py
+@@ -8,6 +8,7 @@ import subprocess
+ 
+ # Define directories
+ 
++
+ # Get directory paths from environment variables or use defaults
+ home_dir = os.path.expanduser("~")
+ work_dir = os.environ.get("SHUTTLE_WORK_DIR", os.path.join(home_dir, ".local/share/shuttle/work"))
+@@ -27,7 +28,9 @@ settings_file = config_path
+ hazard_encryption_key_path = os.path.join(config_dir, "public-key.gpg")
+ ledger_file_path = os.path.join(ledger_file_dir, "ledger.yaml")
+ 
++
+ # Create working directories if they don't exist
++os.makedirs(work_dir, exist_ok=True)
+ os.makedirs(source_dir, exist_ok=True)
+ os.makedirs(quarantine_dir, exist_ok=True)
+ os.makedirs(dest_dir, exist_ok=True)
+@@ -44,19 +47,11 @@ os.makedirs(inner_dir, exist_ok=True)
+ 
+ # Create config file if it doesn't exist
+ if not os.path.exists(settings_file):
+-    # Try to find example config
+-    example_config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 
+-                                     'example', 'shuttle_config', 'config.conf')
+-    
+-    if os.path.exists(example_config_path):
+-        print(f"Copying example config to {settings_file}")
+-        shutil.copy2(example_config_path, settings_file)
+-    else:
+-        # Create new config file
+-        print("Creating new config file")
+-        config = configparser.ConfigParser()
+-
+-        config['paths'] = {
++    # Create new config file
++    print("Creating new config file")
++    config = configparser.ConfigParser()
++
++    config['paths'] = {
+             'source_path': source_dir,
+             'destination_path': dest_dir,
+             'quarantine_path': quarantine_dir,
+@@ -66,7 +61,7 @@ if not os.path.exists(settings_file):
+             'ledger_file_path': ledger_file_path
+         }
+ 
+-        config['settings'] = {
++    config['settings'] = {
+             'max_scan_threads': '1',
+             'delete_source_files_after_copying': 'True',
+             'defender_handles_suspect_files': 'True',
+@@ -76,11 +71,11 @@ if not os.path.exists(settings_file):
+             'throttle_free_space': '10000'
+         }
+ 
+-        config['logging'] = {
++    config['logging'] = {
+             'log_level': 'DEBUG'
+         }
+ 
+-        config['notification'] = {
++    config['notification'] = {
+             'notify': 'False',
+             'notify_summary': 'False',
+             'recipient_email': 'admin@example.com',
+@@ -92,8 +87,8 @@ if not os.path.exists(settings_file):
+             'use_tls': 'True'
+         }
+ 
+-        with open(settings_file, 'w') as configfile:
+-            config.write(configfile)
++    with open(settings_file, 'w') as configfile:
++        config.write(configfile)
+ 
+ print(f"Created settings file at {settings_file}")
+ 
+@@ -122,7 +117,7 @@ status_data = {
+ }
+ 
+ # Write the ledger.yaml file
+-with open( ledger_file_path, 'w') as yaml_file:
++with open(ledger_file_path, 'w') as yaml_file:
+     yaml.dump(status_data, yaml_file, default_flow_style=False, sort_keys=False)
+ 
+ print(f"Created ledger file at {ledger_file_path}")
+@@ -133,6 +128,7 @@ print("\nSetup complete!")
+ 
+ # Summary of setup
+ print("\nDirectories created:")
++print(f"  Work: {work_dir}")
+ print(f"  Source: {source_dir}")
+ print(f"  Quarantine: {quarantine_dir}")
+ print(f"  Destination: {dest_dir}")
+diff --git a/src/shared_library/shuttle_common/__init__.py b/src/shared_library/shuttle_common/__init__.py
+index cb8b7fd..b375b53 100644
+--- a/src/shared_library/shuttle_common/__init__.py
++++ b/src/shared_library/shuttle_common/__init__.py
+@@ -25,6 +25,8 @@ __all__ = [
+     'DefenderScanResult',
+     'process_defender_result',
+     'is_using_simulator',
++    'parse_defender_scan_result',
++    'handle_clamav_scan_result',
+     
+     # Ledger system
+     'Ledger',
+diff --git a/src/shared_library/shuttle_common/scan_utils.py b/src/shared_library/shuttle_common/scan_utils.py
+index 9f91c09..c59209a 100644
+--- a/src/shared_library/shuttle_common/scan_utils.py
++++ b/src/shared_library/shuttle_common/scan_utils.py
+@@ -58,7 +58,7 @@ def process_defender_result(result_code, path, defender_handles_suspect=False, l
+     Process defender scan result and determine actions
+     
+     Args:
+-        result_code: The scan result type from handle_defender_scan_result
++        result_code: The scan result type from parse_defender_scan_result
+         path: Path to the scanned file
+         defender_handles_suspect: Whether Defender is configured to handle suspicious files
+         logging_options: Optional logging configuration
+@@ -100,7 +100,7 @@ def get_mdatp_version(logging_options=None) -> Optional[str]:
+     
+     Args:
+         logging_options (LoggingOptions, optional): Logging configuration options
+-        use_simulator (bool, optional): Whether to use the simulator instead of real defender
++
+          
+     Returns:
+         str: Version number in format XXX.XXXX.XXXX, or None if version cannot be determined
+@@ -196,7 +196,7 @@ def run_malware_scan(cmd, path, result_handler, logging_options=None):
+         return scan_result_types.FILE_SCAN_FAILED
+ 
+ 
+-def handle_defender_scan_result(returncode, output, logging_options=None):
++def parse_defender_scan_result(returncode, output, logging_options=None):
+     """
+     Process Microsoft Defender scan results.
+     
+@@ -208,7 +208,7 @@ def handle_defender_scan_result(returncode, output, logging_options=None):
+     Returns:
+         int: scan_result_types value
+     """
+-    logger = setup_logging('shuttle.common.scan_utils.handle_defender_scan_result', logging_options)
++    logger = setup_logging('shuttle.common.scan_utils.parse_defender_scan_result', logging_options)
+     
+     if returncode == 0:
+         # Always check for threat pattern first, otherwise a malicious filename could be used to add clean response text to output
+@@ -233,16 +233,13 @@ def handle_defender_scan_result(returncode, output, logging_options=None):
+     return scan_result_types.FILE_SCAN_FAILED
+ 
+ 
+-def scan_for_malware_using_defender(path, custom_handler=handle_defender_scan_result, logging_options=None):
++def scan_for_malware_using_defender(path, logging_options=None):
+     """Scan a file using Microsoft Defender.
+     
+     Args:
+         path (str): Path to the file to scan
+-        custom_handler (callable, optional): Custom result handler function.
+-                                           Default is handle_defender_scan_result.
+         logging_options: Optional logging configuration options
+-        use_simulator (bool, optional): Whether to use the simulator instead of real defender
+-    
++            
+     Returns:
+         The result from the handler function
+     """
+@@ -256,7 +253,8 @@ def scan_for_malware_using_defender(path, custom_handler=handle_defender_scan_re
+         "--ignore-exclusions",
+         "--path"
+     ]
+-    return run_malware_scan(cmd, path, custom_handler, logging_options)
++
++    return run_malware_scan(cmd, path, parse_defender_scan_result, logging_options)
+ 
+ def handle_clamav_scan_result(returncode, output, logging_options=None):
+     """
+diff --git a/src/shuttle_app/shuttle/shuttle.py b/src/shuttle_app/shuttle/shuttle.py
+index 3c6668b..4ccdd17 100644
+--- a/src/shuttle_app/shuttle/shuttle.py
++++ b/src/shuttle_app/shuttle/shuttle.py
+@@ -34,12 +34,6 @@ def main():
+     # SIMULATOR CHECK : DEV, IN FINAL PRODUCT VERSION, REMOVE THIS CODE AND ONLY USE SIMULATOR AS MOCK IN TEST CODE
+     #
+     
+-    # Check if we're using the simulator (patched DEFENDER_COMMAND)
+-    using_simulator = is_using_simulator()
+-    
+-    # Log a warning if we're in simulator mode
+-    if using_simulator:
+-        logger.warning("⚠️  RUNNING WITH SIMULATOR - NO REAL MALWARE SCANNING WILL BE PERFORMED ⚠️")
+ 
+     # Lock file handling
+     if os.path.exists(config.lock_file):
+@@ -71,6 +65,13 @@ def main():
+         # Set up logging with the configured log level
+         logger = setup_logging('shuttle', logging_options)
+ 
++        # Check if we're using the simulator (patched DEFENDER_COMMAND)
++        using_simulator = is_using_simulator()
++        
++        # Log a warning if we're in simulator mode
++        if using_simulator:
++            logger.warning("⚠️  RUNNING WITH SIMULATOR - NO REAL MALWARE SCANNING WILL BE PERFORMED ⚠️")
++
+         notifier = None;
+         
+         if config.notify:
+@@ -93,7 +94,13 @@ def main():
+         #
+ 
+         # Check for required external commands
+-        required_commands = ['lsof', 'mdatp', 'gpg']
++        required_commands = ['lsof', 'gpg']
++        if not using_simulator:
++            required_commands.append('mdatp')
++
++        if config.on_demand_clam_av:
++            required_commands.append('clamdscan')
++
+         missing_commands = []
+ 
+         for cmd in required_commands:
+diff --git a/src/shuttle_app/shuttle/shuttle_config.py b/src/shuttle_app/shuttle/shuttle_config.py
+index f5896d0..5f02699 100644
+--- a/src/shuttle_app/shuttle/shuttle_config.py
++++ b/src/shuttle_app/shuttle/shuttle_config.py
+@@ -32,16 +32,16 @@ class ShuttleConfig(CommonConfig):
+     lock_file: str = '/tmp/shuttle.lock'
+     
+     # Processing settings
+-    delete_source_files: bool = False
++    delete_source_files: bool = None
+     max_scan_threads: int = 1
+     
+     # Scanning settings
+-    on_demand_defender: bool = False
+-    on_demand_clam_av: bool = True
++    on_demand_defender: bool = None
++    on_demand_clam_av: bool = None
+     
+     # Throttle settings
+-    throttle: bool = False
+-    throttle_free_space: int = 10000  # Minimum MB of free space required
++    throttle: bool = None
++    throttle_free_space: int = None  # Minimum MB of free space required
+     
+     # Shuttle-specific throttle settings (commented out for now)
+     # throttle_max_file_volume_per_day: int = 1000000
+@@ -67,30 +67,32 @@ def parse_shuttle_config() -> ShuttleConfig:
+     parser.add_argument('-QuarantinePath', help='Path to the quarantine directory')
+ 
+     parser.add_argument('-TestSourceWriteAccess', action='store_true', help='Test write access to the source directory')
+-    parser.add_argument('-DeleteSourceFilesAfterCopying', action='store_true',
++    parser.add_argument('-DeleteSourceFilesAfterCopying', 
++                        action='store_true',
+                         help='Delete the source files after copying them to the destination')
+     parser.add_argument('-MaxScanThreads', type=int, help='Maximum number of parallel scans')
+     parser.add_argument('-LockFile', help='Optional: Path to lock file to prevent multiple instances')
+     parser.add_argument('-HazardArchivePath', help='Path to the hazard archive directory')
+     parser.add_argument('-HazardEncryptionKeyPath', help='Path to the GPG public key file for encrypting hazard files')
+     parser.add_argument('-OnDemandDefender',
+-                       help='Use on-demand scanning for Microsoft Defender',
+-                       type=bool,
+-                       default=None)
+-    parser.add_argument('-OnDemandClamAV',
+-                       help='Use on-demand scanning for ClamAV',
+-                       type=bool,
+-                       default=None)
++                        action='store_true',
++                        help='Use on-demand scanning for Microsoft Defender',
++                        default=None)
++
++    parser.add_argument('-OnDemandClamAV', 
++                        action='store_true',
++                        help='Use on-demand scanning for ClamAV',
++                        default=None)
+     
+     # Shuttle-specific throttle arguments
+     parser.add_argument('-Throttle',
+-                      help='Enable throttling of file processing',
+-                      type=bool,
+-                      default=None)
++                        action='store_true',
++                        help='Enable throttling of file processing',
++                        default=None)
+     parser.add_argument('-ThrottleFreeSpace',
+-                      help='Minimum free space (in MB) required on destination drive',
+-                      type=int,
+-                      default=None)
++                        help='Minimum free space (in MB) required on destination drive',
++                        type=int,
++                        default=None)
+     
+     # Commented out for now
+     # parser.add_argument('-ThrottleMaxFileVolumePerDay',
+@@ -129,7 +131,7 @@ def parse_shuttle_config() -> ShuttleConfig:
+     
+     # Get scanning settings
+     config.on_demand_defender = get_setting_from_arg_or_file(args, 'OnDemandDefender', 'settings', 'on_demand_defender', False, bool, settings_file_config)
+-    config.on_demand_clam_av = get_setting_from_arg_or_file(args, 'OnDemandClamAV', 'settings', 'on_demand_clam_av', True, bool, settings_file_config)
++    config.on_demand_clam_av = get_setting_from_arg_or_file(args, 'OnDemandClamAV', 'settings', 'on_demand_clam_av', False, bool, settings_file_config)
+         
+     # Parse throttle settings
+     config.throttle = get_setting_from_arg_or_file(args, 'Throttle', 'settings', 'throttle', False, bool, settings_file_config)
+diff --git a/src/shuttle_defender_test_app/shuttle_defender_test/shuttle_defender_test.py b/src/shuttle_defender_test_app/shuttle_defender_test/shuttle_defender_test.py
+index 024c9aa..f971b59 100644
+--- a/src/shuttle_defender_test_app/shuttle_defender_test/shuttle_defender_test.py
++++ b/src/shuttle_defender_test_app/shuttle_defender_test/shuttle_defender_test.py
+@@ -27,7 +27,7 @@ from pathlib import Path
+ from shuttle_common.scan_utils import (
+     get_mdatp_version,
+     scan_for_malware_using_defender,
+-    handle_defender_scan_result,
++    parse_defender_scan_result,
+     defender_scan_patterns,
+     run_malware_scan,
+     scan_result_types,
+@@ -81,8 +81,6 @@ def run_defender_scan(file_path, logging_options=None):
+     logger = setup_logging('defender_test.run_defender_scan', logging_options)
+     logger.info(f"Scanning file: {file_path} using Microsoft Defender")
+ 
+-    # Use the default handle_defender_scan_result handler which parses the output
+-    # and returns a result code (like FILE_IS_CLEAN or FILE_IS_SUSPECT)
+     try:
+         return scan_for_malware_using_defender(file_path, logging_options=logging_options)
+     except Exception as e:
+diff --git a/tests/README.md b/tests/README.md
+index bac1173..487ff95 100644
+--- a/tests/README.md
++++ b/tests/README.md
+@@ -1,13 +1,24 @@
+ # Shuttle Testing Framework
+ 
+-This directory contains automated tests for the Shuttle file transfer utility. The tests are designed to verify the functionality of key components including notifications and disk space throttling.
++This directory contains automated tests for the Shuttle file transfer utility. The tests are designed to verify the functionality of key components including notifications, disk space throttling, and Microsoft Defender for Endpoint (MDATP) simulation.
+ 
+ ## Test Structure
+ 
+ - `test_notifier.py`: Unit tests for the notification system
+ - `test_throttling.py`: Unit tests for the disk space throttling feature
++- `test_mdatp_simulator.py`: Tests for the Microsoft Defender simulator
++- `test_shuttle_with_simulator.py`: Integration tests using the MDATP simulator
++- `run_shuttle_with_simulator.py`: Script to run Shuttle with the MDATP simulator
+ - `run_tests.py`: Script to discover and run all tests
+ 
++### MDATP Simulator
++
++The `mdatp_simulator_app` directory contains a standalone simulator for Microsoft Defender for Endpoint (MDATP) that can be used for testing without requiring the actual Microsoft Defender installation:
++
++- `mdatp_simulator_app/mdatp_simulator/simulator.py`: Core simulator that emulates MDATP commands
++- `simulator_ledger.yaml`: Ledger file that approves the simulator version for testing
++- `mdatp_simulator_test_files/`: Test files for the simulator including clean and malware samples
++
+ ## Running Tests
+ 
+ ### Running All Tests
+@@ -24,8 +35,54 @@ To run tests from a specific file:
+ 
+ ```bash
+ python -m unittest test_notifier.py
++python -m tests.test_mdatp_simulator
++```
++
++### MDATP Simulator Tests
++
++#### Running the Integration Test
++
++To run the integration test that validates Shuttle's behavior with the MDATP simulator:
++
++```bash
++# From the project root
++python -m tests.test_shuttle_with_simulator
++
++# Or directly run the file
++python tests/test_shuttle_with_simulator.py
+ ```
+ 
++This test:
++1. Creates temporary directories (source, destination, quarantine, hazard)
++2. Places test files in the source directory
++3. Runs Shuttle with the simulator
++4. Verifies files are correctly processed based on scan results
++
++#### Running Shuttle with the MDATP Simulator
++
++To run Shuttle manually with the MDATP simulator instead of the real Microsoft Defender:
++
++```bash
++python tests/run_shuttle_with_simulator.py -SourcePath /path/to/source -DestinationPath /path/to/dest -QuarantinePath /path/to/quarantine
++```
++
++The script accepts all standard Shuttle parameters. For example, a more complete example would be:
++
++```bash
++python tests/run_shuttle_with_simulator.py \
++  -SourcePath /path/to/source \
++  -DestinationPath /path/to/dest \
++  -QuarantinePath /path/to/quarantine \
++  -HazardArchivePath /path/to/hazard \
++  -OnDemandDefender \
++  -LogPath /path/to/logs
++```
++
++# Note: Boolean flags like -OnDemandDefender are now present/absent style flags.
++# Include the flag to set it to True, omit the flag to keep it False.
++
++This is useful for testing Shuttle's scanning functionality without requiring an actual Microsoft Defender installation.
++
+ ### Running Specific Test Cases
+ 
+ To run a specific test case:
+@@ -49,6 +106,17 @@ Current test coverage includes:
+    - Throttling behavior with insufficient disk space
+    - Disabled throttling behavior
+ 
++3. **MDATP Simulator Tests**
++   - Version command functionality (`mdatp version`)
++   - Scan command functionality (`mdatp scan`)
++     - Handling of clean files (no threats detected)
++     - Detection of malware files (threats detected)
++     - Handling of non-existent files (file not found)
++   - Integration with Shuttle workflow
++     - Proper file classification (clean vs malware)
++     - Proper file handling based on scan results
++     - Simulator detection and warning messages
++
+ ## Adding New Tests
+ 
+ To add new tests:
+diff --git a/tests/mdatp_simulator_app/mdatp_simulator/simulator.py b/tests/mdatp_simulator_app/mdatp_simulator/simulator.py
+index 2df1670..2e1120f 100755
+--- a/tests/mdatp_simulator_app/mdatp_simulator/simulator.py
++++ b/tests/mdatp_simulator_app/mdatp_simulator/simulator.py
+@@ -54,7 +54,7 @@ def scan_command(args):
+     # Check if path exists
+     if not os.path.exists(path):
+         # For non-existent files, still return success (0) but with specific output pattern
+-        # that handle_defender_scan_result will recognize as FILE_NOT_FOUND
++        # that parse_defender_scan_result will recognize as FILE_NOT_FOUND
+         print(f"Error: Path does not exist: {path}")
+         # Match the FILE_NOT_FOUND pattern exactly as in scan_utils.py
+         print("\n\t0 file(s) scanned\n\t0 threat(s) detected")
+@@ -79,8 +79,8 @@ def scan_command(args):
+             print("Threat category: Test")
+             print("Threat severity: High")
+             print("Threat(s) found")
+-            # The test is failing because handle_defender_scan_result expects a zero return code
+-            # even for malware detection (it uses the output text to determine result)
++            
++            # parse_defender_scan_result expects a zero return code even for malware detection (it uses the output text to determine result)
+             return 0  # Return code for successful scan, even though threat was found
+         else:
+             print(f"Scanning file: {path}")
+diff --git a/tests/mdatp_simulator_test_files/test_scan.py b/tests/mdatp_simulator_test_files/test_scan.py
+deleted file mode 100755
+index e12ef56..0000000
+--- a/tests/mdatp_simulator_test_files/test_scan.py
++++ /dev/null
+@@ -1,28 +0,0 @@
+-#!/usr/bin/env python3
+-import os
+-import sys
+-import subprocess
+-from shared_library.shuttle_common.scan_utils import scan_for_malware_using_defender, DEFENDER_COMMAND
+-
+-# Override the DEFAULT_DEFENDER_COMMAND with path to simulator
+-simulator_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'mdatp_simulator_app', 'mdatp_simulator', 'simulator.py'))
+-os.environ['DEFENDER_COMMAND'] = simulator_path
+-
+-# Patch the scan function to use our environment variable
+-def patched_scan(*args, **kwargs):
+-    cmd = [os.environ.get('DEFENDER_COMMAND', DEFENDER_COMMAND)]
+-    cmd.extend(args[0][1:])  # Skip the first element (normally mdatp) and add the rest
+-    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+-    return result
+-
+-# Apply the patch and run the scan
+-with patch('subprocess.run', side_effect=patched_scan):
+-    # Get arguments from command line
+-    if len(sys.argv) < 2:
+-        print("Usage: test_scan.py <file_path>")
+-        sys.exit(1)
+-    
+-    file_path = sys.argv[1]
+-    result = scan_for_malware_using_defender(file_path)
+-    print(f"Scan result: {result}")
+-    sys.exit(0)
+diff --git a/tests/run_shuttle_with_simulator.py b/tests/run_shuttle_with_simulator.py
+index 703ef78..0fac211 100644
+--- a/tests/run_shuttle_with_simulator.py
++++ b/tests/run_shuttle_with_simulator.py
+@@ -41,11 +41,11 @@ def run_shuttle_with_simulator():
+     simulator_ledger = os.path.join(os.path.dirname(__file__), 'simulator_ledger.yaml')
+     
+     # Add ledger path to arguments if not already specified
+-    if '--LedgerPath' not in sys.argv and '-LedgerPath' not in sys.argv:
+-        sys.argv.extend(['--LedgerPath', simulator_ledger])
++    if '-LedgerPath' not in sys.argv and '-LedgerPath' not in sys.argv:
++        sys.argv.extend(['-LedgerPath', simulator_ledger])
+     
+     # Patch the DEFAULT_DEFENDER_COMMAND to use the simulator script
+-    with patch('shuttle_common.scan_utils.DEFAULT_DEFENDER_COMMAND', simulator_script):
++    with patch('shuttle_common.scan_utils.DEFENDER_COMMAND', simulator_script):
+         try:
+             # Run the main function, passing any command line args
+             main()
+diff --git a/tests/test_mdatp_simulator.py b/tests/test_mdatp_simulator.py
+index 2985599..eb8e04b 100644
+--- a/tests/test_mdatp_simulator.py
++++ b/tests/test_mdatp_simulator.py
+@@ -56,7 +56,7 @@ class TestMDATPSimulatorRedirection(unittest.TestCase):
+         
+         # Patch the DEFAULT_DEFENDER_COMMAND to use our simulator script
+         with patch('shuttle_common.scan_utils.DEFAULT_DEFENDER_COMMAND', self.simulator_script):
+-            # Call get_mdatp_version (without simulator flag)
++            # Call get_mdatp_version
+             version = get_mdatp_version()
+             
+             # Check that we got the version from the simulator
+diff --git a/tests/test_shuttle_with_simulator.py b/tests/test_shuttle_with_simulator.py
+index b489902..4fd6197 100644
+--- a/tests/test_shuttle_with_simulator.py
++++ b/tests/test_shuttle_with_simulator.py
+@@ -14,6 +14,9 @@ import shutil
+ import tempfile
+ import unittest
+ import subprocess
++import datetime
++import random
++import string
+ from unittest.mock import patch
+ 
+ # Add the required directories to the Python path
+@@ -25,8 +28,16 @@ class TestShuttleWithSimulator(unittest.TestCase):
+     
+     def setUp(self):
+         """Set up temporary directories and files for testing"""
+-        # Create temporary directories
+-        self.temp_dir = tempfile.mkdtemp()
++        # Create temporary directories in SHUTTLE_WORK_DIR/tmp
++        work_dir = os.environ.get('SHUTTLE_WORK_DIR', os.path.expanduser('~/shuttle/work'))
++        tmp_base = os.path.join(work_dir, 'tmp')
++        os.makedirs(tmp_base, exist_ok=True)
++        
++        # Create a unique test directory with timestamp and random suffix
++        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
++        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
++        self.temp_dir = os.path.join(tmp_base, f'test_{timestamp}_{random_suffix}')        
++        os.makedirs(self.temp_dir, exist_ok=True)
+         self.source_dir = os.path.join(self.temp_dir, 'source')
+         self.destination_dir = os.path.join(self.temp_dir, 'destination')
+         self.quarantine_dir = os.path.join(self.temp_dir, 'quarantine')
+@@ -68,22 +79,45 @@ class TestShuttleWithSimulator(unittest.TestCase):
+         cmd = [
+             sys.executable,  # Use the current Python interpreter
+             self.simulator_runner,
+-            '--source-path', self.source_dir,
+-            '--destination-path', self.destination_dir,
+-            '--quarantine-path', self.quarantine_dir,
+-            '--hazard-archive-path', self.hazard_dir,
+-            '--on-demand-defender', 'True',
+-            '--on-demand-clam-av', 'False',
+-            '--log-path', self.temp_dir,
+-            '--lock-file', self.lock_file
++            '-SourcePath', self.source_dir,
++            '-DestinationPath', self.destination_dir,
++            '-QuarantinePath', self.quarantine_dir,
++            '-HazardArchivePath', self.hazard_dir,
++            '-OnDemandDefender',  # Boolean flag, presence means True
++            # Note: Omitting -OnDemandClamAV flag to keep it False
++            '-LogPath', self.temp_dir,
++            '-LockFile', self.lock_file
+         ]
+         
+-        # Run the command and wait for it to complete
+-        process = subprocess.run(cmd, capture_output=True, text=True)
++        # Run the command and stream output in real-time
++        process = subprocess.Popen(
++            cmd,
++            stdout=subprocess.PIPE,
++            stderr=subprocess.STDOUT,
++            text=True,
++            bufsize=1  # Line buffered
++        )
++        
++        # Collect output while streaming it to console
++        output_lines = []
++        print("\n--- Shuttle Output Begin ---")
++        for line in iter(process.stdout.readline, ''):
++            if not line:
++                break
++            print(line, end='')  # Display in real-time
++            output_lines.append(line)
++        print("--- Shuttle Output End ---\n")
++        
++        # Close stdout and get return code
++        process.stdout.close()
++        return_code = process.wait()
++        
++        # Join all output for error reporting if needed
++        output = ''.join(output_lines)
+         
+         # Check that the process ran successfully
+-        self.assertEqual(process.returncode, 0, 
+-                        f"Process failed with code {process.returncode}\nStdout: {process.stdout}\nStderr: {process.stderr}")
++        self.assertEqual(return_code, 0, 
++                        f"Process failed with code {return_code}\nOutput: {output}")
+             
+         # Verify the clean file was moved to destination
+         dest_clean_file = os.path.join(self.destination_dir, 'clean_file.txt')

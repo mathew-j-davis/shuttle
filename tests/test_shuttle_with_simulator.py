@@ -14,6 +14,9 @@ import shutil
 import tempfile
 import unittest
 import subprocess
+import datetime
+import random
+import string
 from unittest.mock import patch
 
 # Add the required directories to the Python path
@@ -25,8 +28,16 @@ class TestShuttleWithSimulator(unittest.TestCase):
     
     def setUp(self):
         """Set up temporary directories and files for testing"""
-        # Create temporary directories
-        self.temp_dir = tempfile.mkdtemp()
+        # Create temporary directories in SHUTTLE_WORK_DIR/tmp
+        work_dir = os.environ.get('SHUTTLE_WORK_DIR', os.path.expanduser('~/shuttle/work'))
+        tmp_base = os.path.join(work_dir, 'tmp')
+        os.makedirs(tmp_base, exist_ok=True)
+        
+        # Create a unique test directory with timestamp and random suffix
+        timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        self.temp_dir = os.path.join(tmp_base, f'test_{timestamp}_{random_suffix}')        
+        os.makedirs(self.temp_dir, exist_ok=True)
         self.source_dir = os.path.join(self.temp_dir, 'source')
         self.destination_dir = os.path.join(self.temp_dir, 'destination')
         self.quarantine_dir = os.path.join(self.temp_dir, 'quarantine')
@@ -68,22 +79,45 @@ class TestShuttleWithSimulator(unittest.TestCase):
         cmd = [
             sys.executable,  # Use the current Python interpreter
             self.simulator_runner,
-            '--source-path', self.source_dir,
-            '--destination-path', self.destination_dir,
-            '--quarantine-path', self.quarantine_dir,
-            '--hazard-archive-path', self.hazard_dir,
-            '--on-demand-defender', 'True',
-            '--on-demand-clam-av', 'False',
-            '--log-path', self.temp_dir,
-            '--lock-file', self.lock_file
+            '-SourcePath', self.source_dir,
+            '-DestinationPath', self.destination_dir,
+            '-QuarantinePath', self.quarantine_dir,
+            '-HazardArchivePath', self.hazard_dir,
+            '-OnDemandDefender',  # Boolean flag, presence means True
+            # Note: Omitting -OnDemandClamAV flag to keep it False
+            '-LogPath', self.temp_dir,
+            '-LockFile', self.lock_file
         ]
         
-        # Run the command and wait for it to complete
-        process = subprocess.run(cmd, capture_output=True, text=True)
+        # Run the command and stream output in real-time
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1  # Line buffered
+        )
+        
+        # Collect output while streaming it to console
+        output_lines = []
+        print("\n--- Shuttle Output Begin ---")
+        for line in iter(process.stdout.readline, ''):
+            if not line:
+                break
+            print(line, end='')  # Display in real-time
+            output_lines.append(line)
+        print("--- Shuttle Output End ---\n")
+        
+        # Close stdout and get return code
+        process.stdout.close()
+        return_code = process.wait()
+        
+        # Join all output for error reporting if needed
+        output = ''.join(output_lines)
         
         # Check that the process ran successfully
-        self.assertEqual(process.returncode, 0, 
-                        f"Process failed with code {process.returncode}\nStdout: {process.stdout}\nStderr: {process.stderr}")
+        self.assertEqual(return_code, 0, 
+                        f"Process failed with code {return_code}\nOutput: {output}")
             
         # Verify the clean file was moved to destination
         dest_clean_file = os.path.join(self.destination_dir, 'clean_file.txt')

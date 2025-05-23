@@ -41,11 +41,11 @@ def run_shuttle_with_simulator():
     simulator_ledger = os.path.join(os.path.dirname(__file__), 'simulator_ledger.yaml')
     
     # Add ledger path to arguments if not already specified
-    if '--LedgerPath' not in sys.argv and '-LedgerPath' not in sys.argv:
-        sys.argv.extend(['--LedgerPath', simulator_ledger])
+    if '-LedgerPath' not in sys.argv and '-LedgerPath' not in sys.argv:
+        sys.argv.extend(['-LedgerPath', simulator_ledger])
     
     # Patch the DEFAULT_DEFENDER_COMMAND to use the simulator script
-    with patch('shuttle_common.scan_utils.DEFAULT_DEFENDER_COMMAND', simulator_script):
+    with patch('shuttle_common.scan_utils.DEFENDER_COMMAND', simulator_script):
         try:
             # Run the main function, passing any command line args
             main()

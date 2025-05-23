@@ -54,7 +54,7 @@ def scan_command(args):
     # Check if path exists
     if not os.path.exists(path):
         # For non-existent files, still return success (0) but with specific output pattern
-        # that handle_defender_scan_result will recognize as FILE_NOT_FOUND
+        # that parse_defender_scan_result will recognize as FILE_NOT_FOUND
         print(f"Error: Path does not exist: {path}")
         # Match the FILE_NOT_FOUND pattern exactly as in scan_utils.py
         print("\n\t0 file(s) scanned\n\t0 threat(s) detected")
@@ -79,8 +79,8 @@ def scan_command(args):
             print("Threat category: Test")
             print("Threat severity: High")
             print("Threat(s) found")
-            # The test is failing because handle_defender_scan_result expects a zero return code
-            # even for malware detection (it uses the output text to determine result)
+            
+            # parse_defender_scan_result expects a zero return code even for malware detection (it uses the output text to determine result)
             return 0  # Return code for successful scan, even though threat was found
         else:
             print(f"Scanning file: {path}")

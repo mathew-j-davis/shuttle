@@ -56,7 +56,7 @@ class TestMDATPSimulatorRedirection(unittest.TestCase):
         
         # Patch the DEFAULT_DEFENDER_COMMAND to use our simulator script
         with patch('shuttle_common.scan_utils.DEFAULT_DEFENDER_COMMAND', self.simulator_script):
-            # Call get_mdatp_version (without simulator flag)
+            # Call get_mdatp_version
             version = get_mdatp_version()
             
             # Check that we got the version from the simulator

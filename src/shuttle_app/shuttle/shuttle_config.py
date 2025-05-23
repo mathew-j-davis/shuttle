@@ -32,16 +32,16 @@ class ShuttleConfig(CommonConfig):
     lock_file: str = '/tmp/shuttle.lock'
     
     # Processing settings
-    delete_source_files: bool = False
+    delete_source_files: bool = None
     max_scan_threads: int = 1
     
     # Scanning settings
-    on_demand_defender: bool = False
-    on_demand_clam_av: bool = True
+    on_demand_defender: bool = None
+    on_demand_clam_av: bool = None
     
     # Throttle settings
-    throttle: bool = False
-    throttle_free_space: int = 10000  # Minimum MB of free space required
+    throttle: bool = None
+    throttle_free_space: int = None  # Minimum MB of free space required
     
     # Shuttle-specific throttle settings (commented out for now)
     # throttle_max_file_volume_per_day: int = 1000000
@@ -67,30 +67,32 @@ def parse_shuttle_config() -> ShuttleConfig:
     parser.add_argument('-QuarantinePath', help='Path to the quarantine directory')
 
     parser.add_argument('-TestSourceWriteAccess', action='store_true', help='Test write access to the source directory')
-    parser.add_argument('-DeleteSourceFilesAfterCopying', action='store_true',
+    parser.add_argument('-DeleteSourceFilesAfterCopying', 
+                        action='store_true',
                         help='Delete the source files after copying them to the destination')
     parser.add_argument('-MaxScanThreads', type=int, help='Maximum number of parallel scans')
     parser.add_argument('-LockFile', help='Optional: Path to lock file to prevent multiple instances')
     parser.add_argument('-HazardArchivePath', help='Path to the hazard archive directory')
     parser.add_argument('-HazardEncryptionKeyPath', help='Path to the GPG public key file for encrypting hazard files')
     parser.add_argument('-OnDemandDefender',
-                       help='Use on-demand scanning for Microsoft Defender',
-                       type=bool,
-                       default=None)
-    parser.add_argument('-OnDemandClamAV',
-                       help='Use on-demand scanning for ClamAV',
-                       type=bool,
-                       default=None)
+                        action='store_true',
+                        help='Use on-demand scanning for Microsoft Defender',
+                        default=None)
+
+    parser.add_argument('-OnDemandClamAV', 
+                        action='store_true',
+                        help='Use on-demand scanning for ClamAV',
+                        default=None)
     
     # Shuttle-specific throttle arguments
     parser.add_argument('-Throttle',
-                      help='Enable throttling of file processing',
-                      type=bool,
-                      default=None)
+                        action='store_true',
+                        help='Enable throttling of file processing',
+                        default=None)
     parser.add_argument('-ThrottleFreeSpace',
-                      help='Minimum free space (in MB) required on destination drive',
-                      type=int,
-                      default=None)
+                        help='Minimum free space (in MB) required on destination drive',
+                        type=int,
+                        default=None)
     
     # Commented out for now
     # parser.add_argument('-ThrottleMaxFileVolumePerDay',
@@ -129,7 +131,7 @@ def parse_shuttle_config() -> ShuttleConfig:
     
     # Get scanning settings
     config.on_demand_defender = get_setting_from_arg_or_file(args, 'OnDemandDefender', 'settings', 'on_demand_defender', False, bool, settings_file_config)
-    config.on_demand_clam_av = get_setting_from_arg_or_file(args, 'OnDemandClamAV', 'settings', 'on_demand_clam_av', True, bool, settings_file_config)
+    config.on_demand_clam_av = get_setting_from_arg_or_file(args, 'OnDemandClamAV', 'settings', 'on_demand_clam_av', False, bool, settings_file_config)
         
     # Parse throttle settings
     config.throttle = get_setting_from_arg_or_file(args, 'Throttle', 'settings', 'throttle', False, bool, settings_file_config)

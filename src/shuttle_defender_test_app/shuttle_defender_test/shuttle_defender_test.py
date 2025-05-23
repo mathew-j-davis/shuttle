@@ -27,7 +27,7 @@ from pathlib import Path
 from shuttle_common.scan_utils import (
     get_mdatp_version,
     scan_for_malware_using_defender,
-    handle_defender_scan_result,
+    parse_defender_scan_result,
     defender_scan_patterns,
     run_malware_scan,
     scan_result_types,
@@ -81,8 +81,6 @@ def run_defender_scan(file_path, logging_options=None):
     logger = setup_logging('defender_test.run_defender_scan', logging_options)
     logger.info(f"Scanning file: {file_path} using Microsoft Defender")
 
-    # Use the default handle_defender_scan_result handler which parses the output
-    # and returns a result code (like FILE_IS_CLEAN or FILE_IS_SUSPECT)
     try:
         return scan_for_malware_using_defender(file_path, logging_options=logging_options)
     except Exception as e:
