@@ -157,6 +157,22 @@ def scan_and_process_file(
         logger.warning(f"Scan failed on {quarantine_file_path}")
         return False
 
+def parallel_scan_wrapper(file_paths, hazard_key_path, hazard_path, delete_source, use_defender, use_clamav, defender_handles_suspect, logging_opts):
+    """
+    Wrapper function for parallel scanning to avoid using lambdas which can't be pickled
+    """
+    return scan_and_process_file(
+        file_paths,
+        hazard_key_path,
+        hazard_path,
+        delete_source,
+        use_defender,
+        use_clamav,
+        defender_handles_suspect,
+        logging_opts
+    )
+
+
 def scan_and_process_directory(
     source_path,
     destination_path,
@@ -346,21 +362,22 @@ def scan_and_process_directory(
                 try:
                     #results = list(executor.map(scan_and_process_file, quarantine_files))
 
+                    # Using a properly picklable function instead of a lambda
+                    logger.info(f"Starting parallel processing with {max_scan_threads} workers")
                     results = list(
                         executor.map(
-                            lambda file_paths: scan_and_process_file(
-                                file_paths,                                                                  
-                                hazard_encryption_key_file_path, 
-                                hazard_archive_path,
-                                delete_source_files, 
-                                on_demand_defender, 
-                                on_demand_clam_av, 
-                                defender_handles_suspect_files, 
-                                logging_options
-                            ), 
-                            quarantine_files
+                            parallel_scan_wrapper,
+                            quarantine_files,
+                            [hazard_encryption_key_file_path] * len(quarantine_files),
+                            [hazard_archive_path] * len(quarantine_files),
+                            [delete_source_files] * len(quarantine_files),
+                            [on_demand_defender] * len(quarantine_files),
+                            [on_demand_clam_av] * len(quarantine_files),
+                            [defender_handles_suspect_files] * len(quarantine_files),
+                            [logging_options] * len(quarantine_files)
                         )
                     )
+                    logger.info("Parallel processing completed")
 
                 except Exception as e:
                     if logger:

@@ -15,14 +15,38 @@ import os
 import re
 import argparse
 import time
+import random
 from datetime import datetime
+# Import the config module (use absolute import for command-line execution)
+from mdatp_simulator.config import read_delay_config, apply_simulated_delay
 
 VERSION = "0.0.0.0"
+
+# Read delay configuration
+MIN_DELAY_MS, MAX_DELAY_MS = read_delay_config()
+
+# Flag to indicate if we've already logged delay info
+DELAY_INFO_LOGGED = False
+
+def log_delay_info():
+    """
+    Log information about the configured delay
+    """
+    global DELAY_INFO_LOGGED
+    
+    if not DELAY_INFO_LOGGED:
+        if MIN_DELAY_MS > 0 or MAX_DELAY_MS > 0:
+            print(f"SIMULATOR: Using random delay between {MIN_DELAY_MS}-{MAX_DELAY_MS} ms", file=sys.stderr)
+        DELAY_INFO_LOGGED = True
 
 def version_command():
     """
     Simulate the 'mdatp version' command
     """
+    # Apply configured delay
+    apply_simulated_delay(MIN_DELAY_MS, MAX_DELAY_MS)
+    log_delay_info()
+    
     print(f"Product version: {VERSION}")
     print("Engine version: SIMULATOR.ONLY.DO.NOT.USE")
     print("Anti-virus definition version: SIMULATOR.ONLY.DO.NOT.USE")
@@ -34,6 +58,9 @@ def scan_command(args):
     Simulate the 'mdatp scan' command
     Flags any file matching EICAR*.TXT pattern as malware
     """
+    # Apply configured delay
+    apply_simulated_delay(MIN_DELAY_MS, MAX_DELAY_MS)
+    log_delay_info()
     parser = argparse.ArgumentParser(description='Scan files for threats')
     parser.add_argument('scan_type', help='Scan type (custom, quick, full)')
     parser.add_argument('--ignore-exclusions', action='store_true', help='Ignore exclusions')
@@ -101,6 +128,10 @@ def status_command(args):
     """
     Simulate the 'mdatp status' command
     """
+    # Apply configured delay
+    apply_simulated_delay(MIN_DELAY_MS, MAX_DELAY_MS)
+    log_delay_info()
+    
     print("Microsoft Defender for Endpoint Simulator")
     print(f"Product version: {VERSION}")
     print("Real-time protection: SIMULATED")
