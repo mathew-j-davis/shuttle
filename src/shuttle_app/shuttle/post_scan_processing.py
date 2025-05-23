@@ -86,15 +86,15 @@ def handle_suspect_scan_result(
     scanner_handled_suspect_file = False
 
     if scanner_handling_suspect_file:
-        logger.warning(f"Threats found in {quarantine_file_path}, letting Defender handle it")
+        logger.warning(f"Threats found in {quarantine_file_path}, letting Scanner handle it")
         
-        # Give Defender time to handle the file and verify it's been removed
+        # Give Scanner time to handle the file and verify it's been removed
         time.sleep(0.5)  # 500ms pause
         if not os.path.exists(quarantine_file_path):
-            logger.info(f"Defender has removed the suspect file: {quarantine_file_path}")
+            logger.info(f"Scanner has removed the suspect file: {quarantine_file_path}")
             scanner_handled_suspect_file = True
         else:
-            logger.warning(f"Defender did not remove the suspect file: {quarantine_file_path}, handling internally")
+            logger.warning(f"Scanner did not remove the suspect file: {quarantine_file_path}, handling internally")
 
     if scanner_handled_suspect_file:
         return handle_suspect_source_file(

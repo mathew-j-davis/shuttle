@@ -84,17 +84,19 @@ class Ledger:
                 
             tested_versions = self.data['defender']['tested_versions']
             
-            # Check if version exists in the tested_versions list
-            for tested_version in tested_versions:
-                if (isinstance(tested_version, dict) and 
-                    'version' in tested_version and 
-                    tested_version['version'] == version and
-                    'test_result' in tested_version and
-                    tested_version['test_result'] == 'pass'):
-                        
-                    self.logger.info(f"Found matching tested version: {version}")
-                    return True
-                    
+            # Find matching version with a generator expression for immediate exit on first match
+            matching_version = next(
+                (item for item in tested_versions if 
+                 isinstance(item, dict) and
+                 item.get('version') == version and
+                 item.get('test_result') == 'pass'),
+                None  # Default if no match is found
+            )
+            
+            if matching_version:
+                self.logger.info(f"Found matching tested version: {version}")
+                return True
+                
             self.logger.warning(f"Version {version} not found in tested versions or did not pass testing")
             return False
             

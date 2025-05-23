@@ -101,7 +101,7 @@ def scan_and_process_file(
         
         # Update our status flags based on the scan result
         suspect_file_detected = scan_result.suspect_detected
-        scanner_handling_suspect_file = scan_result.handler_managing
+        scanner_handling_suspect_file = scan_result.scanner_handles_suspect
         
         # Return early if scan failed (not completed) and no threat detected
         # This happens when file is not found and we're not letting defender handle it

@@ -47,20 +47,20 @@ class scan_result_types:
 
 class DefenderScanResult:
     """Container for Microsoft Defender scan result information"""
-    def __init__(self, scan_completed=False, suspect_detected=False, handler_managing=False):
+    def __init__(self, scan_completed=False, suspect_detected=False, scanner_handles_suspect=False):
         self.scan_completed = scan_completed  # Was the scan completed successfully
         self.suspect_detected = suspect_detected  # Was a threat found?
-        self.handler_managing = handler_managing  # Is defender handling it?
+        self.scanner_handles_suspect = scanner_handles_suspect  # Is scanner handling it?
 
 
-def process_defender_result(result_code, path, defender_handles_suspect=False, logging_options=None):
+def process_defender_result(result_code, path, scanner_handles_suspect=False, logging_options=None):
     """
     Process defender scan result and determine actions
     
     Args:
         result_code: The scan result type from parse_defender_scan_result
         path: Path to the scanned file
-        defender_handles_suspect: Whether Defender is configured to handle suspicious files
+        scanner_handles_suspect: Whether defender is configured to handle suspicious files
         logging_options: Optional logging configuration
         
     Returns:
@@ -70,28 +70,48 @@ def process_defender_result(result_code, path, defender_handles_suspect=False, l
     
     # Threat detection
     if result_code == scan_result_types.FILE_IS_SUSPECT:
-        msg = "letting Defender handle it" if defender_handles_suspect else "handling internally"
+        msg = "letting Defender handle it" if scanner_handles_suspect else "handling internally"
         logger.warning(f"Threats found in {path}, {msg}")
-        return DefenderScanResult(True, True, defender_handles_suspect)
+        return DefenderScanResult(
+            scan_completed=True,
+            suspect_detected=True,
+            scanner_handles_suspect=scanner_handles_suspect
+        )
         
     # File not found
     elif result_code == scan_result_types.FILE_NOT_FOUND:
-        if defender_handles_suspect:
+        if scanner_handles_suspect:
             logger.warning(f"File not found at {path}, assuming Defender quarantined it")
-            return DefenderScanResult(True, True, True)  # treat as suspect + handled
+            return DefenderScanResult(
+                scan_completed=True,
+                suspect_detected=True,
+                scanner_handles_suspect=True
+            )  # treat as suspect + handled
         else:
             logger.warning(f"File not found at {path}")
-            return DefenderScanResult(False, False, False)  # error condition
+            return DefenderScanResult(
+                scan_completed=False,
+                suspect_detected=False,
+                scanner_handles_suspect=False
+            )  # error condition
             
     # Clean case
     elif result_code == scan_result_types.FILE_IS_CLEAN:
         logger.info(f"No threats found in {path}")
-        return DefenderScanResult(True, False, False)
+        return DefenderScanResult(
+            scan_completed=True,
+            suspect_detected=False,
+            scanner_handles_suspect=False
+        )
         
     # Other errors
     else:
         logger.warning(f"Scan failed for {path} with code {result_code}")
-        return DefenderScanResult(False, False, False)
+        return DefenderScanResult(
+            scan_completed=False,
+            suspect_detected=False,
+            scanner_handles_suspect=False
+        )
 
 
 def get_mdatp_version(logging_options=None) -> Optional[str]:
