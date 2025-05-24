@@ -1,0 +1,76 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+    
+        {
+            "name": "Python Debugger: Current File with Arguments",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal",
+            "args": "${command:pickArgs}"
+        },
+        {
+            "name": "Debug test_shuttle_with_simulator",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle_with_simulator.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": []
+        },
+        {
+            "name": "Debug test_shuttle_multithread",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle_multithread.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": [
+                "--threads", "4",
+                "--clean-files", "8",
+                "--malware-files", "4",
+                "--file-size", "100"
+            ]
+        },
+        {
+            "name": "Debug test_shuttle_throttling",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle_throttling.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": [
+                "--threads", "4",
+                "--clean-files", "8",
+                "--malware-files", "4",
+                "--file-size", "100"
+            ]
+        }
+    ]
+}
+

@@ -24,16 +24,76 @@ from .scanning import (
     scan_and_process_directory
 )
 
+
+
+"""
+main() [shuttle.py]
+├── setup_logging [shuttle_common.logging_setup]
+├── parse_shuttle_config [shuttle.shuttle_config]
+│   ├── parse_args [shuttle.shuttle_config]
+│   └── load_config_file [shuttle.shuttle_config]
+│
+├── get_mdatp_version [shuttle_common.scan_utils]
+│   └── is_using_simulator [shuttle_common.scan_utils]
+│
+├── Lock file handling [shuttle.py]
+│
+├── Notifier initialization [shuttle_common.notifier]
+│   └── Notifier.is_configured [shuttle_common.notifier]
+│
+├── scan_and_process_directory [shuttle.scanning]
+│   ├── quarantine_files_for_scanning [shuttle.scanning]
+│   │   ├── is_file_safe_for_processing [shuttle.scanning]
+│   │   ├── normalize_path [shuttle_common.file_utils]
+│   │   ├── handle_throttle_check [shuttle.throttle_utils]
+│   │   │   └── Throttler methods [shuttle.throttler]
+│   │   └── copy_temp_then_rename [shuttle_common.file_utils]
+│   │
+│   ├── process_scan_tasks [shuttle.scanning]
+│   │   ├── setup_logging [shuttle_common.logging_setup]
+│   │   ├── PARALLEL MODE (max_scan_threads > 1)
+│   │   │   ├── ProcessPoolExecutor [concurrent.futures]
+│   │   │   └── process_task [shuttle.scanning]
+│   │   │       ├── check_file_safety [shuttle.scanning]
+│   │   │       ├── scan_file [shuttle.scanning]
+│   │   │       │   ├── scan_with_defender [shuttle_common.scan_utils]
+│   │   │       │   └── scan_with_clam_av [shuttle_common.scan_utils]
+│   │   │       └── handle_scan_result [shuttle.scanning]
+│   │   │           ├── move_clean_file_to_destination [shuttle.post_scan_processing]
+│   │   │           │   └── copy_temp_then_rename [shuttle_common.file_utils]
+│   │   │           └── handle_suspect_file [shuttle.post_scan_processing]
+│   │   │               ├── encrypt_file [shuttle.post_scan_processing]
+│   │   │               └── archive_file [shuttle.post_scan_processing]
+│   │   │
+│   │   └── SINGLE THREAD MODE (max_scan_threads <= 1)
+│   │       ├── check_file_safety [shuttle.scanning]
+│   │       ├── scan_file [shuttle.scanning]
+│   │       │   ├── scan_with_defender [shuttle_common.scan_utils]
+│   │       │   └── scan_with_clam_av [shuttle_common.scan_utils]
+│   │       └── handle_scan_result [shuttle.scanning]
+│   │           ├── move_clean_file_to_destination [shuttle.post_scan_processing]
+│   │           │   └── copy_temp_then_rename [shuttle_common.file_utils]
+│   │           └── handle_suspect_file [shuttle.post_scan_processing]
+│   │               ├── encrypt_file [shuttle.post_scan_processing]
+│   │               └── archive_file [shuttle.post_scan_processing]
+│   │
+│   ├── clean_up_source_files [shuttle.scanning]
+│   │   ├── setup_logging [shuttle_common.logging_setup]
+│   │   └── remove_empty_directories [shuttle_common.file_utils]
+│   │
+│   ├── send_summary_notification [shuttle.scanning]
+│   │   └── setup_logging [shuttle_common.logging_setup]
+│   │
+│   └── remove_directory_contents [shuttle_common.file_utils]
+│
+└── remove_lock_file [shuttle.py]
+"""
+
 def main():
     
     logger = None
     
     config = parse_shuttle_config()
-
-    #
-    # SIMULATOR CHECK : DEV, IN FINAL PRODUCT VERSION, REMOVE THIS CODE AND ONLY USE SIMULATOR AS MOCK IN TEST CODE
-    #
-    
 
     # Lock file handling
     if os.path.exists(config.lock_file):
@@ -62,8 +122,13 @@ def main():
             log_file_path = os.path.join(config.log_path, log_filename)
 
         logging_options = LoggingOptions(filePath=log_file_path, level=logging.INFO)
+
         # Set up logging with the configured log level
         logger = setup_logging('shuttle', logging_options)
+
+        #
+        # SIMULATOR CHECK : is defender simulation patch applied?
+        #
 
         # Check if we're using the simulator (patched DEFENDER_COMMAND)
         using_simulator = is_using_simulator()
@@ -72,6 +137,10 @@ def main():
         if using_simulator:
             logger.warning("⚠️  RUNNING WITH SIMULATOR - NO REAL MALWARE SCANNING WILL BE PERFORMED ⚠️")
 
+        
+        #
+        # NOTIFIER INITIALIZATION
+        #
         notifier = None;
         
         if config.notify:
@@ -125,12 +194,9 @@ def main():
         else:
             config.hazard_encryption_key_file_path = None
 
-
         #
         # ENVIRONMENT CHECK
         #
-
-        
 
         # Validate required paths
         if not (config.source_path and config.destination_path and config.quarantine_path):

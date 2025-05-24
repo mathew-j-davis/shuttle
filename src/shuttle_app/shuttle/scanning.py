@@ -29,6 +29,56 @@ from .post_scan_processing import (
 )
 
 
+"""
+scan_and_process_directory
+├── quarantine_files_for_scanning
+│   ├── is_file_safe_for_processing
+│   ├── normalize_path
+│   ├── handle_throttle_check
+│   │   └── (calls to Throttler methods)
+│   └── copy_temp_then_rename
+│
+├── process_scan_tasks
+│   ├── setup_logging
+│   ├── PARALLEL MODE (max_scan_threads > 1)
+│   │   ├── ProcessPoolExecutor
+│   │   └── process_task (worker function)
+│   │       ├── check_file_safety
+│   │       ├── scan_file
+│   │       │   ├── scan_with_defender
+│   │       │   └── scan_with_clam_av
+│   │       └── handle_scan_result
+│   │           ├── move_clean_file_to_destination
+│   │           │   └── copy_temp_then_rename
+│   │           └── handle_suspect_file
+│   │               ├── encrypt_file
+│   │               └── archive_file
+│   │
+│   ├── SINGLE THREAD MODE (max_scan_threads <= 1)
+│   │   ├── check_file_safety (sequential)
+│   │   ├── scan_file (sequential)
+│   │   │   ├── scan_with_defender
+│   │   │   └── scan_with_clam_av
+│   │   └── handle_scan_result (sequential)
+│   │       ├── move_clean_file_to_destination
+│   │       │   └── copy_temp_then_rename
+│   │       └── handle_suspect_file
+│   │           ├── encrypt_file
+│   │           └── archive_file
+│   │
+│   ├── handle_task_result (collects results)
+│   └── log_scanning_progress
+│
+├── clean_up_source_files
+│   ├── setup_logging
+│   └── remove_empty_directories
+│
+├── send_summary_notification
+│   └── setup_logging
+│
+└── remove_directory_contents
+"""
+
 # Import scan utilities from common module
 from shuttle_common.scan_utils import (
     scan_for_malware_using_defender,
@@ -179,7 +229,6 @@ def call_scan_and_process_file(file_paths, hazard_key_path, hazard_path, delete_
             logging_opts
         )
 
-
 def log_processing_progress(logger, processed_count, total_files):
     """
     Log file processing progress at regular intervals
@@ -191,7 +240,6 @@ def log_processing_progress(logger, processed_count, total_files):
     """
     if processed_count % 5 == 0 or processed_count == total_files:
         logger.info(f"Processed {processed_count}/{total_files} files ({processed_count/total_files:.0%})")
-
 
 def log_final_status(logger, mode, processed_count, failed_count):
     """
@@ -207,7 +255,6 @@ def log_final_status(logger, mode, processed_count, failed_count):
     logger.info(f"{mode} processing completed: {processed_count} files processed, "
                 f"{failed_count} failures, {success_count} successes")
                 
-
 def process_task_result(task_result, file_path, results, processed_count, failed_count, total_files, logger):
     """
     Process a task result, handle errors, and update counters
@@ -239,7 +286,6 @@ def process_task_result(task_result, file_path, results, processed_count, failed
     log_processing_progress(logger, processed_count, total_files)
     
     return processed_count, failed_count
-
 
 def quarantine_files_for_scanning(source_path, quarantine_path, destination_path, hazard_archive_path, throttle, throttle_free_space, notifier, skip_stability_check=False, logging_options=None):
     """
@@ -335,7 +381,6 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
     except Exception as e:
         logger.error(f"Error during file quarantine process: {e}")
         return [], True
-
 
 def send_summary_notification(notifier, source_path, destination_path, successful_files, failed_files, suspect_files, disk_error_stopped_processing, notify_summary, logging_options=None):
     """
