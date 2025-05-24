@@ -79,14 +79,14 @@ class TestShuttleWithSimulator(unittest.TestCase):
         cmd = [
             sys.executable,  # Use the current Python interpreter
             self.simulator_runner,
-            '-SourcePath', self.source_dir,
-            '-DestinationPath', self.destination_dir,
-            '-QuarantinePath', self.quarantine_dir,
-            '-HazardArchivePath', self.hazard_dir,
-            '-OnDemandDefender',  # Boolean flag, presence means True
-            # Note: Omitting -OnDemandClamAV flag to keep it False
-            '-LogPath', self.temp_dir,
-            '-LockFile', self.lock_file
+            '--source-path', self.source_dir,
+            '--destination-path', self.destination_dir,
+            '--quarantine-path', self.quarantine_dir,
+            '--hazard-archive-path', self.hazard_dir,
+            '--on-demand-defender',  # Boolean flag, presence means True
+            # Note: Omitting --on-demand-clam-av flag to keep it False
+            '--log-path', self.temp_dir,
+            '--lock-file', self.lock_file
         ]
         
         # Run the command and stream output in real-time

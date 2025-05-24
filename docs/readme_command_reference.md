@@ -4,20 +4,21 @@ This document provides detailed information about command-line arguments and con
 
 ## Command-Line Arguments
 
-- `-SourcePath`: Path to the source directory containing files to transfer
-- `-DestinationPath`: Path to the destination directory where clean files will be moved
-- `-QuarantinePath`: Path to the quarantine directory used for scanning
-- `-LogPath`: Path to store log files (optional)
-- `-HazardArchivePath`: Path to store encrypted infected files (optional)
-- `-HazardEncryptionKeyPath`: Path to the GPG public key file for encrypting hazard files (required if HazardArchivePath is set)
-- `-DeleteSourceFiles`: Delete source files after successful transfer (default: False)
-- `-MaxScanThreads`: Maximum number of parallel scans (default: 1)
-- `-LogLevel`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default is INFO
-- `-LockFile`: Path to the lock file (default: /tmp/shuttle.lock)
-- `-DefenderHandlesSuspectFiles`: Let Defender handle infected files (default: False)
-- `-OnDemandDefender`: Use Microsoft Defender for scanning (default: False)
-- `-OnDemandClamAV`: Use ClamAV for scanning (default: True)
-- `-SettingsPath`: Path to the settings file (default: ~/.shuttle/settings.ini)
+- `--source-path`: Path to the source directory containing files to transfer
+- `--destination-path`: Path to the destination directory where clean files will be moved
+- `--quarantine-path`: Path to the quarantine directory used for scanning
+- `--log-path`: Path to store log files (optional)
+- `--hazard-archive-path`: Path to store encrypted infected files (optional)
+- `--hazard-encryption-key-path`: Path to the GPG public key file for encrypting hazard files (required if hazard-archive-path is set)
+- `--delete-source-files-after-copying`: Delete source files after successful transfer (default: False)
+- `--max-scan-threads`: Maximum number of parallel scans (default: 1)
+- `--log-level`: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL). Default is INFO
+- `--lock-file`: Path to the lock file (default: /tmp/shuttle.lock)
+- `--defender-handles-suspect-files`: Let Defender handle infected files (default: False)
+- `--on-demand-defender`: Use Microsoft Defender for scanning (default: False)
+- `--on-demand-clam-av`: Use ClamAV for scanning (default: True)
+- `--settings-path`: Path to the settings file (default: ~/.shuttle/settings.ini)
+- `--skip-stability-check`: Skip file stability check (testing only, default: False)
 
 **Note:** The application gives priority to command-line arguments over settings file values.
 
@@ -85,6 +86,7 @@ notify_use_tls=True
 - `on_demand_clam_av` - Use ClamAV for scanning
 - `throttle` - Enable disk space checking
 - `throttle_free_space` - Minimum MB to maintain
+- `skip_stability_check` - Skip file stability check, which test file has not changed for five seconds before processing (testing only, default: False)
 
 ### [logging]
 - `log_level` - Logging detail level (DEBUG, INFO, WARNING, ERROR)

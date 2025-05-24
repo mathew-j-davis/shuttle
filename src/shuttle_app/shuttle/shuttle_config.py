@@ -65,40 +65,40 @@ def parse_shuttle_config() -> ShuttleConfig:
     add_common_arguments(parser)
     
     # Add Shuttle-specific arguments
-    parser.add_argument('-SourcePath', help='Path to the source directory')
-    parser.add_argument('-DestinationPath', help='Path to the destination directory')
-    parser.add_argument('-QuarantinePath', help='Path to the quarantine directory')
+    parser.add_argument('--source-path', help='Path to the source directory')
+    parser.add_argument('--destination-path', help='Path to the destination directory')
+    parser.add_argument('--quarantine-path', help='Path to the quarantine directory')
 
-    parser.add_argument('-TestSourceWriteAccess', action='store_true', help='Test write access to the source directory')
-    parser.add_argument('-DeleteSourceFilesAfterCopying', 
+    parser.add_argument('--test-source-write-access', action='store_true', help='Test write access to the source directory')
+    parser.add_argument('--delete-source-files-after-copying', 
                         action='store_true',
                         help='Delete the source files after copying them to the destination')
-    parser.add_argument('-MaxScanThreads', type=int, help='Maximum number of parallel scans')
-    parser.add_argument('-LockFile', help='Optional: Path to lock file to prevent multiple instances')
-    parser.add_argument('-HazardArchivePath', help='Path to the hazard archive directory')
-    parser.add_argument('-HazardEncryptionKeyPath', help='Path to the GPG public key file for encrypting hazard files')
-    parser.add_argument('-OnDemandDefender',
+    parser.add_argument('--max-scan-threads', type=int, help='Maximum number of parallel scans')
+    parser.add_argument('--lock-file', help='Optional: Path to lock file to prevent multiple instances')
+    parser.add_argument('--hazard-archive-path', help='Path to the hazard archive directory')
+    parser.add_argument('--hazard-encryption-key-path', help='Path to the GPG public key file for encrypting hazard files')
+    parser.add_argument('--on-demand-defender',
                         action='store_true',
                         help='Use on-demand scanning for Microsoft Defender',
                         default=None)
 
-    parser.add_argument('-OnDemandClamAV', 
+    parser.add_argument('--on-demand-clam-av', 
                         action='store_true',
                         help='Use on-demand scanning for ClamAV',
                         default=None)
     
     # Shuttle-specific throttle arguments
-    parser.add_argument('-Throttle',
+    parser.add_argument('--throttle',
                         action='store_true',
                         help='Enable throttling of file processing',
                         default=None)
-    parser.add_argument('-ThrottleFreeSpace',
+    parser.add_argument('--throttle-free-space',
                         help='Minimum free space (in MB) required on destination drive',
                         type=int,
                         default=None)
                         
     # Testing parameters
-    parser.add_argument('-SkipStabilityCheck',
+    parser.add_argument('--skip-stability-check',
                         action='store_true',
                         help='Skip file stability check (only for testing)',
                         default=False)
@@ -127,31 +127,31 @@ def parse_shuttle_config() -> ShuttleConfig:
     # No need to reopen the file
     
     # Get path settings
-    config.source_path = get_setting_from_arg_or_file(args, 'SourcePath', 'paths', 'source_path', None, None, settings_file_config)
-    config.destination_path = get_setting_from_arg_or_file(args, 'DestinationPath', 'paths', 'destination_path', None, None, settings_file_config)
-    config.quarantine_path = get_setting_from_arg_or_file(args, 'QuarantinePath', 'paths', 'quarantine_path', None, None, settings_file_config)
-    config.lock_file = get_setting_from_arg_or_file(args, 'LockFile', 'paths', 'lock_path', '/tmp/shuttle.lock', None, settings_file_config)
-    config.hazard_archive_path = get_setting_from_arg_or_file(args, 'HazardArchivePath', 'paths', 'hazard_archive_path', None, None, settings_file_config)
-    config.hazard_encryption_key_file_path = get_setting_from_arg_or_file(args, 'HazardEncryptionKeyPath', 'paths', 'hazard_encryption_key_path', None, None, settings_file_config)
+    config.source_path = get_setting_from_arg_or_file(args, 'source_path', 'paths', 'source_path', None, None, settings_file_config)
+    config.destination_path = get_setting_from_arg_or_file(args, 'destination_path', 'paths', 'destination_path', None, None, settings_file_config)
+    config.quarantine_path = get_setting_from_arg_or_file(args, 'quarantine_path', 'paths', 'quarantine_path', None, None, settings_file_config)
+    config.lock_file = get_setting_from_arg_or_file(args, 'lock_file', 'paths', 'lock_path', '/tmp/shuttle.lock', None, settings_file_config)
+    config.hazard_archive_path = get_setting_from_arg_or_file(args, 'hazard_archive_path', 'paths', 'hazard_archive_path', None, None, settings_file_config)
+    config.hazard_encryption_key_file_path = get_setting_from_arg_or_file(args, 'hazard_encryption_key_path', 'paths', 'hazard_encryption_key_path', None, None, settings_file_config)
 
     # Get processing settings
-    config.delete_source_files = get_setting_from_arg_or_file(args, 'DeleteSourceFilesAfterCopying', 'settings', 'delete_source_files_after_copying', False, bool, settings_file_config)
-    config.max_scan_threads = get_setting_from_arg_or_file(args, 'MaxScanThreads', 'settings', 'max_scan_threads', 1, int, settings_file_config)
+    config.delete_source_files = get_setting_from_arg_or_file(args, 'delete_source_files_after_copying', 'settings', 'delete_source_files_after_copying', False, bool, settings_file_config)
+    config.max_scan_threads = get_setting_from_arg_or_file(args, 'max_scan_threads', 'settings', 'max_scan_threads', 1, int, settings_file_config)
     
     # Get scanning settings
-    config.on_demand_defender = get_setting_from_arg_or_file(args, 'OnDemandDefender', 'settings', 'on_demand_defender', False, bool, settings_file_config)
-    config.on_demand_clam_av = get_setting_from_arg_or_file(args, 'OnDemandClamAV', 'settings', 'on_demand_clam_av', False, bool, settings_file_config)
+    config.on_demand_defender = get_setting_from_arg_or_file(args, 'on_demand_defender', 'settings', 'on_demand_defender', False, bool, settings_file_config)
+    config.on_demand_clam_av = get_setting_from_arg_or_file(args, 'on_demand_clam_av', 'settings', 'on_demand_clam_av', False, bool, settings_file_config)
         
     # Parse throttle settings
-    config.throttle = get_setting_from_arg_or_file(args, 'Throttle', 'settings', 'throttle', False, bool, settings_file_config)
-    config.throttle_free_space = get_setting_from_arg_or_file(args, 'ThrottleFreeSpace', 'settings', 'throttle_free_space', 10000, int, settings_file_config)
+    config.throttle = get_setting_from_arg_or_file(args, 'throttle', 'settings', 'throttle', False, bool, settings_file_config)
+    config.throttle_free_space = get_setting_from_arg_or_file(args, 'throttle_free_space', 'settings', 'throttle_free_space', 10000, int, settings_file_config)
     
     # Throttle settings specific to Shuttle (commented out for now)
     # config.throttle_max_file_volume_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileVolumePerDay', 'settings', 'throttle_max_file_volume_per_day', 1000000, int, settings_file_config)
     # config.throttle_max_file_count_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileCountPerDay', 'settings', 'throttle_max_file_count_per_day', 1000, int, settings_file_config)
     
     # Parse testing settings
-    config.skip_stability_check = get_setting_from_arg_or_file(args, 'SkipStabilityCheck', 'settings', 'skip_stability_check', False, bool, settings_file_config)
+    config.skip_stability_check = get_setting_from_arg_or_file(args, 'skip_stability_check', 'settings', 'skip_stability_check', False, bool, settings_file_config)
     
 
     

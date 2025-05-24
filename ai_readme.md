@@ -6,15 +6,15 @@ This document outlines a structured approach for AI assistants to understand and
 
 1. **Start with Key Documentation**
    - Read `readme.md` for the system overview and flow diagram
-   - Review `readme_architecture.md` to understand component interactions
-   - Examine `readme_modules.md` for detailed module descriptions
+   - Review `docs/readme_architecture.md` to understand component interactions
+   - Examine `docs/readme_modules.md` for detailed module descriptions
 
 2. **Understand Configuration**
-   - Check `readme_configuration.md` for settings and file formats
+   - Check `docs/readme_configuration.md` for settings and file formats
    - Note the configuration precedence: CLI args > config file > defaults
 
 3. **Development Environment**
-   - Review `readme_development.md` for project structure and environment setup
+   - Review `docs/readme_development.md` for project structure and environment setup
    - Note virtual environment requirements and package installation
 
 ## Code Exploration Strategy

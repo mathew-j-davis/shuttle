@@ -155,55 +155,55 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
         parser: ArgumentParser instance to add arguments to
     """
     # Add logging arguments
-    parser.add_argument('-LogPath', help='Path to the log directory')
-    parser.add_argument('-LogLevel', default=None, 
+    parser.add_argument('--log-path', help='Path to the log directory')
+    parser.add_argument('--log-level', default=None, 
                         help='Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)')
     
 
-    parser.add_argument('-SettingsPath', 
+    parser.add_argument('--settings-path', 
                         help='Path to the settings file (if not specified, standard locations will be searched)')
     
     # Add notification arguments
-    parser.add_argument('-Notify', 
+    parser.add_argument('--notify', 
                       help='Enable email notifications for important events',
                       type=bool,
                       default=None)
-    parser.add_argument('-NotifySummary', 
+    parser.add_argument('--notify-summary', 
                       help='Enable email notifications on completion of all transfers',
                       type=bool,
                       default=None)
-    parser.add_argument('-NotifyRecipientEmail', 
+    parser.add_argument('--notify-recipient-email', 
                       help='Email address of the recipient for notifications',
                       default=None)
-    parser.add_argument('-NotifySenderEmail', 
+    parser.add_argument('--notify-sender-email', 
                       help='Email address of the sender for notifications',
                       default=None)
-    parser.add_argument('-NotifySmtpServer', 
+    parser.add_argument('--notify-smtp-server', 
                       help='SMTP server address for sending notifications',
                       default=None)
-    parser.add_argument('-NotifySmtpPort', 
+    parser.add_argument('--notify-smtp-port', 
                       help='SMTP server port for sending notifications',
                       type=int,
                       default=None)
-    parser.add_argument('-NotifyUsername', 
+    parser.add_argument('--notify-username', 
                       help='SMTP username for authentication',
                       default=None)
-    parser.add_argument('-NotifyPassword', 
+    parser.add_argument('--notify-password', 
                       help='SMTP password for authentication',
                       default=None)
-    parser.add_argument('-NotifyUseTLS', 
+    parser.add_argument('--notify-use-tls', 
                       help='Use TLS encryption for SMTP',
                       type=bool,
                       default=None)
     
     # Add scanning arguments
-    parser.add_argument('-DefenderHandlesSuspectFiles', 
+    parser.add_argument('--defender-handles-suspect-files', 
                       action='store_true',
                       default=None,
                       help='Let Microsoft Defender handle suspect files (default: True)')
     
     # Add ledger arguments
-    parser.add_argument('-LedgerPath',
+    parser.add_argument('--ledger-path',
                       help='Path to the ledger file for tracking tested versions',
                       default=None)
 
@@ -260,8 +260,8 @@ def parse_common_config(args=None):
     # 1. Command line argument (if provided)
     # 2. Search in standard locations
     config_file_path = None
-    if args and hasattr(args, 'SettingsPath') and args.SettingsPath:
-        config_file_path = args.SettingsPath
+    if args and hasattr(args, 'settings_path') and args.settings_path:
+        config_file_path = args.settings_path
     else:
         config_file_path = find_config_file()
     
@@ -275,32 +275,32 @@ def parse_common_config(args=None):
     # to get settings based on priority
     
     # Parse logging settings
-    config.log_path = get_setting_from_arg_or_file(args, 'LogPath', 'logging', 'log_path', None, None, settings_file_config)
+    config.log_path = get_setting_from_arg_or_file(args, 'log_path', 'logging', 'log_path', None, None, settings_file_config)
     
     # Get log level as a string and convert to logging constant
-    log_level_str = get_setting_from_arg_or_file(args, 'LogLevel', 'logging', 'log_level', 'INFO', None, settings_file_config)
+    log_level_str = get_setting_from_arg_or_file(args, 'log_level', 'logging', 'log_level', 'INFO', None, settings_file_config)
     if log_level_str:
         log_level_str = log_level_str.upper()
         config.log_level = getattr(logging, log_level_str, logging.INFO)
     
     # Parse notification settings
-    config.notify = get_setting_from_arg_or_file(args, 'Notify', 'notifications', 'notify', False, bool, settings_file_config)
-    config.notify_summary = get_setting_from_arg_or_file(args, 'NotifySummary', 'notifications', 'notify_summary', False, bool, settings_file_config)
+    config.notify = get_setting_from_arg_or_file(args, 'notify', 'notifications', 'notify', False, bool, settings_file_config)
+    config.notify_summary = get_setting_from_arg_or_file(args, 'notify_summary', 'notifications', 'notify_summary', False, bool, settings_file_config)
     
-    config.notify_recipient_email = get_setting_from_arg_or_file(args, 'NotifyRecipientEmail', 'notifications', 'recipient_email', None, None, settings_file_config)
-    config.notify_sender_email = get_setting_from_arg_or_file(args, 'NotifySenderEmail', 'notifications', 'sender_email', None, None, settings_file_config)
-    config.notify_smtp_server = get_setting_from_arg_or_file(args, 'NotifySmtpServer', 'notifications', 'smtp_server', None, None, settings_file_config)
-    config.notify_smtp_port = get_setting_from_arg_or_file(args, 'NotifySmtpPort', 'notifications', 'smtp_port', None, int, settings_file_config)
+    config.notify_recipient_email = get_setting_from_arg_or_file(args, 'notify_recipient_email', 'notifications', 'recipient_email', None, None, settings_file_config)
+    config.notify_sender_email = get_setting_from_arg_or_file(args, 'notify_sender_email', 'notifications', 'sender_email', None, None, settings_file_config)
+    config.notify_smtp_server = get_setting_from_arg_or_file(args, 'notify_smtp_server', 'notifications', 'smtp_server', None, None, settings_file_config)
+    config.notify_smtp_port = get_setting_from_arg_or_file(args, 'notify_smtp_port', 'notifications', 'smtp_port', None, int, settings_file_config)
     
-    config.notify_username = get_setting_from_arg_or_file(args, 'NotifyUsername', 'notifications', 'username', None, None, settings_file_config)
-    config.notify_password = get_setting_from_arg_or_file(args, 'NotifyPassword', 'notifications', 'password', None, None, settings_file_config)
-    config.notify_use_tls = get_setting_from_arg_or_file(args, 'NotifyUseTLS', 'notifications', 'use_tls', True, bool, settings_file_config)
+    config.notify_username = get_setting_from_arg_or_file(args, 'notify_username', 'notifications', 'username', None, None, settings_file_config)
+    config.notify_password = get_setting_from_arg_or_file(args, 'notify_password', 'notifications', 'password', None, None, settings_file_config)
+    config.notify_use_tls = get_setting_from_arg_or_file(args, 'notify_use_tls', 'notifications', 'use_tls', True, bool, settings_file_config)
     
     # Parse ledger settings
-    config.ledger_path = get_setting_from_arg_or_file(args, 'LedgerPath', 'paths', 'ledger_path', None, None, settings_file_config)
+    config.ledger_path = get_setting_from_arg_or_file(args, 'ledger_path', 'paths', 'ledger_path', None, None, settings_file_config)
     
     # Parse scanning settings
-    config.defender_handles_suspect_files = get_setting_from_arg_or_file(args, 'DefenderHandlesSuspectFiles', 'scanning', 'defender_handles_suspect_files', True, bool, settings_file_config)
+    config.defender_handles_suspect_files = get_setting_from_arg_or_file(args, 'defender_handles_suspect_files', 'scanning', 'defender_handles_suspect_files', True, bool, settings_file_config)
     
     # Return both the config object and the ConfigParser to avoid reopening the file
     return config, settings_file_config

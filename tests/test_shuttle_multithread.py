@@ -120,15 +120,15 @@ class TestShuttleMultithreading(unittest.TestCase):
         cmd = [
             sys.executable,  # Use the current Python interpreter
             self.simulator_runner,
-            '-SourcePath', self.source_dir,
-            '-DestinationPath', self.destination_dir,
-            '-QuarantinePath', self.quarantine_dir,
-            '-HazardArchivePath', self.hazard_dir,
-            '-OnDemandDefender',  # Boolean flag, presence means True
-            '-SkipStabilityCheck',  # Boolean flag, presence means True
-            '-MaxScanThreads', str(self.thread_count),  # Thread count from command line
-            '-LogPath', self.temp_dir,
-            '-LockFile', self.lock_file
+            '--source-path', self.source_dir,
+            '--destination-path', self.destination_dir,
+            '--quarantine-path', self.quarantine_dir,
+            '--hazard-archive-path', self.hazard_dir,
+            '--on-demand-defender',  # Boolean flag, presence means True
+            '--skip-stability-check',  # Boolean flag, presence means True
+            '--max-scan-threads', str(self.thread_count),  # Thread count from command line
+            '--log-path', self.temp_dir,
+            '--lock-file', self.lock_file
         ]
         
         # Record start time

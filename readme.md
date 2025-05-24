@@ -133,8 +133,11 @@ You don't need to provide parameters if they're configured in the settings file.
 
 ## Documentation Index
 
-- [Architecture](Architecture.md) - System design and component interactions
-- [Modules](Modules.md) - Detailed description of key modules
-- [Configuration](Configuration.md) - Configuration options and settings
-- [Development](Development.md) - Guide for developers
-- [Command Reference](Command_Reference.md) - Command-line arguments and settings
+- [Architecture](docs/readme_architecture.md) - System design and component interactions
+- [Modules](docs/readme_modules.md) - Detailed description of key modules
+- [Configuration](docs/readme_configuration.md) - Configuration options and settings
+- [Development](docs/readme_development.md) - Guide for developers
+- [Command Reference](docs/readme_command_reference.md) - Command-line arguments and settings
+- [Deployment Notes](docs/readme_deployment_notes.md) - Instructions for deployment
+- [Cron Notes](docs/readme_cron_notes.md) - Setting up scheduled tasks
+- [VSCode Debugging](docs/readme_vscode_remote_python_debugging.md) - Remote debugging guide

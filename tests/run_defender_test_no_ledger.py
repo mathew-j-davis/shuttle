@@ -13,10 +13,10 @@ logic in the scanning module remains compatible.
 python tests/run_defender_test_no_ledger.py
 
 # With additional parameters - ledger will still be disabled
-python tests/run_defender_test_no_ledger.py -Notify true -LogPath "/path/to/logs"
+python tests/run_defender_test_no_ledger.py --notify true --log-path "/path/to/logs"
 
 # Even if you specify a ledger file, it will be ignored
-python tests/run_defender_test_no_ledger.py -LedgerPath "/some/path" -Notify true
+python tests/run_defender_test_no_ledger.py --ledger-path "/some/path" --notify true
 
 """
 
@@ -34,15 +34,15 @@ if __name__ == '__main__':
     # This will prevent any ledger updates during the test
     if len(sys.argv) == 1:
         # No arguments supplied, add just the empty ledger
-        sys.argv.extend(['-LedgerPath', ''])
+        sys.argv.extend(['--ledger-path', ''])
     else:
         # Check if ledger file is already specified
-        if '-LedgerPath' not in sys.argv:
+        if '--ledger-path' not in sys.argv:
             # Add empty ledger file parameter
-            sys.argv.extend(['-LedgerPath', ''])
+            sys.argv.extend(['--ledger-path', ''])
         else:
-            # Find the position of -LedgerPath and set its value to empty
-            ledger_index = sys.argv.index('-LedgerPath')
+            # Find the position of --ledger-path and set its value to empty
+            ledger_index = sys.argv.index('--ledger-path')
             if ledger_index + 1 < len(sys.argv):
                 sys.argv[ledger_index + 1] = ''
     
