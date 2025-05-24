@@ -59,12 +59,27 @@ class TestShuttleThrottling(unittest.TestCase):
     
     def tearDown(self):
         """Clean up temporary directories after the test"""
-        # Remove lock file if it exists
-        if os.path.exists(self.lock_file):
-            os.remove(self.lock_file)
+        # Give the system a moment to release any file handles
+        time.sleep(0.5)
         
-        # Remove temp directory
-        shutil.rmtree(self.temp_dir)
+        # Remove lock file if it exists
+        try:
+            if os.path.exists(self.lock_file):
+                os.remove(self.lock_file)
+        except Exception as e:
+            print(f"Warning: Failed to remove lock file: {e}")
+        
+        # Remove temp directory with retries
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                if os.path.exists(self.temp_dir):
+                    shutil.rmtree(self.temp_dir)
+                break  # Success, exit the retry loop
+            except Exception as e:
+                print(f"Warning: Failed to remove temp directory (attempt {attempt+1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:  # Don't sleep on the last attempt
+                    time.sleep(1)  # Wait a bit before retrying
     
     def create_test_files(self, clean_count=5, malware_count=2, file_size_mb=10):
         """
@@ -191,18 +206,38 @@ class TestShuttleThrottling(unittest.TestCase):
             bufsize=1  # Line buffered
         )
         
-        # Collect output while streaming it to console
-        output_lines = []
-        print("\n--- Shuttle Output Begin ---")
-        for line in iter(process.stdout.readline, ''):
-            if not line:
-                break
-            output_lines.append(line.strip())
-            print(line.strip())  # Print the line in real-time
-        print("--- Shuttle Output End ---\n")
-        
-        # Wait for process to complete
-        process.wait()
+        try:
+            # Collect output while streaming it to console
+            output_lines = []
+            print("\n--- Shuttle Output Begin ---")
+            for line in iter(process.stdout.readline, ''):
+                if not line:
+                    break
+                output_lines.append(line.strip())
+                print(line.strip())  # Print the line in real-time
+            print("--- Shuttle Output End ---\n")
+            
+            # Wait for process to complete
+            process.wait()
+        except Exception as e:
+            print(f"Error during process execution: {e}")
+            # Make sure we terminate the process if an exception occurs
+            try:
+                process.terminate()
+                process.wait(timeout=5)  # Give it 5 seconds to terminate gracefully
+            except Exception:
+                # If it doesn't terminate, try to kill it
+                try:
+                    process.kill()
+                    process.wait(timeout=1)
+                except Exception as kill_error:
+                    print(f"Failed to kill process: {kill_error}")
+        finally:
+            # Ensure stdout is closed properly to prevent resource leaks
+            try:
+                process.stdout.close()
+            except Exception as close_error:
+                print(f"Error closing process stdout: {close_error}")
         
         # Record end time and calculate duration
         end_time = time.time()

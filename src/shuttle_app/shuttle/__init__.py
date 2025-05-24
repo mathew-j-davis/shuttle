@@ -49,6 +49,9 @@ from shuttle_common.files import (
 # Import throttler for disk space management
 from .throttler import Throttler
 
+# Import throttle utilities
+from .throttle_utils import handle_throttle_check
+
 # Import main Shuttle application
 from .shuttle import main as shuttle_main
 
