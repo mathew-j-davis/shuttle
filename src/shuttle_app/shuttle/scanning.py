@@ -3,7 +3,7 @@ import logging
 from datetime import datetime
 from shuttle_common.logging_setup import setup_logging
 
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from shuttle_common.files import (
     is_filename_safe,
     is_pathname_safe,
@@ -190,6 +190,7 @@ def scan_and_process_directory(
     
     notifier=None,
     notify_summary=False,
+    skip_stability_check=False,
 
     logging_options=None
     
@@ -258,10 +259,12 @@ def scan_and_process_directory(
                     continue
                 
 
-                # Skip files that are not stable (still being written to)
-                if not is_file_stable(source_file_path, logging_options=logging_options):
+                # Skip files that are not stable (still being written to), unless stability check is disabled
+                if not skip_stability_check and not is_file_stable(source_file_path, logging_options=logging_options):
                     logger.debug(f"Skipping file {source_file_path} because it may still be written to.")
                     continue  # Skip this file and proceed to the next one
+                elif skip_stability_check:
+                    logger.debug(f"Stability check bypassed for {source_file_path} (test mode).")
 
                 # Skip files that are currently open
                 if is_file_open(source_file_path, logging_options=logging_options):
@@ -357,31 +360,62 @@ def scan_and_process_directory(
 
         results = list()
         if max_scan_threads > 1:
-        # Process files in parallel using a ProcessPoolExecutor with graceful shutdown
+            # Process files in parallel using a ProcessPoolExecutor with improved control
+            logger.info(f"Starting parallel processing with {max_scan_threads} workers")
+            
+            # Create all task parameter sets up front
+            scan_tasks = []
+            for file_path in quarantine_files:
+                scan_tasks.append((file_path, 
+                                 hazard_encryption_key_file_path,
+                                 hazard_archive_path,
+                                 delete_source_files,
+                                 on_demand_defender,
+                                 on_demand_clam_av,
+                                 defender_handles_suspect_files,
+                                 logging_options))
+            
+            total_files = len(scan_tasks)
+            processed_count = 0
+            failed_count = 0
+            
             with ProcessPoolExecutor(max_workers=max_scan_threads) as executor:
                 try:
-                    #results = list(executor.map(scan_and_process_file, quarantine_files))
-
-                    # Using a properly picklable function instead of a lambda
-                    logger.info(f"Starting parallel processing with {max_scan_threads} workers")
-                    results = list(
-                        executor.map(
-                            parallel_scan_wrapper,
-                            quarantine_files,
-                            [hazard_encryption_key_file_path] * len(quarantine_files),
-                            [hazard_archive_path] * len(quarantine_files),
-                            [delete_source_files] * len(quarantine_files),
-                            [on_demand_defender] * len(quarantine_files),
-                            [on_demand_clam_av] * len(quarantine_files),
-                            [defender_handles_suspect_files] * len(quarantine_files),
-                            [logging_options] * len(quarantine_files)
-                        )
-                    )
-                    logger.info("Parallel processing completed")
-
+                    # Submit all tasks and track them with their source file
+                    futures_to_files = {}
+                    for task in scan_tasks:
+                        future = executor.submit(parallel_scan_wrapper, *task)
+                        futures_to_files[future] = task[0]  # Map future to its source file
+                    
+                    # Process results as they complete (not in submission order)
+                    for future in as_completed(futures_to_files):
+                        file_path = futures_to_files[future]
+                        processed_count += 1
+                        
+                        try:
+                            # Get the result (or raises exception if the task failed)
+                            result = future.result()
+                            results.append(result)
+                            
+                            # Log progress periodically
+                            if processed_count % 5 == 0 or processed_count == total_files:
+                                logger.info(f"Processed {processed_count}/{total_files} files ({processed_count/total_files:.0%})")
+                                
+                        except Exception as task_error:
+                            # Handle errors for individual tasks without failing everything
+                            failed_count += 1
+                            logger.error(f"Error processing {file_path}: {task_error}")
+                            # Append None for failed tasks to maintain count
+                            results.append(None)
+                    
+                    # Final status report
+                    logger.info(f"Parallel processing completed: {processed_count} files processed, "
+                               f"{failed_count} failures, {processed_count-failed_count} successes")
+                            
                 except Exception as e:
+                    # This only happens for errors outside the task processing loop
                     if logger:
-                        logger.error(f"An error occurred during parallel processing: {e}")
+                        logger.error(f"An error occurred in the parallel execution framework: {e}")
                     executor.shutdown(wait=False, cancel_futures=True)
                     raise
         else:

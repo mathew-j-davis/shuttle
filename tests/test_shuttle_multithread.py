@@ -125,6 +125,7 @@ class TestShuttleMultithreading(unittest.TestCase):
             '-QuarantinePath', self.quarantine_dir,
             '-HazardArchivePath', self.hazard_dir,
             '-OnDemandDefender',  # Boolean flag, presence means True
+            '-SkipStabilityCheck',  # Boolean flag, presence means True
             '-MaxScanThreads', str(self.thread_count),  # Thread count from command line
             '-LogPath', self.temp_dir,
             '-LockFile', self.lock_file

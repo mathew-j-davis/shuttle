@@ -43,6 +43,9 @@ class ShuttleConfig(CommonConfig):
     throttle: bool = None
     throttle_free_space: int = None  # Minimum MB of free space required
     
+    # Testing settings
+    skip_stability_check: bool = False  # Skip file stability check (for testing)
+    
     # Shuttle-specific throttle settings (commented out for now)
     # throttle_max_file_volume_per_day: int = 1000000
     # throttle_max_file_count_per_day: int = 1000
@@ -93,6 +96,12 @@ def parse_shuttle_config() -> ShuttleConfig:
                         help='Minimum free space (in MB) required on destination drive',
                         type=int,
                         default=None)
+                        
+    # Testing parameters
+    parser.add_argument('-SkipStabilityCheck',
+                        action='store_true',
+                        help='Skip file stability check (only for testing)',
+                        default=False)
     
     # Commented out for now
     # parser.add_argument('-ThrottleMaxFileVolumePerDay',
@@ -140,6 +149,11 @@ def parse_shuttle_config() -> ShuttleConfig:
     # Throttle settings specific to Shuttle (commented out for now)
     # config.throttle_max_file_volume_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileVolumePerDay', 'settings', 'throttle_max_file_volume_per_day', 1000000, int, settings_file_config)
     # config.throttle_max_file_count_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileCountPerDay', 'settings', 'throttle_max_file_count_per_day', 1000, int, settings_file_config)
+    
+    # Parse testing settings
+    config.skip_stability_check = get_setting_from_arg_or_file(args, 'SkipStabilityCheck', 'settings', 'skip_stability_check', False, bool, settings_file_config)
+    
+
     
     # Validate required settings
     if not config.source_path:

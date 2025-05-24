@@ -191,6 +191,7 @@ def main():
             throttle_free_space=config.throttle_free_space,
             notifier=notifier,
             notify_summary=config.notify_summary,
+            skip_stability_check=config.skip_stability_check,
             logging_options=logging_options
         )
 

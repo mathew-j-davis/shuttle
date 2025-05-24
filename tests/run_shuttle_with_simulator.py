@@ -43,6 +43,9 @@ def run_shuttle_with_simulator():
     # Add ledger path to arguments if not already specified
     if '-LedgerPath' not in sys.argv and '-LedgerPath' not in sys.argv:
         sys.argv.extend(['-LedgerPath', simulator_ledger])
+        
+    # Add skip-stability-check flag for tests
+    sys.argv.append('--skip-stability-check')
     
     # Patch the DEFAULT_DEFENDER_COMMAND to use the simulator script
     with patch('shuttle_common.scan_utils.DEFENDER_COMMAND', simulator_script):
