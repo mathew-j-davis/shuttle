@@ -4,7 +4,7 @@
 
 Shuttle looks for configuration files in several locations, following standard Linux conventions:
 
-1. Command-line specified path (`--SettingsPath`)
+1. Command-line specified path (`--settings-path`)
 2. Environment variable: `SHUTTLE_CONFIG_PATH`
 3. User-specific locations:
    - `~/.config/shuttle/config.conf`
@@ -82,18 +82,19 @@ Extended configuration for the main application:
 The same settings can be provided via command line arguments:
 
 ```
---SourcePath /path/to/source
---DestinationPath /path/to/destination
---QuarantinePath /path/to/quarantine
---HazardArchivePath /path/to/hazard
---DeleteSourceFilesAfterCopying
---MaxScanThreads 4
---OnDemandDefender
---OnDemandClamAV
---Throttle
---ThrottleFreeSpace 10000
---LogPath /var/log/shuttle
---LogLevel INFO
+--source-path /path/to/source
+--destination-path /path/to/destination
+--quarantine-path /path/to/quarantine
+--hazard-archive-path /path/to/hazard
+--delete-source-files-after-copying
+--max-scan-threads 4
+--on-demand-defender
+--on-demand-clam-av
+--throttle
+--throttle-free-space 10000
+--log-path /var/log/shuttle
+--log-level INFO
+--skip-stability-check
 ```
 
 ## Setting Precedence
