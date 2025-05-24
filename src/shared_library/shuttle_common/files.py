@@ -475,3 +475,98 @@ def encrypt_file(file_path, output_path, key_file_path, logging_options=None):
         if logger:
             logger.error(f"Error during encryption: {e}")
         return False
+
+"""
+File safety checking functionality for Shuttle.
+
+This module contains functions to ensure files are safe to process.
+"""
+
+def are_file_and_path_names_safe(source_file, source_root, logging_options=None):
+    """
+    Check if filenames and paths are safe for processing.
+    
+    Args:
+        source_file: Filename only
+        source_root: Directory containing the file
+        logging_options: Logging configuration
+        
+    Returns:
+        bool: True if all names are safe, False otherwise
+    """
+    logger = setup_logging('shuttle.scanning.are_file_and_path_names_safe', logging_options)
+    
+    # Calculate the full path
+    source_file_path = os.path.join(source_root, source_file)
+    
+    # Check filename safety
+    if not is_filename_safe(source_file):
+        logger.error(f"Skipping file {source_file} because it contains unsafe characters.")
+        return False
+    
+    # Check pathname safety
+    if not is_pathname_safe(source_root):
+        logger.error(f"Skipping file in directory {source_root} because the path contains unsafe characters.")
+        return False
+    
+    # Check full path safety
+    if not is_pathname_safe(source_file_path):
+        logger.error(f"Skipping path {source_file_path} because it contains unsafe characters.")
+        return False
+    
+    return True
+
+def is_file_ready(source_file_path, skip_stability_check=False, logging_options=None):
+    """
+    Check if a file is ready for processing (stable and not open).
+    
+    Args:
+        source_file_path: Full path to source file
+        skip_stability_check: Whether to skip file stability check
+        logging_options: Logging configuration
+        
+    Returns:
+        bool: True if file is ready for processing, False otherwise
+    """
+    logger = setup_logging('shuttle.scanning.is_file_ready', logging_options)
+    
+    # Check file stability
+    if not skip_stability_check and not is_file_stable(source_file_path, logging_options=logging_options):
+        logger.debug(f"Skipping file {source_file_path} because it may still be written to.")
+        return False
+    elif skip_stability_check:
+        logger.debug(f"Stability check bypassed for {source_file_path} (test mode).")
+    
+    # Check if file is open
+    if is_file_open(source_file_path, logging_options=logging_options):
+        logger.debug(f"Skipping file {source_file_path} because it is currently open.")
+        return False
+    
+    return True
+
+def is_file_safe_for_processing(source_file, source_root, skip_stability_check=False, logging_options=None):
+    """
+    Check if a file is safe to process (filename, path, stability, not open).
+    
+    Args:
+        source_file: Filename only
+        source_root: Directory containing the file
+        skip_stability_check: Whether to skip file stability check
+        logging_options: Logging configuration
+        
+    Returns:
+        bool: True if file is safe to process, False otherwise
+    """
+
+    # First check if names are safe
+    if not are_file_and_path_names_safe(source_file, source_root, logging_options):
+        return False
+    
+    # Calculate the full path
+    source_file_path = os.path.join(source_root, source_file)
+    
+    # Then check if the file is ready
+    if not is_file_ready(source_file_path, skip_stability_check, logging_options):
+        return False
+    
+    return True

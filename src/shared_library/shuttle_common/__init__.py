@@ -14,6 +14,7 @@ from .ledger import Ledger
 from .notifier import Notifier
 from .logging_setup import setup_logging
 from .config import CommonConfig, add_common_arguments, parse_common_config, get_setting_from_arg_or_file
+from .files import is_file_safe_for_processing, are_file_and_path_names_safe, is_file_ready
 
 # Define what's publicly available when using "from shuttle_common import *"
 __all__ = [
@@ -42,5 +43,10 @@ __all__ = [
     'CommonConfig',
     'add_common_arguments',
     'parse_common_config',
-    'get_setting_from_arg_or_file'
+    'get_setting_from_arg_or_file',
+    
+    # File safety
+    'is_file_safe_for_processing',
+    'are_file_and_path_names_safe',
+    'is_file_ready'
 ]
