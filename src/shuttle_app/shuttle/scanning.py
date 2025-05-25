@@ -236,7 +236,7 @@ def process_task_result(task_result, file_path, results, processed_count, failed
     
     return processed_count, failed_count
 
-def quarantine_files_for_scanning(source_path, quarantine_path, destination_path, hazard_archive_path, throttle, throttle_free_space, notifier, skip_stability_check=False, logging_options=None):
+def quarantine_files_for_scanning(source_path, quarantine_path, destination_path, hazard_archive_path, throttle, throttle_free_space, throttle_max_file_count_per_day=0, throttle_max_file_volume_per_day=0, throttle_logger=None, notifier=None, skip_stability_check=False, logging_options=None):
     """
     Find eligible files in source directory, copy them to quarantine, and prepare for scanning.
     
@@ -247,6 +247,9 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
         hazard_archive_path: Path to hazard archive directory
         throttle: Whether to enable throttling
         throttle_free_space: Minimum free space required in MB
+        throttle_max_file_count_per_day: Maximum number of files to process per day (0 for no limit)
+        throttle_max_file_volume_per_day: Maximum volume of data to process per day in MB (0 for no limit)
+        throttle_logger: ThrottleLogger instance for tracking daily limits
         notifier: Notifier instance for sending notifications
         skip_stability_check: Whether to skip file stability check
         logging_options: Logging configuration options
@@ -298,7 +301,10 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
                         hazard_archive_path,
                         throttle_free_space,
                         Throttler(),
-                        notifier,
+                        max_files_per_day=throttle_max_file_count_per_day,
+                        max_volume_per_day=throttle_max_file_volume_per_day,
+                        throttle_logger=throttle_logger,
+                        notifier=notifier,
                         logging_options=logging_options
                     ):
                         disk_error_stopped_processing = True
@@ -533,6 +539,8 @@ def scan_and_process_directory(
 
     throttle=True,
     throttle_free_space=10000,
+    throttle_max_file_volume_per_day=0,
+    throttle_max_file_count_per_day=0,
     
     notifier=None,
     notify_summary=False,
@@ -559,9 +567,10 @@ def scan_and_process_directory(
         on_demand_defender (bool): Whether to use Microsoft Defender for on-demand scanning
         on_demand_clam_av (bool): Whether to use ClamAV for on-demand scanning
         defender_handles_suspect_files (bool): Whether to let Defender handle suspect files
-
         throttle (bool): Whether to enable throttling
         throttle_free_space (int): Minimum free space required in MB
+        throttle_max_file_volume_per_day (int): Maximum volume of data to process per day in MB (0 for no limit)
+        throttle_max_file_count_per_day (int): Maximum number of files to process per day (0 for no limit)
         
         notifier (Notifier): Notifier for sending notifications
         notify_summary (bool): Whether to send notification on completion of every run
@@ -574,8 +583,17 @@ def scan_and_process_directory(
     failed_files = 0
     suspect_files = 0
     
-    # Initialize throttling variables with safe defaults
+    # Initialize logging
     logger = setup_logging('shuttle.scanning.scan_and_process_directory', logging_options)
+    
+    # Initialize ThrottleLogger for daily throttling if needed
+    throttle_logger = None
+    if throttle and (throttle_max_file_volume_per_day > 0 or throttle_max_file_count_per_day > 0):
+        from shuttle.throttle_utils import ThrottleLogger
+        # Get log path from logging options or use a default
+        log_path = getattr(logging_options, 'log_path', '/var/log/shuttle') if logging_options else '/var/log/shuttle'
+        throttle_logger = ThrottleLogger(log_path, logging_options)
+        logger.info(f"Daily throttling enabled: {throttle_max_file_count_per_day} files, {throttle_max_file_volume_per_day} MB")
     
     try:
         # Phase 1: Copy files from source to quarantine
@@ -586,6 +604,9 @@ def scan_and_process_directory(
             hazard_archive_path,
             throttle,
             throttle_free_space,
+            throttle_max_file_count_per_day,
+            throttle_max_file_volume_per_day,
+            throttle_logger,
             notifier,
             skip_stability_check,
             logging_options

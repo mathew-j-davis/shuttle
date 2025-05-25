@@ -104,14 +104,14 @@ def parse_shuttle_config() -> ShuttleConfig:
                         default=False)
     
     # Commented out for now
-    # parser.add_argument('-ThrottleMaxFileVolumePerDay',
-    #                    help='Maximum volume of files (in bytes) to process per day',
-    #                    type=int,
-    #                    default=None)
-    # parser.add_argument('-ThrottleMaxFileCountPerDay',
-    #                    help='Maximum number of files to process per day',
-    #                    type=int,
-    #                    default=None)
+    parser.add_argument('--throttle-max-file-volume-per-day',
+                       help='Maximum volume of files (in bytes) to process per day',
+                       type=int,
+                       default=None)
+    parser.add_argument('--throttle-max-file-count-per-day',
+                       help='Maximum number of files to process per day',
+                       type=int,
+                       default=None)
     
     # Parse arguments
     args = parser.parse_args()
@@ -146,9 +146,9 @@ def parse_shuttle_config() -> ShuttleConfig:
     config.throttle = get_setting_from_arg_or_file(args, 'throttle', 'settings', 'throttle', False, bool, settings_file_config)
     config.throttle_free_space = get_setting_from_arg_or_file(args, 'throttle_free_space', 'settings', 'throttle_free_space', 10000, int, settings_file_config)
     
-    # Throttle settings specific to Shuttle (commented out for now)
-    # config.throttle_max_file_volume_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileVolumePerDay', 'settings', 'throttle_max_file_volume_per_day', 1000000, int, settings_file_config)
-    # config.throttle_max_file_count_per_day = get_setting_from_arg_or_file(args, 'ThrottleMaxFileCountPerDay', 'settings', 'throttle_max_file_count_per_day', 1000, int, settings_file_config)
+    # Throttle settings specific to Shuttle
+    config.throttle_max_file_volume_per_day = get_setting_from_arg_or_file(args, 'throttle_max_file_volume_per_day', 'settings', 'throttle_max_file_volume_per_day', 0, int, settings_file_config)
+    config.throttle_max_file_count_per_day = get_setting_from_arg_or_file(args, 'throttle_max_file_count_per_day', 'settings', 'throttle_max_file_count_per_day', 0, int, settings_file_config)
     
     # Parse testing settings
     config.skip_stability_check = get_setting_from_arg_or_file(args, 'skip_stability_check', 'settings', 'skip_stability_check', False, bool, settings_file_config)

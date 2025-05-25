@@ -77,7 +77,7 @@ shuttle.shuttle.main
 ┃       ┃   ┣━━ shuttle.scanning.is_file_safe_for_processing
 ┃       ┃   ┣━━ shuttle_common.file_utils.normalize_path
 ┃       ┃   ┣━━ shuttle.throttle_utils.handle_throttle_check
-┃       ┃   ┃   ┗━━ shuttle.throttler.Throttler.handle_throttle_check
+┃       ┃   ┃   ┗━━ shuttle.throttler.Throttler.can_process_file
 ┃       ┃   ┗━━ shuttle_common.file_utils.copy_temp_then_rename
 ┃       ┃
 ┃       ┣━━ shuttle.scanning.process_scan_tasks
