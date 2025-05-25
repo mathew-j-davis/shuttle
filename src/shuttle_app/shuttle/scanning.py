@@ -28,57 +28,6 @@ from .post_scan_processing import (
     handle_suspect_scan_result
 )
 
-
-"""
-scan_and_process_directory
-├── quarantine_files_for_scanning
-│   ├── is_file_safe_for_processing
-│   ├── normalize_path
-│   ├── handle_throttle_check
-│   │   └── (calls to Throttler methods)
-│   └── copy_temp_then_rename
-│
-├── process_scan_tasks
-│   ├── setup_logging
-│   ├── PARALLEL MODE (max_scan_threads > 1)
-│   │   ├── ProcessPoolExecutor
-│   │   └── process_task (worker function)
-│   │       ├── check_file_safety
-│   │       ├── scan_file
-│   │       │   ├── scan_with_defender
-│   │       │   └── scan_with_clam_av
-│   │       └── handle_scan_result
-│   │           ├── move_clean_file_to_destination
-│   │           │   └── copy_temp_then_rename
-│   │           └── handle_suspect_file
-│   │               ├── encrypt_file
-│   │               └── archive_file
-│   │
-│   ├── SINGLE THREAD MODE (max_scan_threads <= 1)
-│   │   ├── check_file_safety (sequential)
-│   │   ├── scan_file (sequential)
-│   │   │   ├── scan_with_defender
-│   │   │   └── scan_with_clam_av
-│   │   └── handle_scan_result (sequential)
-│   │       ├── move_clean_file_to_destination
-│   │       │   └── copy_temp_then_rename
-│   │       └── handle_suspect_file
-│   │           ├── encrypt_file
-│   │           └── archive_file
-│   │
-│   ├── handle_task_result (collects results)
-│   └── log_scanning_progress
-│
-├── clean_up_source_files
-│   ├── setup_logging
-│   └── remove_empty_directories
-│
-├── send_summary_notification
-│   └── setup_logging
-│
-└── remove_directory_contents
-"""
-
 # Import scan utilities from common module
 from shuttle_common.scan_utils import (
     scan_for_malware_using_defender,
