@@ -74,6 +74,12 @@ from shuttle.throttler import Throttler
 
 # No need to modify Python path - we're using the simulator runner script directly
 
+# EICAR test string for real Defender tests
+# Note: Most scanners will only detect this in files smaller than 128KB
+EICAR_STRING = r'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
+# Maximum size for reliable EICAR detection (64KB to be safe)
+EICAR_MAX_SIZE_KB = 64
+
 class TestParameters:
     """Class to hold all test parameters"""
     
@@ -99,6 +105,9 @@ class TestParameters:
         self.expected_files_processed = kwargs.get('expected_files_processed')
         self.expected_throttle_reason = kwargs.get('expected_throttle_reason')
         self.description = kwargs.get('description')
+        
+        # Simulator settings
+        self.use_simulator = kwargs.get('use_simulator')
     
     @classmethod
     def with_defaults(cls, **kwargs):
@@ -124,6 +133,9 @@ class TestParameters:
             'expected_throttled': False,
             'expected_files_processed': None,
             'expected_throttle_reason': None,
+            
+            # Simulator settings
+            'use_simulator': True,  # Default to using simulator
             'description': "Generic throttling test"
         }
         
@@ -216,6 +228,9 @@ class TestShuttleMultithreading(unittest.TestCase):
         """
         print(f"\nRunning throttling scenario: {params.description}")
         print(params)
+        
+        # Store params as instance variable so _create_test_files can access it
+        self.params = params
         
         # Create test directories
         self._create_test_directories()
@@ -362,9 +377,14 @@ class TestShuttleMultithreading(unittest.TestCase):
         clean_files = []
         malware_files = []
         
+        # Check if we're using the simulator or real defender
+        using_simulator = True
+        if hasattr(self, 'params') and hasattr(self.params, 'use_simulator'):
+            using_simulator = self.params.use_simulator
+        
         # Generate random data once and reuse
         random_data = ''.join(random.choices(string.ascii_letters + string.digits, 
-                                            k=file_size_kb * 1024))
+                                             k=file_size_kb * 1024))
         
         # Create clean files
         for i in range(clean_file_count):
@@ -374,15 +394,35 @@ class TestShuttleMultithreading(unittest.TestCase):
                 f.write(random_data)
             clean_files.append(filepath)
         
-        # Create malware files (containing the word "malware" to trigger detection)
+        # Create malware files
         for i in range(malware_file_count):
             filename = f'malware_file_{i:03d}.txt'
             filepath = os.path.join(self.source_dir, filename)
-            with open(filepath, 'w') as f:
-                # Insert "malware" string in the middle of the data to trigger detection
-                midpoint = len(random_data) // 2
-                malware_data = random_data[:midpoint] + "malware" + random_data[midpoint:]
-                f.write(malware_data)
+            
+            with open(filepath, 'wb') as f:
+                if not using_simulator:
+                    # For real Defender, use EICAR test string with size limit
+                    if file_size_kb > EICAR_MAX_SIZE_KB:
+                        print(f"WARNING: Requested malware file size {file_size_kb}KB exceeds EICAR detection limit.")
+                        print(f"Creating {EICAR_MAX_SIZE_KB}KB EICAR test file instead.")
+                        actual_size_kb = EICAR_MAX_SIZE_KB
+                    else:
+                        actual_size_kb = file_size_kb
+                    
+                    # Write EICAR string at beginning of file
+                    f.write(EICAR_STRING.encode('utf-8'))
+                    
+                    # Pad to reach desired file size
+                    remaining_bytes = (actual_size_kb * 1024) - len(EICAR_STRING)
+                    if remaining_bytes > 0:
+                        f.write(b'\0' * remaining_bytes)
+                else:
+                    # For simulator, use "malware" string in random data
+                    # Convert to bytes for consistency with EICAR case
+                    midpoint = len(random_data) // 2
+                    malware_data = random_data[:midpoint] + "malware" + random_data[midpoint:]
+                    f.write(malware_data.encode('utf-8'))
+            
             malware_files.append(filepath)
         
         return clean_files, malware_files
@@ -879,8 +919,20 @@ class TestShuttleMultithreading(unittest.TestCase):
         
         # Only set up throttling if at least one throttling parameter is non-zero
         params.setup_throttling = (params.max_files_per_day > 0 or 
-                                params.max_volume_per_day > 0 or 
-                                params.min_free_space > 0)
+                                 params.max_volume_per_day > 0 or 
+                                 params.min_free_space > 0)
+        
+        # Set simulator mode based on command line flag
+        params.use_simulator = not args.no_defender_simulator
+        
+        # If using real defender, print a warning about EICAR size limitation
+        if not params.use_simulator and params.malware_file_count > 0:
+            if params.file_size_kb > EICAR_MAX_SIZE_KB:
+                print(f"\nNOTE: Using real Microsoft Defender with EICAR test files")
+                print(f"Malware files will be limited to {EICAR_MAX_SIZE_KB}KB regardless of --file-size-kb setting")
+        
+        # Auto-calculate expected outcomes based on parameters
+        params.calculate_expected_outcomes()
         
         # Run the test with the configured parameters
         return self.test_throttling_scenario(params)
@@ -902,6 +954,10 @@ class TestShuttleMultithreading(unittest.TestCase):
         parser.add_argument("--initial-files", type=int, help="Initial files count in throttle log")
         parser.add_argument("--initial-volume-mb", type=float, help="Initial volume in MB in throttle log")
         parser.add_argument("--mock-free-space", type=float, help="Mock free space in GB")
+        
+        # Simulator parameters
+        parser.add_argument("--no-defender-simulator", action="store_true", 
+                          help="Use real Microsoft Defender instead of simulator (EICAR test files will be limited to 64KB)")
         
         return parser.parse_args()
 

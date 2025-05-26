@@ -73,6 +73,7 @@ python test_shuttle_multithreaded.py [OPTIONS]
 | `--initial-files` | Initial files count in throttle log | 0 |
 | `--initial-volume-mb` | Initial volume in throttle log (MB) | 0.0 |
 | `--mock-free-space` | Simulated free disk space (MB) | 5 |
+| `--no-defender-simulator` | Use real Microsoft Defender instead of simulator | false |
 
 ### Class Attributes
 
@@ -396,9 +397,46 @@ All throttle messages now follow a standardized format for easier testing:
 - File limit: `THROTTLE REASON: Daily limit exceeded - Daily file count limit (X) would be exceeded with Y files`
 - Volume limit: `THROTTLE REASON: Daily limit exceeded - Daily volume limit (X MB) would be exceeded with Y MB`
 
+## Testing with Real Microsoft Defender
+
+By default, tests use the Microsoft Defender simulator, which detects files containing the word "malware" in their content. However, you can now run tests with real Microsoft Defender by using the `--no-defender-simulator` flag.
+
+### EICAR Test Files
+
+When using real Microsoft Defender, the test suite automatically creates EICAR test files instead of the simulator-compatible files. The [EICAR test string](https://en.wikipedia.org/wiki/EICAR_test_file) is a standard test file used to verify antivirus detection without using real malware.
+
+### File Size Limitations
+
+When using real Microsoft Defender with EICAR test files, there are some important limitations to be aware of:
+
+- EICAR test files must be small (< 64KB) to be reliably detected by most antivirus software
+- If you specify a larger file size with `--file-size-kb`, the test will automatically limit malware files to 64KB
+- You'll see a warning message when this size limitation is applied
+
+### Example Usage
+
+```bash
+# Run tests with real Microsoft Defender
+python tests/test_shuttle_multithreaded.py --no-defender-simulator
+
+# Run a specific test with real Microsoft Defender
+python -m unittest test_shuttle_multithreaded.TestShuttleMultithreading.test_space_throttling --no-defender-simulator
+
+# Run a configurable test with real Microsoft Defender
+python tests/test_shuttle_multithreaded.py --no-defender-simulator --clean-file-count 5 --malware-file-count 2
+```
+
+### Running Shuttle with Real Defender
+
+You can also use the `run_shuttle_with_simulator.py` script with real Defender:
+
+```bash
+python tests/run_shuttle_with_simulator.py --source-path /path/to/source --destination-path /path/to/dest --no-defender-simulator
+```
+
 ## Summary
 
-With these tests and the refactored structure, you can thoroughly test Shuttle's throttling capabilities in a variety of scenarios. The tests are now more maintainable, explicitly define their parameters, and provide a configurable test entry point for custom testing.
+With these tests you can thoroughly test Shuttle's throttling capabilities in a variety of scenarios. The tests are now more maintainable, explicitly define their parameters, and provide a configurable test entry point for custom testing with both simulated and real scanning options.
 
 #### Space Throttling Test
 

@@ -8,6 +8,7 @@ This document outlines a structured approach for AI assistants to understand and
    - Read `readme.md` for the system overview and flow diagram
    - Review `docs/readme_architecture.md` to understand component interactions
    - Examine `docs/readme_modules.md` for detailed module descriptions
+   - Check `dev_notes/shuttle_test_architecture.md` for detailed test architecture
 
 2. **Understand Configuration**
    - Check `docs/readme_configuration.md` for settings and file formats
@@ -23,6 +24,7 @@ This document outlines a structured approach for AI assistants to understand and
    - Start with `src/shuttle_app/shuttle/shuttle.py` (main entry point)
    - Follow the execution flow through `scanning.py` and `post_scan_processing.py`
    - Understand `throttler.py` for disk space management
+   - Review `throttle_utils.py` for throttling implementation details
 
 2. **Common Library Components**
    - Examine `shuttle_common/config.py` for configuration handling
@@ -30,7 +32,9 @@ This document outlines a structured approach for AI assistants to understand and
    - Review `shuttle_common/scan_utils.py` for scanning interfaces
 
 3. **Testing Components**
-   - Look at the Defender test app to understand scanner compatibility
+   - Understand `tests/test_shuttle_multithreaded.py` for throttling test structure
+   - Examine `tests/run_shuttle_with_simulator.py` for the MDATP simulator integration
+   - Review `tests/README_multithreaded_tests.md` for test documentation
 
 ## Common Issues to Watch For
 
