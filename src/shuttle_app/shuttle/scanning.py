@@ -249,7 +249,7 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
         throttle_free_space: Minimum free space required in MB
         throttle_max_file_count_per_day: Maximum number of files to process per day (0 for no limit)
         throttle_max_file_volume_per_day: Maximum volume of data to process per day in MB (0 for no limit)
-        throttle_logger: ThrottleLogger instance for tracking daily limits
+        throttle_logger: DailyProcessingTracker instance for tracking daily limits
         notifier: Notifier instance for sending notifications
         skip_stability_check: Whether to skip file stability check
         logging_options: Logging configuration options
@@ -541,6 +541,7 @@ def scan_and_process_directory(
     throttle_free_space=10000,
     throttle_max_file_volume_per_day=0,
     throttle_max_file_count_per_day=0,
+    throttle_logs_path=None,
     
     notifier=None,
     notify_summary=False,
@@ -586,14 +587,26 @@ def scan_and_process_directory(
     # Initialize logging
     logger = setup_logging('shuttle.scanning.scan_and_process_directory', logging_options)
     
-    # Initialize ThrottleLogger for daily throttling if needed
+    # Initialize DailyProcessingTracker for daily throttling if needed
     throttle_logger = None
-    if throttle and (throttle_max_file_volume_per_day > 0 or throttle_max_file_count_per_day > 0):
-        from shuttle.throttle_utils import ThrottleLogger
-        # Get log path from logging options or use a default
-        log_path = getattr(logging_options, 'log_path', '/var/log/shuttle') if logging_options else '/var/log/shuttle'
-        throttle_logger = ThrottleLogger(log_path, logging_options)
-        logger.info(f"Daily throttling enabled: {throttle_max_file_count_per_day} files, {throttle_max_file_volume_per_day} MB")
+    if throttle:
+        from shuttle.daily_processing_tracker import DailyProcessingTracker
+        
+        # Determine the throttle logs path:
+        # 1. Use explicitly specified throttle_logs_path if provided
+        # 2. Otherwise, use log_path from logging_options
+        # 3. Fall back to default if neither is available
+        if throttle_logs_path:
+            data_directory = throttle_logs_path
+        else:
+            data_directory = getattr(logging_options, 'log_path', '/var/log/shuttle') if logging_options else '/var/log/shuttle'
+            
+        # Create processing tracker regardless of daily limits, to enable tracking of processed files
+        throttle_logger = DailyProcessingTracker(data_directory, logging_options)
+        
+        # Log message about throttling configuration
+        if throttle_max_file_volume_per_day > 0 or throttle_max_file_count_per_day > 0:
+            logger.info(f"Daily throttling enabled: {throttle_max_file_count_per_day} files, {throttle_max_file_volume_per_day} MB")
     
     try:
         # Phase 1: Copy files from source to quarantine

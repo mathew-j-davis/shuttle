@@ -47,7 +47,7 @@ class Throttler:
             return 0.0
     
     @staticmethod
-    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, logging_options=None):
+    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, logging_options=None, include_pending_volume=False, pending_volume_mb=0):
         """
         Check if a directory has enough free space for a file, leaving a minimum amount free after copy.
         
@@ -56,6 +56,8 @@ class Throttler:
             file_size_mb (float): Size of the file in MB
             min_free_space_mb (int): Minimum free space to maintain after copy in MB
             logging_options (LoggingOptions, optional): logging configuration details
+            include_pending_volume (bool): Whether to include pending volume in the calculation
+            pending_volume_mb (float): Volume of pending files in MB to consider
             
         Returns:
             bool: True if directory has enough space, False otherwise
@@ -67,11 +69,17 @@ class Throttler:
             # Get free space in MB
             free_mb = Throttler.get_free_space_mb(directory_path)
             
+            # Calculate required space, optionally including pending volume
+            required_space_mb = file_size_mb + min_free_space_mb
+            if include_pending_volume:
+                required_space_mb += pending_volume_mb
+                logger.debug(f"Including pending volume of {pending_volume_mb:.2f} MB in space check")
+            
             # Check if there's enough space
-            has_space = (free_mb - file_size_mb) >= min_free_space_mb
+            has_space = free_mb >= required_space_mb
             
             if not has_space:
-                logger.error(f"Directory {directory_path} is full. Free: {free_mb:.2f} MB, Required: {min_free_space_mb + file_size_mb:.2f} MB")
+                logger.error(f"Directory {directory_path} is full. Free: {free_mb:.2f} MB, Required: {required_space_mb:.2f} MB")
             
             return has_space
             
@@ -146,26 +154,41 @@ class Throttler:
             # Get file size in MB
             file_size_mb = os.path.getsize(source_file_path) / (1024 * 1024)
             
-            # Check space in each directory directly
+            # Calculate pending volume from daily totals if available
+            pending_volume_mb = 0
+            if daily_totals and hasattr(daily_totals, 'get'):
+                # If we have a tracker object, try to get pending volume from it
+                if hasattr(daily_totals, 'pending_volume_mb'):
+                    pending_volume_mb = daily_totals.pending_volume_mb
+                    logger.debug(f"Using pending volume of {pending_volume_mb:.2f} MB from tracker")
+            
+            # Check space in quarantine directory (no pending volume, files already there)
             quarantine_has_space = Throttler.check_directory_space(
                 quarantine_path, 
                 file_size_mb, 
                 min_free_space_mb,
-                logging_options
+                logging_options,
+                include_pending_volume=False
             )
             
+            # Check space in destination directory (include pending volume)
             destination_has_space = Throttler.check_directory_space(
                 destination_path, 
                 file_size_mb, 
                 min_free_space_mb,
-                logging_options
+                logging_options,
+                include_pending_volume=True,
+                pending_volume_mb=pending_volume_mb
             )
             
+            # Check space in hazard archive directory (include pending volume)
             hazard_has_space = Throttler.check_directory_space(
                 hazard_path, 
                 file_size_mb, 
                 min_free_space_mb,
-                logging_options
+                logging_options,
+                include_pending_volume=True,
+                pending_volume_mb=pending_volume_mb
             )
             
             # Log warning if any directory is full

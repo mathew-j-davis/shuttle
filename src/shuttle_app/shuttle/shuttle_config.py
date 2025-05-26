@@ -42,13 +42,12 @@ class ShuttleConfig(CommonConfig):
     # Throttle settings
     throttle: bool = None
     throttle_free_space: int = None  # Minimum MB of free space required
+    throttle_logs_path: Optional[str] = None  # Path to store throttle logs
+    throttle_max_file_volume_per_day: int = None  # Maximum MB to process per day
+    throttle_max_file_count_per_day: int = None  # Maximum files to process per day
     
     # Testing settings
     skip_stability_check: bool = False  # Skip file stability check (for testing)
-    
-    # Shuttle-specific throttle settings (commented out for now)
-    # throttle_max_file_volume_per_day: int = 1000000
-    # throttle_max_file_count_per_day: int = 1000
 
 
 def parse_shuttle_config() -> ShuttleConfig:
@@ -95,6 +94,9 @@ def parse_shuttle_config() -> ShuttleConfig:
     parser.add_argument('--throttle-free-space',
                         help='Minimum free space (in MB) required on destination drive',
                         type=int,
+                        default=None)
+    parser.add_argument('--throttle-logs-path',
+                        help='Path to store throttle logs (defaults to log_path if not specified)',
                         default=None)
                         
     # Testing parameters
@@ -145,6 +147,7 @@ def parse_shuttle_config() -> ShuttleConfig:
     # Parse throttle settings
     config.throttle = get_setting_from_arg_or_file(args, 'throttle', 'settings', 'throttle', False, bool, settings_file_config)
     config.throttle_free_space = get_setting_from_arg_or_file(args, 'throttle_free_space', 'settings', 'throttle_free_space', 10000, int, settings_file_config)
+    config.throttle_logs_path = get_setting_from_arg_or_file(args, 'throttle_logs_path', 'settings', 'throttle_logs_path', None, None, settings_file_config)
     
     # Throttle settings specific to Shuttle
     config.throttle_max_file_volume_per_day = get_setting_from_arg_or_file(args, 'throttle_max_file_volume_per_day', 'settings', 'throttle_max_file_volume_per_day', 0, int, settings_file_config)

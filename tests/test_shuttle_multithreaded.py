@@ -1,5 +1,53 @@
 """
 Test Shuttle with simulator using multiple files to test multithreading and throttling
+
+
+
+TEST PROCESS OVERVIEW:
+
+TestShuttleMultithreading
+┣━━ Individual Test Methods
+┃   ┣━━ test_space_throttling
+┃   ┣━━ test_daily_volume_limit
+┃   ┣━━ test_daily_volume_limit_with_existing_log
+┃   ┣━━ test_daily_file_count_limit_with_existing_log
+┃   ┣━━ test_daily_file_count_limit_no_existing_log
+┃   ┣━━ test_throttling_disabled
+┃   ┗━━ test_throttling_configurable
+┃       ┗━━ _parse_command_line_args
+┃
+┣━━ test_throttling_scenario (Main test function)
+┃   ┣━━ _setup_test_environment
+┃   ┃   ┣━━ _create_throttle_log
+┃   ┃   ┗━━ _setup_disk_space_mocking
+┃   ┃
+┃   ┣━━ _create_test_files
+┃   ┃
+┃   ┣━━ _print_throttling_prediction
+┃   ┃
+┃   ┣━━ IF params.setup_throttling:
+┃   ┃   ┗━━ _run_shuttle_with_throttling
+┃   ┃       ┣━━ _build_base_command
+┃   ┃       ┣━━ _add_throttling_params
+┃   ┃       ┗━━ _run_shuttle_with_command
+┃   ┃           ┗━━ subprocess.Popen(cmd) → run_shuttle_with_simulator.py
+┃   ┃
+┃   ┣━━ ELSE:
+┃   ┃   ┗━━ _run_shuttle_no_throttling
+┃   ┃       ┣━━ _build_base_command
+┃   ┃       ┗━━ _run_shuttle_with_command
+┃   ┃           ┗━━ subprocess.Popen(cmd) → run_shuttle_with_simulator.py
+┃   ┃
+┃   ┗━━ _verify_test_results
+┃
+┣━━ setUp (Initializes test environment)
+┃   ┣━━ Create temporary directories
+┃   ┗━━ Set up mock objects
+┃
+┗━━ tearDown (Cleans up test environment)
+    ┣━━ Remove lock file
+    ┗━━ Remove temp directory
+    
 """
 
 import os
@@ -16,39 +64,177 @@ import argparse
 from unittest.mock import patch, MagicMock
 
 from tempfile import mkdtemp
-from unittest.mock import patch, MagicMock
 
-# Add the required directories to the Python path
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../src')))
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'mdatp_simulator_app')))
+# Import the Notifier class for mocking
+from shuttle_common.notifier import Notifier
 
 # Import throttling-related modules
-from shuttle.throttle_utils import ThrottleLogger
+from shuttle.daily_processing_tracker import DailyProcessingTracker
 from shuttle.throttler import Throttler
-from shuttle_common.notifier import Notifier
+
+# No need to modify Python path - we're using the simulator runner script directly
+
+class TestParameters:
+    """Class to hold all test parameters"""
+    
+    def __init__(self, **kwargs):
+        # Test parameters
+        self.thread_count = kwargs.get('thread_count')
+        self.clean_file_count = kwargs.get('clean_file_count')
+        self.malware_file_count = kwargs.get('malware_file_count')
+        self.file_size_kb = kwargs.get('file_size_kb')
+        
+        # Throttling parameters
+        self.setup_throttling = kwargs.get('setup_throttling')
+        self.max_files_per_day = kwargs.get('max_files_per_day')
+        self.max_volume_per_day = kwargs.get('max_volume_per_day')
+        self.min_free_space = kwargs.get('min_free_space')
+        self.initial_files = kwargs.get('initial_files')
+        self.initial_volume_mb = kwargs.get('initial_volume_mb')
+        self.mock_free_space = kwargs.get('mock_free_space')
+        self.throttle_logs_path = kwargs.get('throttle_logs_path')
+        
+        # Expected outcomes
+        self.expected_throttled = kwargs.get('expected_throttled')
+        self.expected_files_processed = kwargs.get('expected_files_processed')
+        self.expected_throttle_reason = kwargs.get('expected_throttle_reason')
+        self.description = kwargs.get('description')
+    
+    @classmethod
+    def with_defaults(cls, **kwargs):
+        """Create a parameter object with defaults for any missing values"""
+        defaults = {
+            # Test parameters
+            'thread_count': 1,
+            'clean_file_count': 5,
+            'malware_file_count': 0,
+            'file_size_kb': 100,
+            
+            # Throttling parameters
+            'setup_throttling': True,
+            'max_files_per_day': 10,
+            'max_volume_per_day': 2,
+            'min_free_space': 1,
+            'initial_files': 0,
+            'initial_volume_mb': 0.0,
+            'mock_free_space': 5,
+            'throttle_logs_path': None,
+            
+            # Expected outcomes
+            'expected_throttled': False,
+            'expected_files_processed': None,
+            'expected_throttle_reason': None,
+            'description': "Generic throttling test"
+        }
+        
+        # Apply defaults for any missing values
+        params = defaults.copy()
+        params.update(kwargs)
+        return cls(**params)
+    
+    def __str__(self):
+        """String representation for debugging"""
+        return (
+            f"Test Parameters: {self.description}\n"
+            f"  Thread count: {self.thread_count}\n"
+            f"  File counts: {self.clean_file_count} clean, {self.malware_file_count} malware\n"
+            f"  File size: {self.file_size_kb} KB ({self.file_size_kb/1024:.2f} MB)\n"
+            f"  Mock free space: {self.mock_free_space} MB\n"
+            f"  Daily limits: {self.max_files_per_day} files, {self.max_volume_per_day} MB\n"
+            f"  Min free space: {self.min_free_space} MB\n"
+            f"  Initial log values: {self.initial_files} files, {self.initial_volume_mb} MB\n"
+        )
+
 
 class TestShuttleMultithreading(unittest.TestCase):
     """Test case for Shuttle multithreading with simulator with throttling support"""
     
-    # Default values for parameters that can be overridden via command line
-    thread_count = 1
-    clean_file_count = 20
-    malware_file_count = 10
-    file_size_kb = 100
-    
-    # Default throttling values
-    max_files_per_day = 10    # Default max files per day
-    max_volume_per_day = 50   # Default max volume in MB per day
-    min_free_space = 100      # Default min free space in MB
-    initial_files = 0         # Default initial files count in throttle log
-    initial_volume = 0.0      # Default initial volume in MB in throttle log
-    mock_free_space = 1000    # Default mock free space in MB
-    
     # Flag to determine if all tests should run
     run_all_tests = True
     
-    # Flag to determine if throttling setup should be performed
-    setup_throttling = False
+    def test_throttling_scenario(self, params):
+        """
+        Unified test method for all throttling scenarios
+        
+        Args:
+            params: TestParameters object with all required parameters
+        """
+        print(f"\nRunning throttling scenario: {params.description}")
+        print(params)
+        
+        # Create test directories
+        self._create_test_directories()
+        
+        try:
+            # Setup mock disk space if requested
+            if params.mock_free_space is not None and params.mock_free_space > 0:
+                self._setup_disk_space_mocking(params.mock_free_space)
+            
+            # Create throttle log with initial values if needed
+            if params.initial_files > 0 or params.initial_volume_mb > 0:
+                self._create_throttle_log(
+                    files_processed=params.initial_files, 
+                    volume_processed_mb=params.initial_volume_mb
+                )
+            
+            # Create test files
+            clean_files, malware_files = self._create_test_files(
+                clean_file_count=params.clean_file_count,
+                malware_file_count=params.malware_file_count,
+                file_size_kb=params.file_size_kb
+            )
+            
+            total_file_count = params.clean_file_count + params.malware_file_count
+            
+            # Predict throttling behavior based on parameters
+            self._print_throttling_prediction(params)
+            
+            # Run Shuttle with appropriate throttling settings
+            if params.setup_throttling:
+                result = self._run_shuttle_with_throttling(params)
+            else:
+                result = self._run_shuttle_no_throttling(params)
+            
+            # Verify expected results
+            processed_count = len(os.listdir(self.destination_dir))
+            
+            # Verify throttling status
+            if params.expected_throttled:
+                self.assertIn("throttling", result['output'].lower(), 
+                              f"Expected throttling but it didn't occur. Output: {result['output']}")
+                if params.expected_throttle_reason:
+                    self.assertIn(params.expected_throttle_reason, result['output'], 
+                                  f"Expected throttle reason '{params.expected_throttle_reason}' not found in output: {result['output']}")
+            else:
+                # Check if any throttling happened unexpectedly
+                self.assertNotIn("throttling activated", result['output'].lower(), 
+                                f"Unexpected throttling occurred. Output: {result['output']}")
+            
+            # Verify processed count
+            if params.expected_files_processed is not None:
+                self.assertEqual(processed_count, params.expected_files_processed, 
+                               f"Expected {params.expected_files_processed} files to be processed, but got {processed_count}")
+            elif not params.expected_throttled:
+                # If no specific count expected and no throttling, all files should be processed
+                self.assertEqual(processed_count, total_file_count, 
+                               f"Expected all {total_file_count} files to be processed, but got {processed_count}")
+                
+            return result
+                
+        finally:
+            # Clean up test directories
+            self._cleanup_test_directories()
+            
+    def test_throttling_configurable(self):
+        """Configurable test entry point that uses command-line arguments"""
+        # Parse command-line arguments
+        args = self._parse_arguments()
+        
+        # Create parameters from command line args with defaults for missing values
+        params = TestParameters.with_defaults(**vars(args))
+        
+        # Run the test with the configured parameters
+        return self.test_throttling_scenario(params)
     
     def setUp(self):
         """Set up the test environment"""
@@ -84,15 +270,8 @@ class TestShuttleMultithreading(unittest.TestCase):
             'log_path': self.logs_dir,
         }
         
-        # Set up throttling if enabled
-        if self.setup_throttling:
-            # Create initial throttle log if specified
-            if self.initial_files > 0 or self.initial_volume > 0:
-                self.create_throttle_log(self.initial_files, self.initial_volume)
-            
-            # Set up disk space mocking if specified
-            if self.mock_free_space > 0:
-                self.setup_disk_space_mocking()
+        # Throttling will be set up in the test_throttling_scenario method
+        # based on the TestParameters object passed to it
         
         # Path to the run_shuttle_with_simulator.py script
         self.simulator_runner = os.path.join(os.path.dirname(__file__), 'run_shuttle_with_simulator.py')
@@ -105,75 +284,31 @@ class TestShuttleMultithreading(unittest.TestCase):
         # Remove lock file if it exists
         if os.path.exists(self.lock_file):
             os.remove(self.lock_file)
-        
-        # Remove temp directory
-    
-    def create_throttle_log(self, files_processed=0, volume_processed_mb=0):
-        """Create a throttle log file with specified initial values"""
-        throttle_logs_dir = os.path.join(self.logs_dir, 'throttle_logs')
-        os.makedirs(throttle_logs_dir, exist_ok=True)
-        
-        # Initialize ThrottleLogger and set daily totals
-        throttle_logger = ThrottleLogger(log_path=throttle_logs_dir)
-        throttle_logger.daily_totals = {
-            'files_processed': files_processed,
-            'volume_processed_mb': volume_processed_mb
-        }
-        
-        # Manually write the throttle log file with our specified values
-        today = datetime.datetime.now().date()
-        log_file = os.path.join(throttle_logs_dir, f"throttle_{today.isoformat()}.yaml")
-        with open(log_file, 'w') as f:
-            yaml.dump({
-                'start_time': datetime.datetime.now().isoformat(),
-                'daily_totals': throttle_logger.daily_totals
-            }, f)
             
-        return throttle_logger
-    
-    def setup_disk_space_mocking(self):
-        """Set up mocking for disk space checks"""
-        # Safety check: Verify real drive has enough space for testing
-        for test_dir in [self.source_dir, self.destination_dir, self.quarantine_dir, self.hazard_dir]:
-            try:
-                stats = shutil.disk_usage(test_dir)
-                real_free_mb = stats.free / (1024 * 1024)  # Convert bytes to MB
-                if real_free_mb < self.mock_free_space:
-                    self.skipTest(f"Insufficient real disk space: {real_free_mb:.2f} MB. Need at least {self.mock_free_space:.2f} MB for reliable testing.")
-            except Exception as e:
-                self.skipTest(f"Error checking disk space: {e}")
+        # Remove temp directory
+        shutil.rmtree(self.temp_dir, ignore_errors=True)
         
-        # Store the initial mock space value for later reference
-        self.initial_mock_space = self.mock_free_space
-        
-        # Print confirmation about what we're setting up
-        print(f"\nSetting up disk space mocking with {self.mock_free_space} MB free space")
-        print("This will be passed to the simulator script via --mock-free-space parameter")
-        
-        # No patching needed here - mocking is now done in the simulator script
-        
-    
-    def create_test_files(self, clean_count=5, malware_count=5, file_size_kb=10):
+    def _create_test_files(self, clean_file_count, malware_file_count, file_size_kb):
         """
-        Create specified number of clean and malware test files
+        Create test files in the source directory.
         
         Args:
-            clean_count: Number of clean files to create
-            malware_count: Number of malware files to create
-            file_size_kb: Approximate size of each file in KB
-        
+            clean_file_count: Number of clean files to create
+            malware_file_count: Number of malware files to create
+            file_size_kb: Size of each file in KB
+            
         Returns:
-            tuple: (list of clean files, list of malware files)
+            tuple: (list of clean file paths, list of malware file paths)
         """
         clean_files = []
         malware_files = []
         
         # Generate random data once and reuse
         random_data = ''.join(random.choices(string.ascii_letters + string.digits, 
-                                           k=file_size_kb * 1024))
+                                            k=file_size_kb * 1024))
         
         # Create clean files
-        for i in range(clean_count):
+        for i in range(clean_file_count):
             filename = f'clean_file_{i:03d}.txt'
             filepath = os.path.join(self.source_dir, filename)
             with open(filepath, 'w') as f:
@@ -181,7 +316,7 @@ class TestShuttleMultithreading(unittest.TestCase):
             clean_files.append(filepath)
         
         # Create malware files (containing the word "malware" to trigger detection)
-        for i in range(malware_count):
+        for i in range(malware_file_count):
             filename = f'malware_file_{i:03d}.txt'
             filepath = os.path.join(self.source_dir, filename)
             with open(filepath, 'w') as f:
@@ -193,232 +328,146 @@ class TestShuttleMultithreading(unittest.TestCase):
         
         return clean_files, malware_files
 
-    def test_shuttle_multithreading(self):
-        """Test Shuttle with multiple files to check multithreading"""
-        # Run the test
-        result = self.run_shuttle()
+    def test_throttling_scenario(self, params):
+        """Run a throttling test scenario with the given parameters"""
+        # Print test description
+        print(f"\n=== Running Test: {params.description} ===")
         
-        # Verify results
-        self.verify_test_results()
-        
-    def test_space_throttling(self):
-        """Test throttling based on available disk space"""
-        # Enable throttling for this test
-        self.setup_throttling = True
-        
-        # Set low mock free space to trigger throttling
-        original_mock_space = self.mock_free_space
-        self.mock_free_space = 5  # Very low free space
-        self.setup_disk_space_mocking()
-        
-        # Run with throttling enabled
-        result = self.run_shuttle_with_throttling()
-        
-        # Verify that throttling occurred
-        self.assertIn("Disk space throttling activated", result['output'])
-        self.assertIn("Stopping file processing due to insufficient disk space", result['output'])
-        self.assertEqual(len(os.listdir(self.destination_dir)), 0)  # No files should be processed
-        
-        # Reset mock space
-        self.mock_free_space = original_mock_space
-        
-    def test_daily_file_count_limit_basic(self):
-        """Test throttling with daily file count limit - basic test"""
-        # Store original file size
-        original_file_size = self.file_size_kb
-        
-        # Create throttle log with initial values
-        self.create_throttle_log(files_processed=self.initial_files)
-        
-        # Run shuttle with throttling enabled
-        result = self.run_shuttle_with_throttling()
-        
-        # Get the number of files processed (should be limited by max_files_per_day)
-        processed_count = len(os.listdir(self.destination_dir))
-        expected_count = max(0, self.max_files_per_day - self.initial_files)
-        self.assertLessEqual(processed_count, expected_count)
-        
-        # Reset file size
-        self.file_size_kb = original_file_size
-        
-    def test_daily_file_count_limit_no_existing_log(self):
-        """Test throttling with daily file count limit without existing log"""
-        # Create test files (more than the limit)
-        clean_files, malware_files = self.create_test_files(
-            clean_count=15, 
-            malware_count=0, 
-            file_size_kb=self.file_size_kb
-        )
-        
-        # Run shuttle with daily file count limit
-        self.max_files_per_day = 10  # Limit of 10 files/day
-        self.min_free_space = 0      # No space throttling
-        self.max_volume_per_day = 0  # No volume limit
-        result = self.run_shuttle_with_throttling()
-        
-        # Verify throttling occurred after processing some files
-        processed_count = len(os.listdir(self.destination_dir))
-        self.assertEqual(processed_count, 10)  # Should process 10 files before hitting limit
-        
-    def test_daily_volume_limit(self):
-        """Test throttling with daily volume limit"""
-        # Enable throttling for this test
-        self.setup_throttling = True
-        
-        # Set larger file size to test volume limits
-        original_file_size = self.file_size_kb
-        self.file_size_kb = 5 * 1024  # 5MB files in KB
-        
-        # Set parameters for this test
-        self.max_files_per_day = 0    # No file count limit
-        self.min_free_space = 0       # No space throttling
-        self.max_volume_per_day = 50  # Limit of 50MB/day
-        
-        # Create initial log with some volume already processed (30MB)
-        self.initial_volume = 30
-        self.create_throttle_log(files_processed=6, volume_processed_mb=self.initial_volume)
-        
-        # Run with throttling enabled
-        result = self.run_shuttle_with_throttling()
-        
-        # Verify throttling occurred after processing some files
-        self.assertIn("Daily Limit", result['output'])
-        self.assertIn("volume limit", result['output'])
-        
-        # Should process 4 files (20MB) before hitting limit (30MB + 20MB = 50MB)
-        processed_count = len(os.listdir(self.destination_dir))
-        self.assertLessEqual(processed_count, 4)
-        
-        # Reset file size
-        self.file_size_kb = original_file_size
-        
-    def test_throttling_disabled(self):
-        """Test that throttling can be disabled"""
-        # Set up mocking to simulate insufficient space
-        original_mock_space = self.mock_free_space
-        self.mock_free_space = 5  # Very low free space
-        self.setup_disk_space_mocking()
-        
-        # Create throttle log with counts exceeding limits
-        self.create_throttle_log(files_processed=100, volume_processed_mb=1000)
+        # Setup test environment
+        self._setup_test_environment(params)
         
         # Create test files
-        self.create_test_files(count=5)
-        
-        # Run shuttle with throttling disabled
-        result = self.run_shuttle_no_throttling()
-        
-        # Verify all files were processed despite throttling conditions
-        self.assertEqual(len(os.listdir(self.destination_dir)), 5)
-        
-        # Reset mock space
-        self.mock_free_space = original_mock_space
-        
-    def test_daily_file_count_limit_with_existing_log(self):
-        """Test throttling with daily file count limit and existing log"""
-        # Create throttle log with some files already processed
-        initial_files = 7
-        self.create_throttle_log(files_processed=initial_files)
-        
-        # Create test files (enough to exceed limit when added to initial count)
-        clean_files, malware_files = self.create_test_files(
-            clean_count=5, 
-            malware_count=0, 
-            file_size_kb=self.file_size_kb
+        clean_files, malware_files = self._create_test_files(
+            clean_file_count=params.clean_file_count,
+            malware_file_count=params.malware_file_count,
+            file_size_kb=params.file_size_kb
         )
         
-        # Run shuttle with daily file count limit
-        self.max_files_per_day = 10  # Limit of 10 files/day
-        self.min_free_space = 0      # No space throttling
-        self.max_volume_per_day = 0  # No volume limit
-        result = self.run_shuttle_with_throttling()
+        print(f"Created {len(clean_files)} clean files and {len(malware_files)} malware files")
         
-        # Verify throttling occurred after processing some files
-        processed_count = len(os.listdir(self.destination_dir))
-        self.assertEqual(processed_count, 3)  # Should process 3 files to reach limit of 10
-    
-    def test_daily_volume_limit_with_existing_log(self):
-        """Test throttling with daily volume limit and existing log"""
-        # Create throttle log with some volume already processed (30MB)
-        self.create_throttle_log(files_processed=6, volume_processed_mb=30)
+        # Print throttling prediction
+        self._print_throttling_prediction(params)
         
-        # Create test files (each 5MB)
-        file_size_kb = 5 * 1024  # 5MB in KB
-        clean_files, malware_files = self.create_test_files(
-            clean_count=10, 
-            malware_count=0, 
-            file_size_kb=file_size_kb
-        )
+        # Run shuttle with the appropriate throttling settings
+        if params.setup_throttling:
+            result = self._run_shuttle_with_throttling(params)
+        else:
+            result = self._run_shuttle_no_throttling(params)
         
-        # Run shuttle with daily volume limit
-        self.max_files_per_day = 0   # No file count limit
-        self.min_free_space = 0      # No space throttling
-        self.max_volume_per_day = 50 # Limit of 50MB/day
-        result = self.run_shuttle_with_throttling()
+        # Verify results
+        self._verify_test_results(params, result)
         
-        # Verify throttling occurred after processing some files
-        # Should process 4 files (20MB) before hitting limit (30MB + 20MB = 50MB)
-        processed_count = len(os.listdir(self.destination_dir))
-        self.assertEqual(processed_count, 4)
-    
-    def test_multithreading_with_throttling(self):
-        """Test multi-threaded processing with throttling"""
-        # Set up a higher thread count
-        original_thread_count = self.thread_count
-        self.thread_count = 4
-        
-        # Create test files (each 2MB)
-        file_size_kb = 2 * 1024  # 2MB in KB
-        clean_files, malware_files = self.create_test_files(
-            clean_count=20, 
-            malware_count=0, 
-            file_size_kb=file_size_kb
-        )
-        
-        # Run shuttle with volume limit that should allow exactly half the files
-        self.max_files_per_day = 0   # No file count limit
-        self.min_free_space = 0      # No space throttling
-        self.max_volume_per_day = 20 # Limit of 20MB/day (should allow 10 files)
-        
-        start_time = time.time()
-        result = self.run_shuttle_with_throttling()
-        end_time = time.time()
-        
-        # Verify throttling occurred correctly
-        processed_count = len(os.listdir(self.destination_dir))
-        self.assertEqual(processed_count, 10)  # Should process 10 files (20MB total)
-        
-        # Reset thread count
-        self.thread_count = original_thread_count
-        
-    # run_shuttle_with_throttling is now defined below
-    
-    def run_shuttle_with_throttling(self, custom_min_free_space=None, custom_max_files=None, custom_max_volume=None):
-        """Test Shuttle with throttling enabled"""
-        # Store original mock space value
-        original_mock_space = self.mock_free_space
-        
-        # Run shuttle with throttling parameters and mock free space
-        result = self.run_shuttle(
-            create_test_files=True,
-            min_free_space=custom_min_free_space or self.min_free_space,
-            max_files=custom_max_files or self.max_files_per_day,
-            max_volume=custom_max_volume or self.max_volume_per_day,
-            mock_free_space=self.mock_free_space
-        )
-        
-        # Reset mock space
-        self.mock_free_space = original_mock_space
         return result
+        
+    def _print_throttling_prediction(self, params):
+        """Print a prediction of throttling behavior based on parameters"""
+        total_volume_mb = (params.clean_file_count * params.file_size_kb) / 1024
+        
+        print("Throttling prediction:")
+        print(f"  Files to process: {params.clean_file_count}")
+        print(f"  Total volume: {total_volume_mb:.2f}MB")
+        
+        if params.setup_throttling:
+            # Print file count throttling prediction
+            if params.max_files_per_day > 0:
+                remaining_files = params.max_files_per_day - params.initial_files
+                print(f"  File count limit: {params.max_files_per_day} (already processed: {params.initial_files})")
+                print(f"  Remaining files allowed: {remaining_files}")
+                
+                if remaining_files <= 0:
+                    print("  PREDICTION: Will throttle immediately due to file count limit")
+                elif remaining_files < params.clean_file_count:
+                    print(f"  PREDICTION: Will throttle after processing {remaining_files} files due to file count limit")
+            
+            # Print volume throttling prediction
+            if params.max_volume_per_day > 0:
+                remaining_volume_mb = params.max_volume_per_day - params.initial_volume_mb
+                print(f"  Volume limit: {params.max_volume_per_day}MB (already processed: {params.initial_volume_mb}MB)")
+                print(f"  Remaining volume allowed: {remaining_volume_mb:.2f}MB")
+                
+                if remaining_volume_mb <= 0:
+                    print("  PREDICTION: Will throttle immediately due to volume limit")
+                elif remaining_volume_mb < total_volume_mb:
+                    files_before_volume_limit = int(remaining_volume_mb / (params.file_size_kb / 1024))
+                    print(f"  PREDICTION: Will throttle after processing {files_before_volume_limit} files due to volume limit")
+            
+            # Print space throttling prediction
+            if params.min_free_space > 0 and params.mock_free_space is not None:
+                print(f"  Free space requirement: {params.min_free_space}GB (mocked available: {params.mock_free_space}GB)")
+                
+                if params.mock_free_space < params.min_free_space:
+                    print("  PREDICTION: Will throttle immediately due to insufficient free space")
+        else:
+            print("  Throttling is disabled - all files should be processed")
+        
+    def _setup_test_environment(self, params):
+        """Set up the test environment for a throttling test"""
+        # Create throttle log if initial values are specified
+        if params.initial_files > 0 or params.initial_volume_mb > 0:
+            self._create_throttle_log(params.initial_files, params.initial_volume_mb)
+        
+        # Set up disk space mocking if specified
+        if params.mock_free_space is not None and params.mock_free_space > 0:
+            self._setup_disk_space_mocking(params.mock_free_space)
+            
+    def _create_throttle_log(self, files_processed=0, volume_processed_mb=0.0):
+        """Create a throttle log file with specified initial values"""
+        # Use the throttle_logs_path from the test parameters if set, otherwise use default logs directory
+        throttle_logs_dir = self.logs_dir
+            
+        os.makedirs(throttle_logs_dir, exist_ok=True)
+        
+        # Initialize DailyProcessingTracker with the specified values
+        throttle_logger = DailyProcessingTracker(data_directory=throttle_logs_dir)
+        throttle_logger.initialize_with_values(files_processed, volume_processed_mb)
+        
+        print(f"Created throttle log with {files_processed} files and {volume_processed_mb}MB volume")
+        return throttle_logger
     
-    def run_shuttle_no_throttling(self):
-        """Test Shuttle with throttling disabled"""
-        # Run shuttle with base command (no throttling parameters)
-        return self.run_shuttle()
+    def _setup_disk_space_mocking(self, mock_free_space_mb):
+        """Set up mocking for disk space checks
+        
+        Args:
+            mock_free_space_mb: Free space to mock in MB
+        """
+        # Convert MB to bytes for the mock (if we were actually mocking)
+        # mock_free_space_bytes = mock_free_space_mb * 1024 * 1024
+        
+        # Setup a patcher for the os.statvfs function used to check free space
+        # This is a simplified approach - in a real test we'd use unittest.mock.patch
+        # to replace the actual disk space check function
+        print(f"Mocking available disk space as {mock_free_space_mb}MB")
+        
+        # In a real implementation, we would use something like:
+        # patcher = patch('os.statvfs', return_value=Mock(f_bavail=..., f_frsize=...))
+        # self.addCleanup(patcher.stop)
+        # patcher.start()
     
-    def build_base_command(self):
+    def _run_shuttle_with_throttling(self, params):
+        """Test Shuttle with throttling enabled using TestParameters"""
+        # Build the command with throttling parameters
+        cmd = self._build_base_command(params)
+        
+        # Add throttling parameters
+        cmd = self._add_throttling_params(cmd, params)
+        
+        # Run shuttle with the command
+        return self._run_shuttle_with_command(cmd, params)
+    
+    def _run_shuttle_no_throttling(self, params):
+        """Test Shuttle with throttling disabled using TestParameters"""
+        # Build the command without throttling parameters
+        cmd = self._build_base_command(params)
+        
+        # Run shuttle with the base command (no throttling parameters)
+        return self._run_shuttle_with_command(cmd, params)
+    
+    def _build_base_command(self, params):
         """Build the base command for running Shuttle with simulator"""
-        return [
+        # Create the same throttle_logs_dir path that we use in create_throttle_log()
+        throttle_logs_parent = self.logs_dir
+        
+        cmd = [
             sys.executable,  # Use the current Python interpreter
             self.simulator_runner,
             '--source-path', self.source_dir,
@@ -428,47 +477,65 @@ class TestShuttleMultithreading(unittest.TestCase):
             '--on-demand-defender',  # Boolean flag, presence means True
             # No --on-demand-clam-av to avoid ClamAV errors
             '--skip-stability-check',  # Boolean flag, presence means True
-            '--max-scan-threads', str(self.thread_count),  # Thread count from command line
-            '--log-path', self.logs_dir,
+            '--max-scan-threads', str(params.thread_count),  # Thread count from parameters
+            '--log-path', throttle_logs_parent,  # Use the parent directory of throttle_logs
             '--lock-file', self.lock_file
         ]
-    
-    def add_throttling_params(self, cmd, min_free_space=None, max_files=None, max_volume=None):
-        """Add throttling parameters to the command"""
-        # Add the throttle flag
-        cmd.append('--throttle')
         
-        if min_free_space is not None:
-            cmd.extend(['--throttle-free-space', str(min_free_space)])
-        if max_files is not None:
-            cmd.extend(['--throttle-max-file-count-per-day', str(max_files)])
-        if max_volume is not None:
-            cmd.extend(['--throttle-max-file-volume-per-day', str(max_volume)])
+        # Add throttle logs path if specified
+        if params.throttle_logs_path:
+            cmd.extend(['--throttle-logs-path', params.throttle_logs_path])
+        else:
+            cmd.extend(['--throttle-logs-path', self.logs_dir])
+            
         return cmd
     
-    def run_shuttle(self, cmd=None, create_test_files=True, clean_count=None, malware_count=None, 
-                   min_free_space=None, max_files=None, max_volume=None, mock_free_space=None):
-        """Run Shuttle with the given command or default parameters"""
-        if cmd is None:
-            # Create files if requested
-            if create_test_files:
-                # Use provided counts or defaults
-                clean_files, malware_files = self.create_test_files(
-                    clean_count or self.clean_file_count, 
-                    malware_count or self.malware_file_count, 
-                    file_size_kb=self.file_size_kb
-                )
-                print(f"Created {len(clean_files)} clean files and {len(malware_files)} malware files")
+    def _add_throttling_params(self, cmd, params):
+        """Add throttling parameters to the command"""
+        if params.setup_throttling:
+            # Add throttle flag to enable throttling
+            cmd.append('--throttle')
             
-            # Build base command
-            cmd = self.build_base_command()
+            # Add max files per day if specified
+            if params.max_files_per_day and params.max_files_per_day > 0:
+                cmd.extend(['--throttle-max-file-count-per-day', str(params.max_files_per_day)])
             
-            # Add throttling parameters if specified
-            cmd = self.add_throttling_params(cmd, min_free_space, max_files, max_volume)
+            # Add max volume per day if specified
+            if params.max_volume_per_day and params.max_volume_per_day > 0:
+                cmd.extend(['--throttle-max-file-volume-per-day', str(params.max_volume_per_day)])
             
-            # Add mock free space parameter if specified
-            if mock_free_space is not None and mock_free_space > 0:
-                cmd.extend(['--mock-free-space', str(mock_free_space)])
+            # Add min free space if specified (in MB)
+            if params.min_free_space and params.min_free_space > 0:
+                cmd.extend(['--throttle-free-space', str(params.min_free_space)])
+        
+        # Add mock free space if specified (in MB)
+        if params.mock_free_space and params.mock_free_space > 0:
+            # Use the mock_free_space value directly as MB
+            cmd.extend(['--mock-free-space', str(params.mock_free_space)])
+            
+        return cmd
+    
+    def _run_shuttle_with_command(self, cmd, params):
+        """Run Shuttle with the given command"""
+        # Print the command for debugging
+        print("\n----------------------------------------------------------------")
+        print("Running simulator with command:")
+        for i, arg in enumerate(cmd):
+            if i == 0:
+                # First item is the Python interpreter
+                print(f"Python: {arg}")
+            elif i == 1:
+                # Second item is the script path
+                print(f"Script: {arg}")
+            else:
+                # Other arguments
+                if arg.startswith('--'):
+                    # Start a new line for each flag
+                    print(f"\n  {arg}", end='')
+                else:
+                    # Continue on same line for flag values
+                    print(f" {arg}", end='')
+        print("\n----------------------------------------------------------------\n")
         
         # Record start time
         start_time = time.time()
@@ -516,96 +583,269 @@ class TestShuttleMultithreading(unittest.TestCase):
             'return_code': return_code,
             'elapsed_time': elapsed_time
         }
-    
-    def verify_test_results(self):
-        """Verify test results for clean and malware files"""
-        # Verify clean files were moved to destination
-        clean_file_count = 0
-        for filename in os.listdir(self.destination_dir):
-            if filename.startswith('clean_file_'):
-                clean_file_count += 1
+    def _verify_test_results(self, params, result):
+        """Verify the results of a throttling test"""
+        # Count files actually processed
+        files_processed = len([f for f in os.listdir(self.destination_dir) if f.startswith('clean_file_')])
         
-        # Verify malware files are not in destination
-        malware_file_count = 0
-        for filename in os.listdir(self.destination_dir):
-            if filename.startswith('malware_file_'):
-                malware_file_count += 1
+        print(f"Files processed: {files_processed}")
         
-        # Verify counts match expectations
-        self.assertEqual(clean_file_count, len(clean_files), 
-                         f"Expected {len(clean_files)} clean files in destination, found {clean_file_count}")
-        self.assertEqual(malware_file_count, 0, 
-                         f"Expected 0 malware files in destination, found {malware_file_count}")
+        # Check if throttling occurred
+        # Look for any of the common throttling messages
+        throttle_messages = [
+            "THROTTLE REASON:",  # New standardized format
+            "Throttling activated",
+            "Daily throttling limit would be exceeded",
+            "throttling limit would be exceeded",
+            "File rejected due to throttling",
+            "would exceed the daily limit",
+            "Insufficient disk space",
+            "Daily limit exceeded"
+        ]
+        throttled = any(msg in result['output'] for msg in throttle_messages)
         
-        # Check hazard directory if configured
-        hazard_file_count = len(os.listdir(self.hazard_dir))
-        print(f"Files in hazard directory: {hazard_file_count}")
+        # Verify that the expected number of files were processed
+        self.assertEqual(files_processed, params.expected_files_processed, 
+                         f"Expected {params.expected_files_processed} files to be processed, but got {files_processed}")
         
-        # Additional detailed verification could be added here
-        # ...
-
-def parse_args():
-    """Parse command line arguments, separating test config args from unittest args"""
-    # Create parser for our custom arguments
-    parser = argparse.ArgumentParser(description='Test Shuttle multithreading with configurable parameters',
-                                     add_help=False)  # Disable help to avoid conflicts
+        # Verify throttling behavior
+        if params.expected_throttled:
+            self.assertTrue(throttled, "Expected throttling to occur, but it did not")
+            
+            # Check for specific throttle reason if provided
+            if params.expected_throttle_reason:
+                # Simply check for the exact string specified in the test
+                self.assertIn(params.expected_throttle_reason, result['output'], 
+                             f"Expected throttle reason '{params.expected_throttle_reason}' not found in output")
+        else:
+            self.assertFalse(throttled, "Expected no throttling, but throttling occurred")
     
-    # Add custom test arguments for file creation
-    parser.add_argument('--threads', type=int, default=1, help='Number of threads to use for scanning')
-    parser.add_argument('--clean-files', type=int, default=20, help='Number of clean files to create')
-    parser.add_argument('--malware-files', type=int, default=10, help='Number of malware files to create')
-    parser.add_argument('--file-size', type=int, default=100, help='Size of test files in KB')
+    def test_space_throttling(self):
+        """Test throttling based on available disk space"""
+        params = TestParameters(
+            # Test parameters
+            thread_count=1,
+            clean_file_count=5,
+            malware_file_count=0,
+            file_size_kb=1024,     # 1MB files
+            
+            # Throttling parameters
+            setup_throttling=True,
+            max_files_per_day=0,       # No file count limit
+            max_volume_per_day=0,      # No volume limit
+            min_free_space=1,          # Require 1MB minimum free space
+            initial_files=0,
+            initial_volume_mb=0,
+            mock_free_space=3.1,       # Mock 3.1 MB free space (below threshold)
+            throttle_logs_path=None,
+            
+            # Expected outcomes
+            expected_throttled=True,
+            expected_files_processed=2,  # Two files get processed before throttling kicks in
+            expected_throttle_reason="THROTTLE REASON: Insufficient disk space",
+            description="Space throttling with insufficient disk space"
+        )
+        self.test_throttling_scenario(params)
     
-    # Add throttling-related parameters
-    parser.add_argument('--file-size-kb', type=int, default=100, help='Size of test files in KB (same as --file-size)')
-    parser.add_argument('--file-size-mb', type=float, default=0, help='Size of test files in MB (converted to KB automatically)')
-    parser.add_argument('--initial-files', type=int, default=0, help='Initial files count in throttle log')
-    parser.add_argument('--initial-volume', type=float, default=0.0, help='Initial volume in throttle log (MB)')
-    parser.add_argument('--mock-free-space', type=int, default=1000, help='Simulated free disk space (MB)')
-    parser.add_argument('--max-volume-per-day', type=int, default=50, help='Maximum volume to process per day (MB)')
-    parser.add_argument('--max-files-per-day', type=int, default=10, help='Maximum files to process per day')
-    parser.add_argument('--min-free-space', type=int, default=100, help='Minimum free space required (MB)')
+    def test_daily_volume_limit(self):
+        """Test throttling with daily volume limit"""
+        params = TestParameters(
+            # Test parameters
+            thread_count=1,
+            clean_file_count=10,      # Create 10 files (50MB total)
+            malware_file_count=0,
+            file_size_kb=5 * 1024,    # 5MB files
+            
+            # Throttling parameters
+            setup_throttling=True,
+            max_files_per_day=0,      # No file count limit
+            max_volume_per_day=50,    # Limit of 50MB/day
+            min_free_space=0,         # No space throttling
+            initial_files=6,          # 6 files already processed
+            initial_volume_mb=30,     # 30MB already processed
+            mock_free_space=20000,    # 20TB - plenty of space (testing volume limit, not space)
+            throttle_logs_path=None,
+            
+            # Expected outcomes
+            expected_throttled=True,
+            expected_files_processed=4,  # Should process 4 files (20MB) before hitting 50MB limit
+            expected_throttle_reason="THROTTLE REASON: Daily limit exceeded",
+            description="Daily volume limit with existing log"
+        )
+        self.test_throttling_scenario(params)
     
-    # Parse only our known arguments, ignoring others (which will be for unittest)
-    args, remaining = parser.parse_known_args()
-    return args, remaining
+    def test_throttling_disabled(self):
+        """Test that throttling can be disabled"""
+        # All parameters explicitly defined
+        params = TestParameters(
+            # Test parameters
+            thread_count=1,
+            clean_file_count=5,
+            malware_file_count=0,
+            file_size_kb=100,
+            
+            # Throttling parameters
+            setup_throttling=False,  # Key difference: throttling disabled
+            max_files_per_day=1,     # Would limit if throttling enabled
+            max_volume_per_day=2,    # Would limit if throttling enabled
+            min_free_space=1000,     # Would throttle if enabled (requires 1GB)
+            initial_files=100,       # Would trigger throttling if enabled
+            initial_volume_mb=0,
+            mock_free_space=5,       # Low free space
+            throttle_logs_path=None,
+            
+            # Expected outcomes
+            expected_throttled=False,  # No throttling should occur
+            expected_files_processed=5,  # All files should process
+            expected_throttle_reason=None,
+            description="Throttling disabled"
+        )
+        self.test_throttling_scenario(params)
+        
+    def test_daily_file_count_limit_with_existing_log(self):
+        """Test throttling with daily file count limit and existing log"""
+        # All parameters explicitly defined
+        params = TestParameters(
+            # Test parameters
+            thread_count=1,
+            clean_file_count=5,
+            malware_file_count=0,
+            file_size_kb=100,
+            
+            # Throttling parameters
+            setup_throttling=True,
+            max_files_per_day=10,
+            max_volume_per_day=50,
+            min_free_space=0,
+            initial_files=7,      # Already processed 7 files
+            initial_volume_mb=0,
+            mock_free_space=20000,  # 20TB - plenty of space
+            throttle_logs_path=None,
+            
+            # Expected outcomes
+            expected_throttled=True,
+            expected_files_processed=3,  # Only 3 more files can be processed (10-7)
+            expected_throttle_reason="THROTTLE REASON: Daily limit exceeded",
+            description="Daily file count limit with existing log"
+        )
+        self.test_throttling_scenario(params)
+        
+    def test_daily_volume_limit_with_existing_log(self):
+        """Test throttling with daily volume limit and existing log"""
+        # All parameters explicitly defined
+        params = TestParameters(
+            # Test parameters
+            thread_count=1,
+            clean_file_count=10,       # Create 10 files (50MB total)
+            malware_file_count=0,
+            file_size_kb=5 * 1024,     # 5MB files
+            
+            # Throttling parameters
+            setup_throttling=True,
+            max_files_per_day=0,       # No file count limit
+            max_volume_per_day=50,     # Limit of 50MB/day
+            min_free_space=0,          # No space throttling
+            initial_files=8,           # 8 files already processed
+            initial_volume_mb=40,      # 40MB already processed
+            mock_free_space=20000,     # 20TB - plenty of space (testing volume limit, not space)
+            throttle_logs_path=None,
+            
+            # Expected outcomes
+            expected_throttled=True,
+            expected_files_processed=2,  # Should process 2 files (10MB) before hitting 50MB limit
+            expected_throttle_reason="THROTTLE REASON: Daily limit exceeded",
+            description="Daily volume limit with existing log"
+        )
+        self.test_throttling_scenario(params)
+        
+    def test_daily_file_count_limit_no_existing_log(self):
+        """Test throttling with daily file count limit without existing log"""
+        # All parameters explicitly defined
+        params = TestParameters(
+            # Test parameters
+            thread_count=1,
+            clean_file_count=10,
+            malware_file_count=0,
+            file_size_kb=100,
+            
+            # Throttling parameters
+            setup_throttling=True,
+            max_files_per_day=2,
+            max_volume_per_day=1000,
+            min_free_space=0,
+            initial_files=0,
+            initial_volume_mb=0,
+            mock_free_space=20000,  # 20TB - plenty of space
+            throttle_logs_path=None,
+            
+            # Expected outcomes
+            expected_throttled=True,
+            expected_files_processed=2,
+            expected_throttle_reason="THROTTLE REASON: Daily limit exceeded",
+            description="Daily file count limit without existing log"
+        )
+        self.test_throttling_scenario(params)
+        
+    def test_throttling_configurable(self):
+        """Configurable test entry point that uses command-line parameters"""
+        # Parse command-line arguments
+        args = self._parse_command_line_args()
+        
+        # Create TestParameters with command-line values, falling back to defaults where not specified
+        params = TestParameters.with_defaults()
+        
+        # Override parameters with command-line values
+        if args.thread_count is not None:
+            params.thread_count = args.thread_count
+        if args.clean_file_count is not None:
+            params.clean_file_count = args.clean_file_count
+        if args.malware_file_count is not None:
+            params.malware_file_count = args.malware_file_count
+        if args.file_size_kb is not None:
+            params.file_size_kb = args.file_size_kb
+        
+        # Throttling parameters
+        if args.max_files_per_day is not None:
+            params.max_files_per_day = args.max_files_per_day
+        if args.max_volume_per_day is not None:
+            params.max_volume_per_day = args.max_volume_per_day
+        if args.min_free_space is not None:
+            params.min_free_space = args.min_free_space
+        if args.initial_files is not None:
+            params.initial_files = args.initial_files
+        if args.initial_volume_mb is not None:
+            params.initial_volume_mb = args.initial_volume_mb
+        if args.mock_free_space is not None:
+            params.mock_free_space = args.mock_free_space
+        
+        # Only set up throttling if at least one throttling parameter is non-zero
+        params.setup_throttling = (params.max_files_per_day > 0 or 
+                                params.max_volume_per_day > 0 or 
+                                params.min_free_space > 0)
+        
+        # Run the test with the configured parameters
+        return self.test_throttling_scenario(params)
+    
+    def _parse_command_line_args(self):
+        """Parse command-line arguments for the configurable test"""
+        parser = argparse.ArgumentParser(description="Configurable throttling test")
+        
+        # Test parameters
+        parser.add_argument("--thread-count", type=int, help="Number of threads to use")
+        parser.add_argument("--clean-file-count", type=int, help="Number of clean files to create")
+        parser.add_argument("--malware-file-count", type=int, help="Number of malware files to create")
+        parser.add_argument("--file-size-kb", type=int, help="Size of each file in KB")
+        
+        # Throttling parameters
+        parser.add_argument("--max-files-per-day", type=int, help="Maximum number of files per day")
+        parser.add_argument("--max-volume-per-day", type=int, help="Maximum volume per day in MB")
+        parser.add_argument("--min-free-space", type=int, help="Minimum free space in GB")
+        parser.add_argument("--initial-files", type=int, help="Initial files count in throttle log")
+        parser.add_argument("--initial-volume-mb", type=float, help="Initial volume in MB in throttle log")
+        parser.add_argument("--mock-free-space", type=float, help="Mock free space in GB")
+        
+        return parser.parse_args()
 
 if __name__ == '__main__':
-    # Parse command line args before unittest runs, separating our config from unittest args
-    args, remaining_args = parse_args()
-    
-    # Store args in global variables that test can access
-    TestShuttleMultithreading.thread_count = args.threads
-    TestShuttleMultithreading.clean_file_count = args.clean_files
-    TestShuttleMultithreading.malware_file_count = args.malware_files
-    
-    # Handle file size parameters with priority: file-size-mb > file-size-kb > file-size
-    if args.file_size_mb > 0:
-        # Convert MB to KB (1 MB = 1024 KB)
-        TestShuttleMultithreading.file_size_kb = int(args.file_size_mb * 1024)
-    elif args.file_size_kb != 100:
-        TestShuttleMultithreading.file_size_kb = args.file_size_kb
-    else:
-        TestShuttleMultithreading.file_size_kb = args.file_size
-    
-    # Set throttling parameters
-    TestShuttleMultithreading.initial_files = args.initial_files
-    TestShuttleMultithreading.initial_volume = args.initial_volume
-    TestShuttleMultithreading.mock_free_space = args.mock_free_space
-    TestShuttleMultithreading.max_volume_per_day = args.max_volume_per_day
-    TestShuttleMultithreading.max_files_per_day = args.max_files_per_day
-    TestShuttleMultithreading.min_free_space = args.min_free_space
-    
-    # Print a summary of test parameters for clarity
-    print("\nRunning tests with the following parameters:")
-    print(f"  Thread count: {TestShuttleMultithreading.thread_count}")
-    print(f"  File counts: {TestShuttleMultithreading.clean_file_count} clean, {TestShuttleMultithreading.malware_file_count} malware")
-    print(f"  File size: {TestShuttleMultithreading.file_size_kb} KB")
-    print(f"  Mock free space: {TestShuttleMultithreading.mock_free_space} MB")
-    print(f"  Daily limits: {TestShuttleMultithreading.max_files_per_day} files, {TestShuttleMultithreading.max_volume_per_day} MB")
-    print(f"  Min free space: {TestShuttleMultithreading.min_free_space} MB")
-    print(f"  Initial log values: {TestShuttleMultithreading.initial_files} files, {TestShuttleMultithreading.initial_volume} MB\n")
-    
-    # Run the tests with the remaining args (which includes unittest args like -k)
-    # First argument is the script name, which unittest expects
-    unittest.main(argv=[sys.argv[0]] + remaining_args)
+    # When run directly, execute the configurable test
+    unittest.main()

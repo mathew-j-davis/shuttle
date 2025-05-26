@@ -20,6 +20,9 @@ from .scanning import (
     scan_and_process_file,
 )
 
+# Import processing tracking
+from .daily_processing_tracker import DailyProcessingTracker
+
 # Import all post scan processing related functions
 from .post_scan_processing import (
     handle_clean_file,

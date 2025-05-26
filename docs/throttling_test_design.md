@@ -67,9 +67,9 @@ def create_throttle_log(self, files_processed=0, volume_processed_mb=0):
     throttle_logs_dir = os.path.join(self.logs_dir, 'throttle_logs')
     os.makedirs(throttle_logs_dir, exist_ok=True)
     
-    # Initialize ThrottleLogger and set daily totals
-    throttle_logger = ThrottleLogger(log_path=throttle_logs_dir)
-    throttle_logger.daily_totals = {
+    # Initialize DailyProcessingTracker and set daily totals
+    tracker = DailyProcessingTracker(data_directory=throttle_logs_dir)
+    tracker.daily_totals = {
         'files_processed': files_processed,
         'volume_processed_mb': volume_processed_mb
     }
