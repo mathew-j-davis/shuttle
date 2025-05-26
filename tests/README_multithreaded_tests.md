@@ -7,40 +7,72 @@ This document describes how to run and configure the multithreaded tests for Shu
 The `test_shuttle_multithreaded.py` file contains tests that verify Shuttle's functionality in multithreaded environments with various throttling conditions:
 
 - Space throttling (based on available disk space)
-- Daily file count limits
-- Daily volume limits
+- Daily file count limits (with and without existing log)
+- Daily volume limits (with and without existing log)
+- Tests with throttling disabled
+
+## Test Structure
+
+The test suite uses a unified approach with the `TestParameters` class to encapsulate all test parameters:
+
+1. **TestParameters class**: A centralized way to define all test parameters
+2. **test_throttling_scenario**: The core test method that all tests use
+3. **Individual test methods**: Each defines its specific parameters and calls `test_throttling_scenario`
+4. **test_throttling_configurable**: A special test that uses command-line arguments
 
 ## Test Parameters
 
+### TestParameters Class
+
+All tests use the `TestParameters` class to encapsulate test parameters:
+
+```python
+params = TestParameters(
+    # Test parameters
+    thread_count=1,
+    clean_file_count=5,
+    malware_file_count=0,
+    file_size_kb=1024,     # 1MB files
+    
+    # Throttling parameters
+    setup_throttling=True,
+    max_files_per_day=10,       # File count limit
+    max_volume_per_day=50,      # Volume limit in MB
+    min_free_space=1024,        # Minimum free space in MB
+    initial_files=0,            # Initial files in throttle log
+    initial_volume_mb=0,        # Initial volume in throttle log
+    mock_free_space=5000,       # Mock free space in MB
+    
+    # Expected outcomes
+    expected_throttled=True,    # Whether throttling should occur
+    expected_files_processed=5, # How many files should be processed
+    expected_throttle_reason="THROTTLE REASON: Insufficient disk space",
+    description="Test description"
+)
+```
+
 ### Command-line Arguments
 
-When running the test directly, you can use these command-line arguments:
+When running the configurable test directly, you can use these command-line arguments:
 
 ```bash
 python test_shuttle_multithreaded.py [OPTIONS]
 ```
 
-### File Creation Parameters
+### Available Parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|----------|
-| `--threads` | Number of threads to use for scanning | 1 |
-| `--clean-files` | Number of clean files to create | 20 |
-| `--malware-files` | Number of malware files to create | 10 |
-| `--file-size` | Size of test files in KB | 100 |
-| `--file-size-kb` | Size of test files in KB (same as `--file-size`) | 100 |
-| `--file-size-mb` | Size of test files in MB (converted to KB automatically) | 0 |
-
-### Throttling Parameters
-
-| Parameter | Description | Default |
-|-----------|-------------|----------|
-| `--mock-free-space` | Simulated free disk space (MB) | 1000 |
-| `--min-free-space` | Minimum free space required (MB) | 100 |
+| `--thread-count` | Number of threads to use for scanning | 1 |
+| `--clean-file-count` | Number of clean files to create | 5 |
+| `--malware-file-count` | Number of malware files to create | 0 |
+| `--file-size-kb` | Size of test files in KB | 100 |
 | `--max-files-per-day` | Maximum files to process per day | 10 |
-| `--max-volume-per-day` | Maximum volume to process per day (MB) | 50 |
+| `--max-volume-per-day` | Maximum volume to process per day (MB) | 2 |
+| `--min-free-space` | Minimum free space required (MB) | 1 |
 | `--initial-files` | Initial files count in throttle log | 0 |
-| `--initial-volume` | Initial volume in throttle log (MB) | 0.0 |
+| `--initial-volume-mb` | Initial volume in throttle log (MB) | 0.0 |
+| `--mock-free-space` | Simulated free disk space (MB) | 5 |
 
 ### Class Attributes
 
@@ -67,6 +99,34 @@ For throttling tests, you can modify these attributes:
 | `initial_volume` | Initial volume in throttle log (MB) | 0.0 |
 | `mock_free_space` | Simulated free disk space (MB) | 1000 |
 
+## Auto-Calculation of Expected Outcomes
+
+The configurable test automatically calculates expected outcomes based on input parameters. This means you don't need to specify expected results when running it via command line.
+
+### How Auto-Calculation Works
+
+The `calculate_expected_outcomes()` method in `TestParameters` determines:
+
+1. Whether throttling should occur
+2. How many files should be processed
+3. What throttle reason message to expect
+
+```python
+# Example of creating parameters with auto-calculated outcomes
+params = TestParameters(
+    clean_file_count=5,
+    max_files_per_day=10,
+    initial_files=7,  # Already processed 7 files
+    # No need to specify expected outcomes!
+).calculate_expected_outcomes()
+
+# Now params.expected_files_processed will be 3
+# params.expected_throttled will be True
+# params.expected_throttle_reason will be set appropriately
+```
+
+The configurable test (`test_throttling_configurable`) automatically uses this feature.
+
 ## Running Specific Tests
 
 ### From Command Line
@@ -77,15 +137,23 @@ To run a specific test:
 python -m unittest test_shuttle_multithreaded.TestShuttleMultithreading.test_space_throttling
 ```
 
+To run the configurable test with command-line arguments:
+
+```bash
+python tests/test_shuttle_multithreaded.py --clean-file-count 5 --max-files-per-day 10 --initial-files 7
+```
+
 ### Using VSCode Debug Configurations
 
-The included debug configurations in `.vscode/launch.json` provide easy ways to run tests. Here are the available throttling test configurations and their expected behavior:
+The included debug configurations in `.vscode/launch.json` provide easy ways to run tests:
 
-#### Running All Tests
+### Available Debug Configurations
+
+All debug configurations follow this basic template, with different test methods:
 
 ```json
 {
-    "name": "Debug test_shuttle_multithreaded",
+    "name": "Debug test_space_throttling",
     "type": "debugpy",
     "request": "launch",
     "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
@@ -93,12 +161,26 @@ The included debug configurations in `.vscode/launch.json` provide easy ways to 
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
     "env": {
-        "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
         "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
     },
-    "args": []
+    "args": ["-k", "test_space_throttling"]
+}
+```
+
+### Available Test Methods
+
+The test suite includes several test methods for different throttling scenarios:
+
+1. **test_space_throttling**: Tests throttling based on insufficient disk space
+2. **test_daily_volume_limit**: Tests throttling based on daily volume limit
+3. **test_daily_volume_limit_with_existing_log**: Tests volume limit with existing log
+4. **test_daily_file_count_limit_no_existing_log**: Tests file count limit without log
+5. **test_daily_file_count_limit_with_existing_log**: Tests file count limit with log
+6. **test_throttling_disabled**: Tests with throttling disabled
+7. **test_throttling_configurable**: Configurable test with command-line args
 }
 ```
 
@@ -278,11 +360,13 @@ This runs general throttling-related tests (like `test_throttling_disabled`).
 
 **Expected Behavior**: The test creates a log with 30MB already processed, creates 10 files of 5MB each, and verifies that only 4 files (20MB) are processed before hitting the 50MB daily volume limit.
 
-##### Basic Volume Limit Test
+### Configuring a Custom Launch for the Configurable Test
+
+To create a custom launch configuration for the configurable test with specific parameters:
 
 ```json
 {
-    "name": "Debug test_daily_volume_limit",
+    "name": "Custom Throttling Test",
     "type": "debugpy",
     "request": "launch",
     "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
@@ -290,16 +374,31 @@ This runs general throttling-related tests (like `test_throttling_disabled`).
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
     "env": {
-        "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+        "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
         "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
     },
-    "args": ["-k", "test_daily_volume_limit"]
+    "args": [
+        "-k", "test_throttling_configurable",
+        "--clean-file-count", "5",
+        "--max-files-per-day", "10",
+        "--initial-files", "7"
+    ]
 }
 ```
 
-**Expected Behavior**: The test creates a log with 30MB already processed, creates larger files (5MB each), and verifies that only 4 more files (20MB) are processed before hitting the 50MB limit.
+## Standardized Throttle Messages
+
+All throttle messages now follow a standardized format for easier testing:
+
+- Space throttling: `THROTTLE REASON: Insufficient disk space in required directories`
+- File limit: `THROTTLE REASON: Daily limit exceeded - Daily file count limit (X) would be exceeded with Y files`
+- Volume limit: `THROTTLE REASON: Daily limit exceeded - Daily volume limit (X MB) would be exceeded with Y MB`
+
+## Summary
+
+With these tests and the refactored structure, you can thoroughly test Shuttle's throttling capabilities in a variety of scenarios. The tests are now more maintainable, explicitly define their parameters, and provide a configurable test entry point for custom testing.
 
 #### Space Throttling Test
 

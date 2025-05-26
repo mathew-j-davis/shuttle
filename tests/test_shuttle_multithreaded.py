@@ -132,6 +132,61 @@ class TestParameters:
         params.update(kwargs)
         return cls(**params)
     
+    def calculate_expected_outcomes(self):
+        """Calculate expected outcomes based on input parameters
+        
+        This method automatically determines:
+        1. Whether throttling is expected to occur
+        2. How many files should be processed
+        3. What throttle reason message to expect
+        
+        You can call this after setting up parameters to have expectations calculated
+        rather than explicitly specified.
+        """
+        total_file_count = self.clean_file_count + self.malware_file_count
+        file_size_mb = self.file_size_kb / 1024
+        total_volume_mb = total_file_count * file_size_mb
+        
+        # Default to no throttling with all files processed
+        self.expected_throttled = False
+        self.expected_files_processed = total_file_count
+        self.expected_throttle_reason = None
+        
+        # No throttling checks if throttling is disabled
+        if not self.setup_throttling:
+            return self
+        
+        # Calculate remaining allowed files and volume based on initial values
+        remaining_files = self.max_files_per_day - self.initial_files if self.max_files_per_day > 0 else float('inf')
+        remaining_volume = self.max_volume_per_day - self.initial_volume_mb if self.max_volume_per_day > 0 else float('inf')
+        
+        # Space throttling - first check if we'll run out of space
+        if self.mock_free_space is not None and self.mock_free_space < self.min_free_space:
+            self.expected_throttled = True
+            # First file gets copied to quarantine, then space check fails
+            self.expected_files_processed = min(2, total_file_count)
+            self.expected_throttle_reason = "THROTTLE REASON: Insufficient disk space"
+            return self
+            
+        # File count throttling
+        if self.max_files_per_day > 0 and remaining_files < total_file_count:
+            self.expected_throttled = True
+            self.expected_files_processed = min(remaining_files, total_file_count)
+            self.expected_throttle_reason = "THROTTLE REASON: Daily limit exceeded"
+            return self
+            
+        # Volume throttling
+        if self.max_volume_per_day > 0 and remaining_volume < total_volume_mb:
+            # Calculate how many files we can process before hitting volume limit
+            files_before_limit = int(remaining_volume / file_size_mb)
+            self.expected_throttled = True
+            self.expected_files_processed = min(files_before_limit, total_file_count)
+            self.expected_throttle_reason = "THROTTLE REASON: Daily limit exceeded"
+            return self
+        
+        # If we get here, no throttling will occur
+        return self
+    
     def __str__(self):
         """String representation for debugging"""
         return (
@@ -232,6 +287,10 @@ class TestShuttleMultithreading(unittest.TestCase):
         
         # Create parameters from command line args with defaults for missing values
         params = TestParameters.with_defaults(**vars(args))
+        
+        # Auto-calculate expected outcomes based on the parameters
+        # This means the user doesn't need to specify expected_throttled, expected_files_processed, etc.
+        params.calculate_expected_outcomes()
         
         # Run the test with the configured parameters
         return self.test_throttling_scenario(params)
