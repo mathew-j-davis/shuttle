@@ -91,7 +91,7 @@ class Throttler:
     @staticmethod
     def can_process_file(source_file_path, quarantine_path, destination_path, 
                          hazard_path, min_free_space_mb, daily_totals=None, max_files_per_day=0, 
-                         max_volume_per_day=0, logging_options=None):
+                         max_volume_per_day_mb=0, logging_options=None):
         """
         Check if a file can be processed with the given paths and return detailed status.
         
@@ -103,7 +103,7 @@ class Throttler:
             min_free_space_mb (int): Minimum free space to maintain after copy in MB
             daily_totals (dict): Current daily totals with 'files_processed' and 'volume_processed_mb' keys
             max_files_per_day (int): Maximum number of files to process per day (0 for no limit)
-            max_volume_per_day (int): Maximum volume to process per day in MB (0 for no limit)
+            max_volume_per_day_mb (int): Maximum volume to process per day in MB (0 for no limit)
             logging_options (LoggingOptions, optional): logging configuration details
             
         Returns:
@@ -127,13 +127,13 @@ class Throttler:
         daily_limit_message = ""
         
         # Check daily throttling limits if enabled
-        if daily_totals and (max_files_per_day > 0 or max_volume_per_day > 0):
+        if daily_totals and (max_files_per_day > 0 or max_volume_per_day_mb > 0):
             try:
                 # Get file size in MB for checking volume limits
                 file_size_bytes = os.path.getsize(source_file_path)
                 file_size_mb = file_size_bytes / (1024 * 1024)  # Convert to MB
                 
-                logger.debug(f"Checking daily throttle limits: files={max_files_per_day}, volume={max_volume_per_day}MB")
+                logger.debug(f"Checking daily throttle limits: files={max_files_per_day}, volume={max_volume_per_day_mb}MB")
                 
                 # Check if already at the limit
                 if max_files_per_day > 0 and daily_totals['files_processed'] >= max_files_per_day:
@@ -142,9 +142,9 @@ class Throttler:
                     logger.debug(daily_limit_message)
                     
                 # Check if this file would exceed the volume limit
-                elif max_volume_per_day > 0 and daily_totals['volume_processed_mb'] + file_size_mb > max_volume_per_day:
+                elif max_volume_per_day_mb > 0 and daily_totals['volume_processed_mb'] + file_size_mb > max_volume_per_day_mb:
                     daily_limit_exceeded = True
-                    daily_limit_message = f"Daily volume limit ({max_volume_per_day} MB) would be exceeded with {daily_totals['volume_processed_mb'] + file_size_mb:.2f} MB"
+                    daily_limit_message = f"Daily volume limit ({max_volume_per_day_mb} MB) would be exceeded with {daily_totals['volume_processed_mb'] + file_size_mb:.2f} MB"
                     logger.debug(daily_limit_message)
             except Exception as e:
                 logger.error(f"Error checking daily limits: {e}")

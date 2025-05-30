@@ -41,13 +41,19 @@ class ShuttleConfig(CommonConfig):
     
     # Throttle settings
     throttle: bool = None
-    throttle_free_space: int = None  # Minimum MB of free space required
-    throttle_logs_path: Optional[str] = None  # Path to store throttle logs
-    throttle_max_file_volume_per_day: int = None  # Maximum MB to process per day
+    throttle_free_space_mb: int = None  # Minimum MB of free space required
+    daily_processing_tracker_logs_path: Optional[str] = None  # Path to store throttle logs
+    throttle_max_file_volume_per_day_mb: int = None  # Maximum MB to process per day
     throttle_max_file_count_per_day: int = None  # Maximum files to process per day
     
     # Testing settings
     skip_stability_check: bool = False  # Skip file stability check (for testing)
+    
+    # Mock settings for testing
+    mock_free_space_mb: Optional[int] = None  # Mock free space in MB for all directories
+    mock_free_space_quarantine_mb: Optional[int] = None  # Mock free space for quarantine
+    mock_free_space_destination_mb: Optional[int] = None  # Mock free space for destination
+    mock_free_space_hazard_mb: Optional[int] = None  # Mock free space for hazard
 
 
 def parse_shuttle_config() -> ShuttleConfig:
@@ -69,6 +75,12 @@ def parse_shuttle_config() -> ShuttleConfig:
     parser.add_argument('--quarantine-path', help='Path to the quarantine directory')
 
     parser.add_argument('--test-source-write-access', action='store_true', help='Test write access to the source directory')
+    
+    # Mock space settings for testing
+    parser.add_argument('--mock-free-space-mb', type=int, help='Mock free space in MB for all directories')
+    parser.add_argument('--mock-free-space-quarantine-mb', type=int, help='Mock free space in MB for quarantine directory')
+    parser.add_argument('--mock-free-space-destination-mb', type=int, help='Mock free space in MB for destination directory')
+    parser.add_argument('--mock-free-space-hazard-mb', type=int, help='Mock free space in MB for hazard directory')
     parser.add_argument('--delete-source-files-after-copying', 
                         action='store_true',
                         help='Delete the source files after copying them to the destination')
@@ -91,12 +103,12 @@ def parse_shuttle_config() -> ShuttleConfig:
                         action='store_true',
                         help='Enable throttling of file processing',
                         default=None)
-    parser.add_argument('--throttle-free-space',
+    parser.add_argument('--throttle-free-space-mb',
                         help='Minimum free space (in MB) required on destination drive',
                         type=int,
                         default=None)
-    parser.add_argument('--throttle-logs-path',
-                        help='Path to store throttle logs (defaults to log_path if not specified)',
+    parser.add_argument('--daily-processing-tracker-logs-path',
+                        help='Path to store daily processing tracker logs (defaults to log_path if not specified)',
                         default=None)
                         
     # Testing parameters
@@ -106,8 +118,8 @@ def parse_shuttle_config() -> ShuttleConfig:
                         default=False)
     
     # Commented out for now
-    parser.add_argument('--throttle-max-file-volume-per-day',
-                       help='Maximum volume of files (in bytes) to process per day',
+    parser.add_argument('--throttle-max-file-volume-per-day-mb',
+                       help='Maximum volume of files (in MB) to process per day',
                        type=int,
                        default=None)
     parser.add_argument('--throttle-max-file-count-per-day',
@@ -146,17 +158,27 @@ def parse_shuttle_config() -> ShuttleConfig:
         
     # Parse throttle settings
     config.throttle = get_setting_from_arg_or_file(args, 'throttle', 'settings', 'throttle', False, bool, settings_file_config)
-    config.throttle_free_space = get_setting_from_arg_or_file(args, 'throttle_free_space', 'settings', 'throttle_free_space', 10000, int, settings_file_config)
-    config.throttle_logs_path = get_setting_from_arg_or_file(args, 'throttle_logs_path', 'settings', 'throttle_logs_path', None, None, settings_file_config)
+    config.throttle_free_space_mb = get_setting_from_arg_or_file(args, 'throttle_free_space_mb', 'settings', 'throttle_free_space_mb', 10000, int, settings_file_config)
+    config.daily_processing_tracker_logs_path = get_setting_from_arg_or_file(args, 'daily_processing_tracker_logs_path', 'settings', 'daily_processing_tracker_logs_path', None, None, settings_file_config)
     
     # Throttle settings specific to Shuttle
-    config.throttle_max_file_volume_per_day = get_setting_from_arg_or_file(args, 'throttle_max_file_volume_per_day', 'settings', 'throttle_max_file_volume_per_day', 0, int, settings_file_config)
+    config.throttle_max_file_volume_per_day_mb = get_setting_from_arg_or_file(args, 'throttle_max_file_volume_per_day_mb', 'settings', 'throttle_max_file_volume_per_day_mb', 0, int, settings_file_config)
     config.throttle_max_file_count_per_day = get_setting_from_arg_or_file(args, 'throttle_max_file_count_per_day', 'settings', 'throttle_max_file_count_per_day', 0, int, settings_file_config)
     
     # Parse testing settings
     config.skip_stability_check = get_setting_from_arg_or_file(args, 'skip_stability_check', 'settings', 'skip_stability_check', False, bool, settings_file_config)
     
-
+    # Parse mock space settings
+    config.mock_free_space_mb = get_setting_from_arg_or_file(args, 'mock_free_space_mb', 'testing', 'mock_free_space_mb', None, int, settings_file_config)
+    config.mock_free_space_quarantine_mb = get_setting_from_arg_or_file(args, 'mock_free_space_quarantine_mb', 'testing', 'mock_free_space_quarantine_mb', None, int, settings_file_config)
+    config.mock_free_space_destination_mb = get_setting_from_arg_or_file(args, 'mock_free_space_destination_mb', 'testing', 'mock_free_space_destination_mb', None, int, settings_file_config)
+    config.mock_free_space_hazard_mb = get_setting_from_arg_or_file(args, 'mock_free_space_hazard_mb', 'testing', 'mock_free_space_hazard_mb', None, int, settings_file_config)
+    
+    # Set the full daily_processing_tracker_logs_path with fallback logic
+    # If daily_processing_tracker_logs_path is not explicitly set, use log_path from common config
+    # or fall back to default
+    if not config.daily_processing_tracker_logs_path:
+        config.daily_processing_tracker_logs_path = getattr(config, 'log_path', '/var/log/shuttle')
     
     # Validate required settings
     if not config.source_path:

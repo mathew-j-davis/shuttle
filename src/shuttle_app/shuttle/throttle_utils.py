@@ -10,16 +10,53 @@ from datetime import datetime
 from shuttle_common.logging_setup import setup_logging
 from shuttle.daily_processing_tracker import DailyProcessingTracker
 
+
+def check_daily_limits(daily_processing_tracker, file_count_limit, volume_limit_mb, file_size_mb, logger=None):
+    """
+    Check if daily limits would be exceeded by processing another file.
+    
+    Args:
+        daily_processing_tracker: DailyProcessingTracker instance providing counters
+        file_count_limit: Maximum number of files to process per day
+        volume_limit_mb: Maximum volume in MB to process per day
+        file_size_mb: Size of the file to be processed in MB
+        logger: Logger instance for logging messages
+            
+    Returns:
+        tuple: (can_proceed, message)
+            - can_proceed: True if processing can continue, False if limit reached
+            - message: Description of the limit reached or None
+    """
+    # Get the total counts including the new file
+    total_files = daily_processing_tracker.get_total_files_count(include_additional=1)  # +1 for current file
+    total_volume = daily_processing_tracker.get_total_volume_mb(include_additional_mb=file_size_mb)
+    
+    # Check file count limit
+    if file_count_limit and file_count_limit > 0 and total_files > file_count_limit:
+        message = f"Daily file count limit ({file_count_limit}) would be exceeded with {total_files} files"
+        if logger:
+            logger.info(message)
+        return False, message
+            
+    # Check volume limit
+    if volume_limit_mb and volume_limit_mb > 0 and total_volume > volume_limit_mb:
+        message = f"Daily volume limit ({volume_limit_mb} MB) would be exceeded with {total_volume:.2f} MB"
+        if logger:
+            logger.info(message)
+        return False, message
+            
+    return True, None
+
 def handle_throttle_check(
         source_file_path, 
         quarantine_path,
         destination_path,
         hazard_archive_path,
-        throttle_free_space,
+        throttle_free_space_mb,
         throttler,
         max_files_per_day=0,
         max_volume_per_day=0,
-        throttle_logger=None,
+        daily_processing_tracker=None,
         notifier=None,
         logging_options=None
     ):
@@ -31,11 +68,11 @@ def handle_throttle_check(
         quarantine_path: Path to the quarantine directory
         destination_path: Path to the destination directory
         hazard_archive_path: Path to the hazard archive directory
-        throttle_free_space: Minimum free space to maintain in MB
+        throttle_free_space_mb: Minimum free space to maintain in MB
         throttler: Throttler instance to use for checks
         max_files_per_day: Maximum number of files to process per day (0 for no limit)
         max_volume_per_day: Maximum volume to process per day in MB (0 for no limit)
-        throttle_logger: DailyProcessingTracker instance for daily limit tracking
+        daily_processing_tracker: DailyProcessingTracker instance for daily limit tracking
         notifier: Notifier instance for sending notifications (optional)
         logging_options: Logging configuration options
         
@@ -64,22 +101,22 @@ def handle_throttle_check(
         quarantine_has_space = throttler.check_directory_space(
             quarantine_path,
             file_size_mb,
-            throttle_free_space,
+            throttle_free_space_mb,
             logging_options,
             include_pending_volume=False
         )
         
         # Get pending volume for destination and hazard checks
         pending_volume_mb = 0
-        if throttle_logger:
-            pending_volume_mb = throttle_logger.pending_volume_mb
+        if daily_processing_tracker:
+            pending_volume_mb = daily_processing_tracker.pending_volume_mb
             logger.debug(f"Using pending volume of {pending_volume_mb:.2f} MB for space checks")
         
         # Check destination directory (include pending volume)
         destination_has_space = throttler.check_directory_space(
             destination_path,
             file_size_mb,
-            throttle_free_space,
+            throttle_free_space_mb,
             logging_options,
             include_pending_volume=True,
             pending_volume_mb=pending_volume_mb
@@ -89,7 +126,7 @@ def handle_throttle_check(
         hazard_has_space = throttler.check_directory_space(
             hazard_archive_path,
             file_size_mb,
-            throttle_free_space,
+            throttle_free_space_mb,
             logging_options,
             include_pending_volume=True,
             pending_volume_mb=pending_volume_mb
@@ -126,34 +163,31 @@ def handle_throttle_check(
             return False  # Stop processing due to disk space issues
         
         # STEP 2: Check daily limits if applicable
-        if throttle_logger and (max_files_per_day > 0 or max_volume_per_day > 0):
+        if daily_processing_tracker and (max_files_per_day > 0 or max_volume_per_day > 0):
             # Check if this file would exceed daily limits
-            can_proceed, limit_message = throttle_logger.check_limits(
+            can_proceed, limit_message = check_daily_limits(
+                daily_processing_tracker=daily_processing_tracker,
                 file_count_limit=max_files_per_day,
                 volume_limit_mb=max_volume_per_day,
-                file_size_mb=file_size_mb
+                file_size_mb=file_size_mb,
+                logger=logger
             )
             
             if not can_proceed:
-                # Daily limit would be exceeded
-                can_continue = False
-                logger.warning(f"THROTTLE REASON: Daily limit exceeded - {limit_message}")
-                
-                # Send notification if available
+                # We've hit a daily limit
+                logger.warning(f"THROTTLE REASON: Daily Limit Reached: {limit_message}")
                 if notifier:
-                    notifier.notify(
-                        "Shuttle Daily Limit Reached", 
-                        f"Processing stopped: {limit_message}\n\n"
-                        f"File: {os.path.basename(source_file_path)}\n"
-                        f"Daily limits: {max_files_per_day or 'unlimited'} files, {max_volume_per_day or 'unlimited'} MB"
-                    )
+                    notifier.notify("Daily Limit Reached", 
+                                  f"Processing stopped: {limit_message}\n\n"
+                                  f"File: {os.path.basename(source_file_path)}\n"
+                                  f"Daily limits: {max_files_per_day or 'unlimited'} files, {max_volume_per_day or 'unlimited'} MB")
                 
                 # Log the rejected file
-                throttle_logger.log_rejected_file(source_file_path, limit_message)
+                daily_processing_tracker.log_rejected_file(source_file_path, limit_message)
                 return False  # Stop processing due to daily limits
             else:
                 # File is approved - add to pending files
-                throttle_logger.add_pending_file(file_size_mb)
+                daily_processing_tracker.add_pending_file(file_size_mb)
                 logger.debug(f"File approved and added to pending: {source_file_path} ({file_size_mb:.2f} MB)")
         
         # All checks passed

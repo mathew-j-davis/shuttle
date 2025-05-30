@@ -43,7 +43,7 @@ class TestShuttleMultithreading(unittest.TestCase):
     initial_files = 0         # Default initial files count in throttle log
     initial_volume = 0.0      # Default initial volume in MB in throttle log
     mock_free_space = 1000    # Default mock free space in MB
-    throttle_logs_path = None # Custom path for throttle logs (None means use default)
+    daily_processing_tracker_logs_path = None # Custom path for throttle logs (None means use default)
     
     # Flag to determine if all tests should run
     run_all_tests = True
@@ -112,8 +112,8 @@ class TestShuttleMultithreading(unittest.TestCase):
     def create_throttle_log(self, files_processed=0, volume_processed_mb=0):
         """Create a throttle log file with specified initial values"""
         # Use custom throttle logs path if specified, otherwise use the default logs directory
-        if self.__class__.throttle_logs_path:
-            throttle_logs_dir = self.__class__.throttle_logs_path
+        if self.__class__.daily_processing_tracker_logs_path:
+            throttle_logs_dir = self.__class__.daily_processing_tracker_logs_path
         else:
             throttle_logs_dir = self.logs_dir
             
@@ -785,7 +785,7 @@ if __name__ == '__main__':
     TestShuttleMultithreading.max_volume_per_day = args.max_volume_per_day
     TestShuttleMultithreading.max_files_per_day = args.max_files_per_day
     TestShuttleMultithreading.min_free_space = args.min_free_space
-    TestShuttleMultithreading.throttle_logs_path = args.throttle_logs_path
+    TestShuttleMultithreading.daily_processing_tracker_logs_path = args.daily_processing_tracker_logs_path
     
     # Calculate file size in MB for throttling prediction
     file_size_mb = TestShuttleMultithreading.file_size_kb / 1024

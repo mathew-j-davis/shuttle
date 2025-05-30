@@ -394,8 +394,8 @@ To create a custom launch configuration for the configurable test with specific 
 All throttle messages now follow a standardized format for easier testing:
 
 - Space throttling: `THROTTLE REASON: Insufficient disk space in required directories`
-- File limit: `THROTTLE REASON: Daily limit exceeded - Daily file count limit (X) would be exceeded with Y files`
-- Volume limit: `THROTTLE REASON: Daily limit exceeded - Daily volume limit (X MB) would be exceeded with Y MB`
+- File limit: `THROTTLE REASON: Daily Limit Reached - Daily file count limit (X) would be exceeded with Y files`
+- Volume limit: `THROTTLE REASON: Daily Limit Reached - Daily volume limit (X MB) would be exceeded with Y MB`
 
 ## Testing with Real Microsoft Defender
 

@@ -64,31 +64,35 @@ class DailyProcessingTracker:
             self.activity_logger.error(f"Error loading tracking data: {e}")
             return {'files_processed': 0, 'volume_processed_mb': 0}
     
-    def check_limits(self, file_count_limit=None, volume_limit_mb=None, file_size_mb=0):
+    def get_total_files_count(self, include_pending=True, include_additional=0):
         """
-        Check if daily limits would be exceeded by processing another file.
+        Get the total number of files processed today.
         
         Args:
-            file_count_limit: Maximum number of files to process per day
-            volume_limit_mb: Maximum volume in MB to process per day
-            file_size_mb: Size of the file to be processed in MB
+            include_pending: Whether to include files currently being processed
+            include_additional: Additional files to add to the count (for checks)
             
         Returns:
-            tuple: (can_proceed, message)
-                - can_proceed: True if processing can continue, False if limit reached
-                - message: Description of the limit reached or None
+            int: Total number of files processed today
         """
-        # Calculate totals including pending files
-        total_files = self.daily_totals['files_processed'] + self.pending_files + 1  # +1 for current file
-        total_volume = self.daily_totals['volume_processed_mb'] + self.pending_volume_mb + file_size_mb
+        base_count = self.daily_totals['files_processed']
+        pending_count = self.pending_files if include_pending else 0
+        return base_count + pending_count + include_additional
+    
+    def get_total_volume_mb(self, include_pending=True, include_additional_mb=0.0):
+        """
+        Get the total volume of files processed today in MB.
         
-        if file_count_limit and file_count_limit > 0 and total_files > file_count_limit:
-            return False, f"Daily file count limit ({file_count_limit}) would be exceeded with {total_files} files"
-                
-        if volume_limit_mb and volume_limit_mb > 0 and total_volume > volume_limit_mb:
-            return False, f"Daily volume limit ({volume_limit_mb} MB) would be exceeded with {total_volume:.2f} MB"
-                
-        return True, None
+        Args:
+            include_pending: Whether to include files currently being processed
+            include_additional_mb: Additional volume to add (for checks)
+            
+        Returns:
+            float: Total volume processed today in MB
+        """
+        base_volume = self.daily_totals['volume_processed_mb']
+        pending_volume = self.pending_volume_mb if include_pending else 0.0
+        return base_volume + pending_volume + include_additional_mb
         
     def add_pending_file(self, file_size_mb):
         """
