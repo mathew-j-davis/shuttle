@@ -187,9 +187,9 @@ def run_shuttle_with_simulator():
             # Normalize path for comparison
             norm_path = os.path.normpath(directory_path)
             
-            # Create a Shuttle instance to access the configuration
-            # We don't need to run the full application, just get the config
-            shuttle_instance = Shuttle()
+            # Use the shared Shuttle instance for configuration
+            # This ensures we share state with the instance that will run
+            nonlocal shuttle_instance
             
             # Get paths from Shuttle's configuration
             quarantine_path = shuttle_instance.get_quarantine_path()
@@ -219,17 +219,19 @@ def run_shuttle_with_simulator():
                 return remaining_space
             
             elif destination_path and norm_path == destination_path and has_mock_destination:
-                # For destination path, return raw mock value
-                # Shuttle/Throttler will handle subtracting pending volume itself
+                # For destination, return the raw mock space without subtracting pending volume
+                # because the throttler's check_directory_space will separately add pending_volume to required space
+                # when include_pending_volume=True, and we don't want to double count
                 print(f"\n>>> MOCK DISK SPACE CHECK FOR DESTINATION: {directory_path} <<<")
-                print(f">>> Mock free space: {mock_free_space_destination_mb} MB <<<")
+                print(f">>> Mock free space: {mock_free_space_destination_mb} MB (pending volume will be added to required space) <<<")
                 return mock_free_space_destination_mb
             
             elif hazard_path and norm_path == hazard_path and has_mock_hazard:
-                # For hazard path, return raw mock value
-                # Shuttle/Throttler will handle subtracting pending volume itself
+                # For hazard, return the raw mock space without subtracting pending volume
+                # because the throttler's check_directory_space will separately add pending_volume to required space
+                # when include_pending_volume=True, and we don't want to double count
                 print(f"\n>>> MOCK DISK SPACE CHECK FOR HAZARD: {directory_path} <<<")
-                print(f">>> Mock free space: {mock_free_space_hazard_mb} MB <<<")
+                print(f">>> Mock free space: {mock_free_space_hazard_mb} MB (pending volume will be added to required space) <<<")
                 return mock_free_space_hazard_mb
             
             # For any other case, use the original method
@@ -239,15 +241,18 @@ def run_shuttle_with_simulator():
         # Add mocking patcher for get_free_space_mb only
         patchers.append(patch.object(Throttler, 'get_free_space_mb', mock_get_free_space_mb))
     
+    # Create the Shuttle instance first, so we can use it for both
+    # configuration access and execution
+    shuttle_instance = Shuttle()
+    
     # Apply all patchers using a context manager stack
     with ExitStack() as stack:
         for patcher in patchers:
             stack.enter_context(patcher)
         
         try:
-            # Create a Shuttle instance and run it
-            shuttle = Shuttle()
-            exit_code = shuttle.run()
+            # Run using our single Shuttle instance
+            exit_code = shuttle_instance.run()
             
             # Exit with the returned code
             sys.exit(exit_code)

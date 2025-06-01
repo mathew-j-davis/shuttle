@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import sys
-from test_shuttle_multithreaded import TestShuttleMultithreaded, TestParameters
+from test_shuttle import TestShuttle, TestParameters
 
 def main():
-    """Run the configurable throttling test using TestShuttleMultithreaded's functionality"""
+    """Run the configurable throttling test using TestShuttle's functionality"""
     # Create test instance
-    test = TestShuttleMultithreaded("__init__")  # Need to provide a method name for initialization
+    test = TestShuttle("__init__")  # Need to provide a method name for initialization
     
     # Run the configurable test with parameters from command line
     return test.run_configurable()

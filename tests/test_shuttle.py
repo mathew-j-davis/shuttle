@@ -5,7 +5,7 @@ Test Shuttle with simulator using multiple files to test multithreading and thro
 
 TEST PROCESS OVERVIEW:
 
-TestShuttleMultithreading
+TestShuttle
 ┣━━ Individual Test Methods
 ┃   ┣━━ test_space_throttling
 ┃   ┣━━ test_daily_volume_limit
@@ -135,7 +135,7 @@ class TestParameters:
             
             # Throttling parameters
             parser.add_argument("--max-files-per-day", type=int, help="Maximum number of files per day")
-            parser.add_argument("--max-volume-per-day", type=int, help="Maximum volume per day in MB")
+            parser.add_argument("--max-volume-per-day-mb", type=int, help="Maximum volume per day in MB")
             parser.add_argument("--min-free-space-mb", type=int, help="Minimum free space in MB")
             parser.add_argument("--initial-files", type=int, help="Initial files count in throttle log")
             parser.add_argument("--initial-volume-mb", type=float, help="Initial volume in MB in throttle log")
@@ -186,9 +186,9 @@ class TestParameters:
             params.initial_volume_mb = args.initial_volume_mb
         if hasattr(args, 'mock_free_space_mb') and args.mock_free_space_mb is not None:
             params.mock_free_space_mb = args.mock_free_space_mb
-        elif hasattr(args, 'mock_free_space') and args.mock_free_space is not None:
+        elif hasattr(args, 'mock_free_space_mb') and args.mock_free_space_mb is not None:
             # For backward compatibility
-            params.mock_free_space_mb = args.mock_free_space
+            params.mock_free_space_mb = args.mock_free_space_mb
         
         # Path-specific mock space parameters
         if hasattr(args, 'mock_free_space_quarantine_mb') and args.mock_free_space_quarantine_mb is not None:
@@ -211,8 +211,8 @@ class TestParameters:
         
         # Only set up throttling if at least one throttling parameter is non-zero
         params.setup_throttling = (params.max_files_per_day > 0 or 
-                                 params.max_volume_per_day > 0 or 
-                                 params.min_free_space > 0)
+                                 params.max_volume_per_day_mb > 0 or 
+                                 params.min_free_space_mb > 0)
         
         # Set simulator mode based on command line flag
         if hasattr(args, 'no_defender_simulator'):
@@ -277,7 +277,7 @@ class TestParameters:
             'min_free_space': 1024,  # 1 GB in MB
             'initial_files': 0,
             'initial_volume_mb': 0.0,
-            'mock_free_space': 5,
+            'mock_free_space_mb': 5,
             'daily_processing_tracker_logs_path': None,
             
             # Expected outcomes
@@ -454,20 +454,20 @@ class TestParameters:
             f"  Thread count: {self.thread_count}\n"
             f"  File counts: {self.clean_file_count} clean, {self.malware_file_count} malware\n"
             f"  File size: {self.file_size_kb} KB ({self.file_size_kb/1024:.2f} MB)\n"
-            f"  Mock free space: {self.mock_free_space} MB\n"
+            f"  Mock free space: {self.mock_free_space_mb} MB\n"
             f"  Daily limits: {self.max_files_per_day} files, {self.max_volume_per_day} MB\n"
             f"  Min free space: {self.min_free_space} MB\n"
             f"  Initial log values: {self.initial_files} files, {self.initial_volume_mb} MB\n"
         )
 
 
-class TestShuttleMultithreading(unittest.TestCase):
+class TestShuttle(unittest.TestCase):
     """Test case for Shuttle multithreading with simulator with throttling support"""
     
     # Flag to determine if all tests should run
     run_all_tests = True
     
-    def test_throttling_scenario(self, params):
+    def test_scenario(self, params):
         """
         Unified test method for all throttling scenarios
         
@@ -485,8 +485,8 @@ class TestShuttleMultithreading(unittest.TestCase):
         
         try:
             # Setup mock disk space if requested
-            if params.mock_free_space is not None and params.mock_free_space > 0:
-                self._setup_disk_space_mocking(params.mock_free_space)
+            if params.mock_free_space_mb is not None and params.mock_free_space_mb > 0:
+                self._setup_disk_space_mocking(params.mock_free_space_mb)
             
             # Create throttle log with initial values if needed
             if params.initial_files > 0 or params.initial_volume_mb > 0:
@@ -553,7 +553,7 @@ class TestShuttleMultithreading(unittest.TestCase):
         params.calculate_expected_outcomes()
         
         # Run the test with the configured parameters
-        return self.test_throttling_scenario(params)
+        return self.test_scenario(params)
     
     def setUp(self):
         """Set up the test environment"""
@@ -672,7 +672,7 @@ class TestShuttleMultithreading(unittest.TestCase):
         
         return clean_files, malware_files
 
-    def test_throttling_scenario(self, params):
+    def test_scenario(self, params):
         """Run a throttling test scenario with the given parameters"""
         # Print test description
         print(f"\n=== Running Test: {params.description} ===")
@@ -775,11 +775,11 @@ class TestShuttleMultithreading(unittest.TestCase):
         os.makedirs(throttle_logs_dir, exist_ok=True)
         
         # Initialize DailyProcessingTracker with the specified values
-        throttle_logger = DailyProcessingTracker(data_directory=throttle_logs_dir)
-        throttle_logger.initialize_with_values(files_processed, volume_processed_mb)
+        daily_processing_tracker = DailyProcessingTracker(data_directory=throttle_logs_dir)
+        daily_processing_tracker.initialize_with_values(files_processed, volume_processed_mb)
         
         print(f"Created throttle log with {files_processed} files and {volume_processed_mb}MB volume")
-        return throttle_logger
+        return daily_processing_tracker
     
     # _setup_disk_space_mocking method removed as it's no longer needed
     
@@ -997,9 +997,9 @@ class TestShuttleMultithreading(unittest.TestCase):
         params = TestParameters(
             # Test parameters
             thread_count=1,
-            clean_file_count=10,
+            clean_file_count=20,
             malware_file_count=0,
-            file_size_kb=1024,     # 1MB files
+            file_size_kb=mb_to_kb(1),     # 1MB files
             
             # Throttling parameters
             setup_throttling=True,
@@ -1008,16 +1008,16 @@ class TestShuttleMultithreading(unittest.TestCase):
             min_free_space_mb=100,     # Require 1GB minimum free space (in MB)
             initial_files=0,
             initial_volume_mb=0,
-            mock_free_space_mb=105,      
+            mock_free_space_mb=110,      
             daily_processing_tracker_logs_path=None,
             
             # Expected outcomes
             expected_throttled=True,
-            expected_files_processed=5,  
+            expected_files_processed=10,  
             expected_throttle_reason="THROTTLE REASON: Insufficient disk space",
             description="Space throttling with insufficient disk space"
         )
-        self.test_throttling_scenario(params)
+        self.test_scenario(params)
     
     def test_daily_volume_limit(self):
         """Test throttling with daily volume limit"""
@@ -1044,7 +1044,7 @@ class TestShuttleMultithreading(unittest.TestCase):
             expected_throttle_reason="THROTTLE REASON: Daily Limit Reached",
             description="Daily volume limit with existing log"
         )
-        self.test_throttling_scenario(params)
+        self.test_scenario(params)
     
     def test_throttling_disabled(self):
         """Test that throttling can be disabled"""
@@ -1072,7 +1072,7 @@ class TestShuttleMultithreading(unittest.TestCase):
             expected_throttle_reason=None,
             description="Throttling disabled"
         )
-        self.test_throttling_scenario(params)
+        self.test_scenario(params)
         
     def test_daily_file_count_limit_with_existing_log(self):
         """Test throttling with daily file count limit and existing log"""
@@ -1100,7 +1100,7 @@ class TestShuttleMultithreading(unittest.TestCase):
             expected_throttle_reason="THROTTLE REASON: Daily Limit Reached",
             description="Daily file count limit with existing log"
         )
-        self.test_throttling_scenario(params)
+        self.test_scenario(params)
         
     def test_daily_volume_limit_with_existing_log(self):
         """Test throttling with daily volume limit and existing log"""
@@ -1128,7 +1128,7 @@ class TestShuttleMultithreading(unittest.TestCase):
             expected_throttle_reason="THROTTLE REASON: Daily Limit Reached",
             description="Daily volume limit with existing log"
         )
-        self.test_throttling_scenario(params)
+        self.test_scenario(params)
         
     def test_daily_file_count_limit_no_existing_log(self):
         """Test throttling with daily file count limit without existing log"""
@@ -1156,7 +1156,7 @@ class TestShuttleMultithreading(unittest.TestCase):
             expected_throttle_reason="THROTTLE REASON: Daily Limit Reached",
             description="Daily file count limit without existing log"
         )
-        self.test_throttling_scenario(params)
+        self.test_scenario(params)
         
     def test_path_specific_mock_space(self):
         """Test path-specific mock space throttling"""
@@ -1165,7 +1165,7 @@ class TestShuttleMultithreading(unittest.TestCase):
         params = TestParameters(
             # Test parameters
             thread_count=1,
-            clean_file_count=3,
+            clean_file_count=5,
             malware_file_count=0,
             file_size_kb=mb_to_kb(1),
             
@@ -1186,11 +1186,11 @@ class TestShuttleMultithreading(unittest.TestCase):
             
             # Expected outcomes
             expected_throttled=True,
-            expected_files_processed=4,  # Should process none due to destination space check
+            expected_files_processed=3,  # Should process none due to destination space check
             expected_throttle_reason="THROTTLE REASON: Insufficient disk space",
             description="Path-specific insufficient disk space (destination)"
         )
-        self.test_throttling_scenario(params)
+        self.test_scenario(params)
         
     def run_configurable(self, args=None):
         """Configurable test entry point that uses command-line parameters"""
@@ -1208,7 +1208,7 @@ class TestShuttleMultithreading(unittest.TestCase):
         
         try:
             # Run the test with the configured parameters
-            result = self.test_throttling_scenario(params)
+            result = self.test_scenario(params)
             print("\nTest completed successfully!")
             return 0
         except Exception as e:

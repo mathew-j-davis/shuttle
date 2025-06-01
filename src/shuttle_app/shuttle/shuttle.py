@@ -352,6 +352,12 @@ class Shuttle:
             return 1
             
         finally:
+            # Close the daily processing tracker if it exists
+            if hasattr(self, 'daily_processing_tracker') and self.daily_processing_tracker:
+                self.logger.info("Closing daily processing tracker...")
+                self.daily_processing_tracker.close()
+                
+            # Existing cleanup code
             if hasattr(self.config, 'lock_file') and os.path.exists(self.config.lock_file):
                 _cleanup_lock_file(self.config.lock_file)
 

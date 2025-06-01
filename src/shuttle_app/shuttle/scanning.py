@@ -74,7 +74,8 @@ def scan_and_process_file(
     (
         quarantine_file_path,
         source_file_path,
-        destination_file_path
+        destination_file_path,
+        file_hash  # Hash is now passed in from quarantine_files_for_scanning
     ) = paths
 
     logger = setup_logging('shuttle.scanning.scan_and_process_file', logging_options)
@@ -83,8 +84,9 @@ def scan_and_process_file(
         logger.error("No virus scanner or defender specified. Please specify at least one.")
         return False
 
-    logger.info(f"getting file hash: {quarantine_file_path}.")
-    quarantine_hash = get_file_hash(quarantine_file_path, logging_options)
+    # No need to calculate hash again
+    logger.debug(f"Using pre-calculated hash for file: {quarantine_file_path}, hash: {file_hash}")
+    quarantine_hash = file_hash
 
     defender_result = None
     clam_av_result = None
@@ -204,22 +206,26 @@ def log_final_status(logger, mode, processed_count, failed_count):
     logger.info(f"{mode} processing completed: {processed_count} files processed, "
                 f"{failed_count} failures, {success_count} successes")
                 
-def process_task_result(task_result, file_path, results, processed_count, failed_count, total_files, logger):
+def process_task_result(task_result, file_data, results, processed_count, failed_count, total_files, logger, daily_processing_tracker=None):
     """
     Process a task result, handle errors, and update counters
     
     Args:
         task_result: Result from task execution or exception if failed
-        file_path: Path to the file being processed
+        file_data: Tuple containing (quarantine_path, source_path, destination_path, file_hash)
         results: List to append results to
         processed_count: Counter for processed files
         failed_count: Counter for failed files
         total_files: Total number of files to process
         logger: Logger instance
+        daily_processing_tracker: Optional DailyProcessingTracker to update
     
     Returns:
         tuple: Updated (processed_count, failed_count)
     """
+    # Unpack file_data (which now includes the file_hash)
+    file_path, source_path, destination_path, file_hash = file_data
+    
     processed_count += 1
     
     if isinstance(task_result, Exception):
@@ -227,9 +233,34 @@ def process_task_result(task_result, file_path, results, processed_count, failed
         failed_count += 1
         logger.error(f"Error processing file {file_path}: {task_result}")
         results.append(None)
+        
+        # Mark as failed in tracker
+        if daily_processing_tracker is not None:
+            try:
+                daily_processing_tracker.complete_pending_file(
+                    file_hash=file_hash,
+                    outcome='failed',
+                    error=str(task_result)
+                )
+                logger.debug(f"Marked file as failed in daily processing tracker: {file_path}, hash: {file_hash}")
+            except Exception as e:
+                logger.warning(f"Failed to mark file as failed in tracker: {e}")
     else:
         # Task succeeded
         results.append(task_result)
+        
+        # Determine outcome based on task_result (success or suspect)
+        outcome = 'success'
+        if hasattr(task_result, 'is_suspect') and task_result.is_suspect:
+            outcome = 'suspect'
+            
+        # Mark file as completed in the daily processing tracker
+        if daily_processing_tracker is not None:
+            try:
+                daily_processing_tracker.complete_pending_file(file_hash, outcome=outcome)
+                logger.debug(f"Marked file as {outcome} in daily processing tracker: {file_path}, hash: {file_hash}")
+            except Exception as e:
+                logger.warning(f"Failed to mark file as completed in tracker: {e}")
     
     # Log progress periodically
     log_processing_progress(logger, processed_count, total_files)
@@ -313,14 +344,30 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
                 # Copy the file to the appropriate directory in the quarantine directory
                 try:
                     copy_temp_then_rename(source_file_path, quarantine_file_path, logging_options)
+                    
+                    # Calculate file hash
+                    file_hash = get_file_hash(quarantine_file_path, logging_options)
+                    logger.debug(f"Calculated hash for file: {quarantine_file_path}, hash: {file_hash}")
+                    
+                    # Track the file as pending now that it's been copied and hashed
+                    if daily_processing_tracker:
+                        file_size_mb = os.path.getsize(quarantine_file_path) / (1024 * 1024)
+                        daily_processing_tracker.add_pending_file(
+                            file_path=quarantine_file_path,
+                            file_size_mb=file_size_mb,
+                            file_hash=file_hash,
+                            source_path=source_file_path
+                        )
+                        logger.debug(f"Added file to pending tracking: {quarantine_file_path} ({file_size_mb:.2f} MB), hash: {file_hash}")
 
                     logger.info(f"Copied file {source_file_path} to quarantine: {quarantine_file_path}")
 
-                    # Add to processing queue with full paths
+                    # Add to processing queue with full paths and file hash
                     quarantine_files.append((
                         quarantine_file_path,       # Full path to the quarantined file
                         source_file_path,           # Full path to the original source file
                         destination_file_path,      # Full path to the destination file
+                        file_hash                   # File hash for tracking
                     ))
                     
                 except Exception as e:
@@ -438,7 +485,7 @@ def clean_up_source_files(quarantine_files, results, source_path, delete_source_
                 logger.info(f"Directory removed during cleanup: {directory_to_remove}")
 
 
-def process_scan_tasks(scan_tasks, max_scan_threads, logging_options=None):
+def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=None, logging_options=None):
     """
     Process a list of scan tasks either sequentially or in parallel based on max_scan_threads.
     
@@ -481,12 +528,12 @@ def process_scan_tasks(scan_tasks, max_scan_threads, logging_options=None):
                         # Get the result (or raises exception if the task failed)
                         result = future.result()
                         processed_count, failed_count = process_task_result(
-                            result, file_path, results, processed_count, failed_count, total_files, logger
+                            result, file_path, results, processed_count, failed_count, total_files, logger, daily_processing_tracker
                         )
                     except Exception as task_error:
                         # For exceptions from future.result(), pass the exception to the processor
                         processed_count, failed_count = process_task_result(
-                            task_error, file_path, results, processed_count, failed_count, total_files, logger
+                            task_error, file_path, results, processed_count, failed_count, total_files, logger, daily_processing_tracker
                         )
                 
                 # Final status report
@@ -507,20 +554,31 @@ def process_scan_tasks(scan_tasks, max_scan_threads, logging_options=None):
                 # Call the processing function with unpacked parameters
                 result = call_scan_and_process_file(*task)
                 processed_count, failed_count = process_task_result(
-                    result, task[0], results, processed_count, failed_count, total_files, logger
+                    result, task[0], results, processed_count, failed_count, total_files, logger, daily_processing_tracker
                 )
             except Exception as e:
                 # For exceptions from the call itself, pass the exception to the processor
                 processed_count, failed_count = process_task_result(
-                    e, task[0], results, processed_count, failed_count, total_files, logger
+                    e, task[0], results, processed_count, failed_count, total_files, logger, daily_processing_tracker
                 )
         
         # Final status report
         log_final_status(logger, "Sequential", processed_count, failed_count)
     
-    # Calculate success and failure counts
-    successful_files = sum(1 for result in results if result)
-    failed_files = len(results) - successful_files
+    # Get summary from tracker instead of calculating manually
+    if daily_processing_tracker:
+        summary = daily_processing_tracker.generate_task_summary()
+        successful_files = summary['successful_files']
+        failed_files = summary['failed_files']
+        suspect_files = summary['suspect_files']
+        
+        logger.info(f"Scan results: {successful_files} successful, "
+                   f"{failed_files} failed, {suspect_files} suspect")
+    else:
+        # Fallback if no tracker provided
+        successful_files = sum(1 for result in results if result)
+        failed_files = len(results) - successful_files
+        suspect_files = 0
     
     return results, successful_files, failed_files
 
@@ -637,6 +695,7 @@ def scan_and_process_directory(
         results, successful_files, failed_files = process_scan_tasks(
             scan_tasks,
             max_scan_threads,
+            daily_processing_tracker,
             logging_options
         )
 

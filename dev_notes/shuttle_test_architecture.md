@@ -11,11 +11,11 @@
    - Main components: shuttle.py, scanning.py, post_scan_processing.py, throttler.py
 
 2. **Test Infrastructure**
-   - `test_shuttle_multithreaded.py`: Multithreaded throttling tests
+   - `test_shuttle.py`: Multithreaded throttling tests
    - `run_shuttle_with_simulator.py`: Test runner with patched MDATP simulator
    - `mdatp-simulator`: Standalone script mimicking Microsoft Defender behavior
 
-### Throttling Test Suite (`test_shuttle_multithreaded.py`)
+### Throttling Test Suite (`test_shuttle.py`)
 
 The throttling test suite verifies Shuttle's behavior under various resource constraints:
 
@@ -183,7 +183,7 @@ This module serves as the test runner that patches Microsoft Defender with a sim
 
 Key files to explore and modify:
 - `/home/mathew/shuttle/tests/run_shuttle_with_simulator.py` - Main test runner to modify
-- `/home/mathew/shuttle/tests/test_shuttle_multithreaded.py` - Test suite to enhance
+- `/home/mathew/shuttle/tests/test_shuttle.py` - Test suite to enhance
 - `/home/mathew/shuttle/tests/mdatp_simulator_app/simulator.py` - Simulator implementation
 - `/home/mathew/shuttle/src/shuttle_app/shuttle/throttle_utils.py` - Throttling implementation
 

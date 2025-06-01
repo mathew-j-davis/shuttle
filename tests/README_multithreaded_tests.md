@@ -4,7 +4,7 @@ This document describes how to run and configure the multithreaded tests for Shu
 
 ## Overview
 
-The `test_shuttle_multithreaded.py` file contains tests that verify Shuttle's functionality in multithreaded environments with various throttling conditions:
+The `test_shuttle.py` file contains tests that verify Shuttle's functionality in multithreaded environments with various throttling conditions:
 
 - Space throttling (based on available disk space)
 - Daily file count limits (with and without existing log)
@@ -56,7 +56,7 @@ params = TestParameters(
 When running the configurable test directly, you can use these command-line arguments:
 
 ```bash
-python test_shuttle_multithreaded.py [OPTIONS]
+python test_shuttle.py [OPTIONS]
 ```
 
 ### Available Parameters
@@ -135,13 +135,13 @@ The configurable test (`test_throttling_configurable`) automatically uses this f
 To run a specific test:
 
 ```bash
-python -m unittest test_shuttle_multithreaded.TestShuttleMultithreading.test_space_throttling
+python -m unittest test_shuttle.TestShuttleMultithreading.test_space_throttling
 ```
 
 To run the configurable test with command-line arguments:
 
 ```bash
-python tests/test_shuttle_multithreaded.py --clean-file-count 5 --max-files-per-day 10 --initial-files 7
+python tests/test_shuttle.py --clean-file-count 5 --max-files-per-day 10 --initial-files 7
 ```
 
 ### Using VSCode Debug Configurations
@@ -157,7 +157,7 @@ All debug configurations follow this basic template, with different test methods
     "name": "Debug test_space_throttling",
     "type": "debugpy",
     "request": "launch",
-    "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
+    "program": "${workspaceFolder}/tests/test_shuttle.py",
     "console": "integratedTerminal",
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
@@ -185,7 +185,7 @@ The test suite includes several test methods for different throttling scenarios:
 }
 ```
 
-This runs all tests in the test_shuttle_multithreaded.py file using default parameters.
+This runs all tests in the test_shuttle.py file using default parameters.
 
 #### Running Specific Types of Throttle Tests
 
@@ -198,7 +198,7 @@ Instead of trying to run all throttle tests at once (which can be problematic wi
     "name": "Run Daily File Count Tests",
     "type": "debugpy",
     "request": "launch",
-    "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
+    "program": "${workspaceFolder}/tests/test_shuttle.py",
     "console": "integratedTerminal",
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
@@ -221,7 +221,7 @@ This runs all daily file count limit tests.
     "name": "Run Daily Volume Tests",
     "type": "debugpy",
     "request": "launch",
-    "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
+    "program": "${workspaceFolder}/tests/test_shuttle.py",
     "console": "integratedTerminal",
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
@@ -244,7 +244,7 @@ This runs all daily volume limit tests.
     "name": "Run Space Throttling Tests",
     "type": "debugpy",
     "request": "launch",
-    "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
+    "program": "${workspaceFolder}/tests/test_shuttle.py",
     "console": "integratedTerminal",
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
@@ -267,7 +267,7 @@ This runs space-based throttling tests.
     "name": "Run Throttling Tests",
     "type": "debugpy",
     "request": "launch",
-    "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
+    "program": "${workspaceFolder}/tests/test_shuttle.py",
     "console": "integratedTerminal",
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
@@ -292,7 +292,7 @@ This runs general throttling-related tests (like `test_throttling_disabled`).
     "name": "Debug test_daily_file_count_limit_with_existing_log",
     "type": "debugpy",
     "request": "launch",
-    "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
+    "program": "${workspaceFolder}/tests/test_shuttle.py",
     "console": "integratedTerminal",
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
@@ -320,7 +320,7 @@ This runs general throttling-related tests (like `test_throttling_disabled`).
     "name": "Debug test_daily_file_count_limit_no_existing_log",
     "type": "debugpy",
     "request": "launch",
-    "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
+    "program": "${workspaceFolder}/tests/test_shuttle.py",
     "console": "integratedTerminal",
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
@@ -345,7 +345,7 @@ This runs general throttling-related tests (like `test_throttling_disabled`).
     "name": "Debug test_daily_volume_limit_with_existing_log",
     "type": "debugpy",
     "request": "launch",
-    "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
+    "program": "${workspaceFolder}/tests/test_shuttle.py",
     "console": "integratedTerminal",
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
@@ -370,7 +370,7 @@ To create a custom launch configuration for the configurable test with specific 
     "name": "Custom Throttling Test",
     "type": "debugpy",
     "request": "launch",
-    "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
+    "program": "${workspaceFolder}/tests/test_shuttle.py",
     "console": "integratedTerminal",
     "justMyCode": false,
     "cwd": "${workspaceFolder}",
@@ -417,13 +417,13 @@ When using real Microsoft Defender with EICAR test files, there are some importa
 
 ```bash
 # Run tests with real Microsoft Defender
-python tests/test_shuttle_multithreaded.py --no-defender-simulator
+python tests/test_shuttle.py --no-defender-simulator
 
 # Run a specific test with real Microsoft Defender
-python -m unittest test_shuttle_multithreaded.TestShuttleMultithreading.test_space_throttling --no-defender-simulator
+python -m unittest test_shuttle.TestShuttleMultithreading.test_space_throttling --no-defender-simulator
 
 # Run a configurable test with real Microsoft Defender
-python tests/test_shuttle_multithreaded.py --no-defender-simulator --clean-file-count 5 --malware-file-count 2
+python tests/test_shuttle.py --no-defender-simulator --clean-file-count 5 --malware-file-count 2
 ```
 
 ### Running Shuttle with Real Defender
@@ -445,7 +445,7 @@ With these tests you can thoroughly test Shuttle's throttling capabilities in a 
     "name": "Debug test_space_throttling",
     "type": "debugpy",
     "request": "launch",
-    "program": "${workspaceFolder}/tests/test_shuttle_multithreaded.py",
+    "program": "${workspaceFolder}/tests/test_shuttle.py",
     "console": "integratedTerminal",
     "justMyCode": false,
     "cwd": "${workspaceFolder}",

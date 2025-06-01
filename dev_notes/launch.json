@@ -4,7 +4,6 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-    
         {
             "name": "Python Debugger: Current File with Arguments",
             "type": "debugpy",
@@ -13,16 +12,115 @@
             "console": "integratedTerminal",
             "args": "${command:pickArgs}"
         },
+        
         {
-            "name": "Debug test_shuttle_with_simulator",
+            "name": "Debug test_daily_volume_limit",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/tests/test_shuttle_with_simulator.py",
+            "program": "${workspaceFolder}/tests/test_shuttle.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["-k", "test_daily_volume_limit"]
+        },
+        {
+            "name": "Debug test_throttling_disabled",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["-k", "test_throttling_disabled"]
+        },
+        {
+            "name": "Debug test_daily_file_count_limit_no_existing_log",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["-k", "test_daily_file_count_limit_no_existing_log"]
+        },
+        {
+            "name": "Debug test_daily_file_count_limit_with_existing_log",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["-k", "test_daily_file_count_limit_with_existing_log"]
+        },
+        {
+            "name": "Debug test_space_throttling",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["-k", "test_space_throttling"]
+        },
+        {
+            "name": "Debug Path-Specific Mock Space",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": [
+                "-k", "test_path_specific_mock_space"
+            ]
+        },
+        {
+            "name": "Debug Daily Processing Tracker Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_daily_processing_tracker.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
                 "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
@@ -30,45 +128,32 @@
             "args": []
         },
         {
-            "name": "Debug test_shuttle_multithread",
+            "name": "Debug Configurable Test",
             "type": "debugpy",
             "request": "launch",
-            "program": "${workspaceFolder}/tests/test_shuttle_multithread.py",
+            "program": "${workspaceFolder}/tests/run_configurable_shuttle_test.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "cwd": "${workspaceFolder}",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
                 "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": [
-                "--threads", "4",
-                "--clean-files", "8",
-                "--malware-files", "4",
-                "--file-size", "100"
-            ]
-        },
-        {
-            "name": "Debug test_shuttle_throttling",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/tests/test_shuttle_throttling.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "cwd": "${workspaceFolder}",
-            "env": {
-                "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
-                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
-                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
-            },
-            "args": [
-                "--threads", "4",
-                "--clean-files", "8",
-                "--malware-files", "4",
-                "--file-size", "100"
+                "--thread-count", "1",
+                "--clean-file-count", "5",
+                "--malware-file-count", "0",
+                "--file-size-kb", "1024",
+                "--max-files-per-day", "0",
+                "--max-volume-per-day-mb", "0",
+                "--min-free-space-mb", "100",
+                "--initial-files", "0",
+                "--initial-volume-mb", "0.0",
+                "--mock-free-space-quarantine-mb", "5000",
+                "--mock-free-space-destination-mb", "103",
+                "--mock-free-space-hazard-mb", "5000"
             ]
         }
     ]

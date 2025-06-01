@@ -186,9 +186,8 @@ def handle_throttle_check(
                 daily_processing_tracker.log_rejected_file(source_file_path, limit_message)
                 return False  # Stop processing due to daily limits
             else:
-                # File is approved - add to pending files
-                daily_processing_tracker.add_pending_file(file_size_mb)
-                logger.debug(f"File approved and added to pending: {source_file_path} ({file_size_mb:.2f} MB)")
+                # File is approved - tracking of pending files is done when the file is copied
+                logger.debug(f"File approved for processing: {source_file_path} ({file_size_mb:.2f} MB)")
         
         # All checks passed
         logger.debug("All throttle checks passed")

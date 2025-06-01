@@ -32,7 +32,7 @@ This document outlines a structured approach for AI assistants to understand and
    - Review `shuttle_common/scan_utils.py` for scanning interfaces
 
 3. **Testing Components**
-   - Understand `tests/test_shuttle_multithreaded.py` for throttling test structure
+   - Understand `tests/test_shuttle.py` for throttling test structure
    - Examine `tests/run_shuttle_with_simulator.py` for the MDATP simulator integration
    - Review `tests/README_multithreaded_tests.md` for test documentation
 
