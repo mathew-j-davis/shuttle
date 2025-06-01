@@ -32,6 +32,7 @@
 - Main entry point for the application
 - Handles command-line arguments and initialization
 - Manages the overall file processing workflow
+- Implements Shuttle class with proper lifecycle management
 
 ### shuttle_config.py
 - Extends common configuration with app-specific settings
@@ -42,6 +43,14 @@
 - Implements file scanning and processing logic
 - Manages the file transfer workflow
 - Integrates with throttling and scan result handling
+- Coordinates with DailyProcessingTracker for file metrics
+
+### daily_processing_tracker.py
+- Tracks all processed files with unique hash identifiers
+- Maintains metrics by outcome (success/failure/suspect)
+- Provides transaction-safe persistence for tracking data
+- Generates detailed processing reports and summaries
+- Handles proper shutdown with pending file management
 
 ### throttler.py
 - Monitors disk space in critical directories

@@ -25,6 +25,14 @@
                             ▼
          ┌─────────────────────────────────┐
          │                                 │
+         │    DailyProcessingTracker       │
+         │ (File & Volume Tracking)        │
+         │                                 │
+         └──────────┬─────────────┬────────┘
+                    │             │
+                    ▼             ▼
+         ┌─────────────────────────────────┐
+         │                                 │
          │          Malware Scan           │
          │   (Microsoft Defender/ClamAV)   │
          │                                 │
@@ -33,22 +41,22 @@
            Clean Files           Suspect Files
                     │             │
                     ▼             ▼
-      ┌──────────────────┐ ┌─────────────────────┐
-      │                  │ │                     │
-      │   Destination    │ │  Hazard Archive     │
-      │    Directory     │ │  (GPG Encryption)   │
-      │                  │ │                     │
-      └──────────────────┘ └─────────────────────┘
-                    │             │
-                    └──────┬──────┘
-                           │
-                           ▼
-                 ┌──────────────────┐
-                 │                  │
-                 │   Cleanup        │
-                 │ (Source files)   │
-                 │                  │
-                 └──────────────────┘
+       ┌──────────────────┐ ┌─────────────────────┐
+       │                  │ │                     │
+       │   Destination    │ │  Hazard Archive     │
+       │    Directory     │ │  (GPG Encryption)   │
+       │                  │ │                     │
+       └──────────────────┘ └─────────────────────┘
+                     │             │
+                     └──────┬──────┘
+                            │
+                            ▼
+                  ┌──────────────────┐
+                  │                  │
+                  │   Cleanup        │
+                  │ (Source files)   │
+                  │                  │
+                  └──────────────────┘
 ```
 
 ## Overview
@@ -60,6 +68,7 @@ Shuttle is a secure file transfer and scanning utility designed to safely move f
 - Secure handling of suspect files (quarantine and encrypted archiving)
 - Configurable notification system for errors and status updates
 - Proper file integrity verification during transfers
+- Comprehensive file tracking and metrics reporting
 - Parallel processing for improved performance (experimental - not ready for use)
 
 **Note:** This project is under active development. When using with Microsoft Defender, it's recommended to limit to a single processing thread.
@@ -83,6 +92,14 @@ Files are scanned using configurable scanners:
 - **Microsoft Defender**: Available as an alternative or additional scanner
 
 When both scanners are enabled, files must pass both scans to be considered clean. The recommended configuration is to use ClamAV for on-demand scanning while configuring Microsoft Defender for real-time protection on the filesystem.
+
+### File Tracking and Metrics
+The DailyProcessingTracker component:
+- Tracks every processed file with unique hash identifiers
+- Maintains comprehensive metrics by outcome category (success/failure/suspect)
+- Provides detailed reporting capabilities for operational insights
+- Handles persistence of tracking data with transaction safety
+- Supports proper shutdown with pending file handling
 
 ### Suspect File Handling
 When a file is identified as suspicious:
@@ -141,3 +158,4 @@ You don't need to provide parameters if they're configured in the settings file.
 - [Deployment Notes](docs/readme_deployment_notes.md) - Instructions for deployment
 - [Cron Notes](docs/readme_cron_notes.md) - Setting up scheduled tasks
 - [VSCode Debugging](docs/readme_vscode_remote_python_debugging.md) - Remote debugging guide
+- [Process Diagram](dev_notes/updated_shuttle_process_diagram.md) - Detailed process flow diagram

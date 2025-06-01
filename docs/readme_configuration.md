@@ -24,6 +24,7 @@ source_path = /path/to/source
 destination_path = /path/to/destination
 quarantine_path = /path/to/quarantine
 hazard_archive_path = /path/to/hazard
+tracking_data_path = /path/to/tracking
 
 [settings]
 delete_source_files = false
@@ -69,6 +70,7 @@ Extended configuration for the main application:
 - `quarantine_path`: Temporary directory for scanning
 - `hazard_archive_path`: Directory for encrypted suspect files
 - `hazard_encryption_key_file_path`: Public key for encrypting suspect files
+- `tracking_data_path`: Directory for storing DailyProcessingTracker data files
 - `lock_file`: Path to the lock file to prevent concurrent runs
 - `delete_source_files`: Whether to delete source files after processing
 - `max_scan_threads`: Number of parallel scan threads
@@ -86,6 +88,7 @@ The same settings can be provided via command line arguments:
 --destination-path /path/to/destination
 --quarantine-path /path/to/quarantine
 --hazard-archive-path /path/to/hazard
+--tracking-data-path /path/to/tracking
 --delete-source-files-after-copying
 --max-scan-threads 4
 --on-demand-defender
@@ -104,6 +107,23 @@ Settings are applied with the following priority:
 2. Configuration file
 3. Default values (lowest)
 
+## DailyProcessingTracker Configuration
+
+The DailyProcessingTracker component uses these configuration settings:
+
+- `tracking_data_path`: Directory to store tracking YAML files (default: log_path)
+- `log_path`: Used as default location for tracking files if tracking_data_path is not specified
+- `notify_summary`: When true, includes tracking metrics in summary notifications
+
+## Throttling Configuration
+
+The throttling system can be configured with:
+
+- `throttle`: Enable/disable the throttling system
+- `throttle_free_space`: Minimum free space to maintain in MB
+- `throttle_max_file_count_per_day`: Maximum files processed per day (0 = unlimited)
+- `throttle_max_file_volume_per_day_mb`: Maximum volume processed per day in MB (0 = unlimited)
+
 ## Configuration Best Practices
 
 ### File Permissions
@@ -117,3 +137,11 @@ Settings are applied with the following priority:
 ### Environment Variables
 - `SHUTTLE_CONFIG_PATH` can be set in the environment to specify a custom location
 - Consider setting this in a system startup script for consistent configuration
+
+### Data Directories
+- Ensure the tracking_data_path directory has appropriate write permissions
+- For production, use a dedicated directory like `/var/lib/shuttle/tracking`
+
+### Multi-User Environment
+- In environments where multiple users run the application, consider user-specific configuration files
+- Set appropriate defaults in system-wide configuration

@@ -11,9 +11,10 @@ shuttle/
 │   │   ├── bin/                # Executable scripts
 │   │   └── shuttle/            # The shuttle module
 │   │       ├── __init__.py
-│   │       ├── shuttle.py           # Main entry point
+│   │       ├── shuttle.py           # Main entry point with Shuttle class
 │   │       ├── shuttle_config.py    # App-specific config
 │   │       ├── scanning.py          # File scanning logic
+│   │       ├── daily_processing_tracker.py  # File tracking and metrics
 │   │       ├── post_scan_processing.py  # Result handling
 │   │       └── throttler.py         # Disk space management
 │   └── shuttle_defender_test_app/   # Defender test application
@@ -29,6 +30,10 @@ shuttle/
 │   └── vscode_debugging/      # VS Code debugging configurations
 ├── example/                    # Example configurations and files
 └── tests/                      # Test suite
+    ├── test_shuttle_multithreaded.py  # Main test file
+    ├── test_daily_processing_tracker.py  # Tests for tracker component
+    ├── run_configurable_throttling_test.py  # Configurable test runner
+    └── ...
 ```
 
 ## Shared Library (shuttle_common)
@@ -123,7 +128,7 @@ When installing the packages with the scripts, use the `-e` flag for editable mo
 ```bash
 # Install packages in development (editable) mode
 ./08_install_shared.sh -e
-./09_install_defender.sh -e
+./09_install_defender_test.sh -e
 ./10_install_shuttle.sh -e
 ```
 
@@ -168,15 +173,30 @@ When Shuttle identifies a potential malware file:
 
 ### File Processing
 
-The main file processing workflow:
+The main file processing workflow in Shuttle has been enhanced with file tracking:
 
-1. Discover files in source directory
-2. Check if files are safe and stable
-3. Copy to quarantine directory
-4. Scan files for malware
-5. Process based on results:
-   - Clean: Move to destination
-   - Suspect: Archive or let Defender handle
+1. **Initialize Components**
+   - Create DailyProcessingTracker for metrics tracking
+   - Load configuration and set up other components
+
+2. **Process Files**
+   - Discover files in source directory
+   - Check if files are safe and stable
+   - Calculate file hash during quarantine copy
+   - Register files with DailyProcessingTracker
+   - Scan files for malware
+   - Process based on results:
+     - Success: Move to destination
+     - Suspect: Archive or let Defender handle
+     - Failed: Log and handle errors
+   - Update tracking with final outcome
+   - Optionally delete source files
+
+3. **Shutdown**
+   - Handle any pending files
+   - Generate processing summary
+   - Save metrics and tracking data
+   - Clean up temporary resources
 
 ### Configuration Loading
 
@@ -186,6 +206,35 @@ Configuration is loaded following this process:
 2. Search for config file in standard locations
 3. Load settings with priority: CLI > config file > defaults
 4. Create configuration objects
+
+### DailyProcessingTracker
+
+The tracker provides these key services:
+
+1. **File Registration**
+   - Register files when copied to quarantine
+   - Track each file with a unique hash identifier
+   - Maintain file metadata (size, path, timestamp)
+
+2. **Status Updates**
+   - Update file status when processing completes
+   - Categorize by outcome (success, failed, suspect)
+   - Record errors and process timestamps
+
+3. **Metrics Management**
+   - Track total counts and volumes
+   - Separate by outcome categories
+   - Maintain daily running totals
+
+4. **Persistence**
+   - Save tracking data with transaction safety
+   - Handle proper shutdown with pending files
+   - Support recovery from interruptions
+
+5. **Reporting**
+   - Generate summaries of processing results
+   - Provide detailed metrics for notifications
+   - Support data export for analysis
 
 ### Throttling
 
@@ -199,6 +248,13 @@ The disk space throttling system:
 
 ## Testing
 
+### Test Infrastructure
+
+The test suite contains:
+- `test_shuttle_multithreaded.py` - Throttling and core functionality tests
+- `test_daily_processing_tracker.py` - Unit tests for the tracker component
+- `run_configurable_throttling_test.py` - Configurable test runner
+
 ### Test App
 
 The defender test app verifies Microsoft Defender integration:
@@ -208,12 +264,31 @@ The defender test app verifies Microsoft Defender integration:
 3. Verifies expected detection results
 4. Updates compatibility ledger
 
-### Future Test Areas
+### Writing Tests
 
-- File integrity verification
-- Throttling system
-- Notification system
-- Configuration handling
+When writing new tests, follow these patterns:
+
+1. **Unit Tests**
+   - Focus on testing a single component in isolation
+   - Use mocks for dependencies
+   - Test both success and failure paths
+   - Cover edge cases and error handling
+
+2. **Integration Tests**
+   - Test interactions between multiple components
+   - Use configurable parameters for different scenarios
+   - Verify end-to-end workflows
+   - Implement appropriate cleanup
+
+### DailyProcessingTracker Testing
+
+The tracker unit tests demonstrate:
+- Initializing the tracker
+- Adding pending files
+- Completing files with different outcomes
+- Testing volume and count calculations
+- Verifying persistence and recovery
+- Testing shutdown behavior with pending files
 
 ## Common Issues
 
@@ -237,6 +312,11 @@ The defender test app verifies Microsoft Defender integration:
    - Check throttle_free_space setting
    - Verify directory permissions and quotas
 
+6. **Tracking Data Issues**:
+   - Ensure tracking directory is writable
+   - Check for corrupt YAML files
+   - Verify proper shutdown is occurring
+
 ## Deployment
 
 ### Directory Structure
@@ -252,6 +332,10 @@ The defender test app verifies Microsoft Defender integration:
 3. **Temporary Setup Scripts**
    - **Location:** `/tmp/shuttle/setup`
    - **Purpose:** One-time setup scripts
+
+4. **Data Directories**
+   - **Location:** (Configurable)
+   - **Purpose:** Tracking data, logs, and metrics
 
 ### Installation Workflow
 
@@ -275,7 +359,7 @@ The installation uses a sequence of numbered scripts:
 
 4. **Module Installation** (08-10)
    - `08_install_shared.sh` - Install shared library module
-   - `09_install_defender.sh` - Install defender test module
+   - `09_install_defender_test.sh` - Install defender test module
    - `10_install_shuttle.sh` - Install shuttle application module
 
 ### Development Mode Installation
@@ -285,7 +369,7 @@ For editable installation, add the `-e` flag:
 ```bash
 ./10_install_shuttle.sh -e
 ./08_install_shared.sh -e
-./09_install_defender.sh -e
+./09_install_defender_test.sh -e
 ```
 
 ### Command-line Tools

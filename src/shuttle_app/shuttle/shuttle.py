@@ -26,8 +26,8 @@ from .scanning import (
 
 from shuttle.daily_processing_tracker import DailyProcessingTracker
 
-""" 
 
+"""
 PROCESS OVERVIEW:
 
 shuttle.shuttle.main
@@ -72,12 +72,15 @@ shuttle.shuttle.main
 ┃       ┗━━ if not ledger.is_version_tested(): → exit(1)
 ┃
 ┣━━ # MAIN PROCESSING
+┃   ┣━━ shuttle.daily_processing_tracker.DailyProcessingTracker.__init__  
 ┃   ┗━━ shuttle.scanning.scan_and_process_directory
 ┃       ┣━━ shuttle.scanning.quarantine_files_for_scanning
 ┃       ┃   ┣━━ shuttle.scanning.is_file_safe_for_processing
 ┃       ┃   ┣━━ shuttle_common.file_utils.normalize_path
 ┃       ┃   ┣━━ shuttle.throttle_utils.handle_throttle_check
 ┃       ┃   ┃   ┗━━ shuttle.throttler.Throttler.can_process_file
+┃       ┃   ┣━━ shuttle_common.files.get_file_hash 
+┃       ┃   ┣━━ daily_processing_tracker.add_pending_file 
 ┃       ┃   ┗━━ shuttle_common.file_utils.copy_temp_then_rename
 ┃       ┃
 ┃       ┣━━ shuttle.scanning.process_scan_tasks
@@ -107,7 +110,7 @@ shuttle.shuttle.main
 ┃       ┃   ┃                                                  ┣━━ shuttle.post_scan_processing.encrypt_file
 ┃       ┃   ┃                                                  ┗━━ shuttle.post_scan_processing.archive_file
 ┃       ┃   ┃  
-┃       ┃   ┃  
+┃       ┃   ┣━━ daily_processing_tracker.generate_task_summary  [NEW]
 ┃       ┃   ┗━━ log_final_status
 ┃       ┃
 ┃       ┣━━ shuttle.scanning.clean_up_source_files
@@ -122,8 +125,10 @@ shuttle.shuttle.main
 ┃   ┗━━ if exception: → log error & exit(1)
 ┃
 ┗━━ # FINALLY BLOCK
+    ┣━━ daily_processing_tracker.close() 
     ┗━━ if os.path.exists(lock_file): → remove lock file
 """
+
 class Shuttle:
     """Main Shuttle application class that encapsulates the file scanning and transfer functionality."""
     

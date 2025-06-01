@@ -1,14 +1,14 @@
-# Shuttle Linux - File Transfer and Malware Scanning Script
+# Shuttle Linux - File Transfer and Malware Scanning System
 
-**Note:** This script is under active development and has not been fully tested. Use at your own risk.
+**Note:** This system is under active development. Use at your own risk.
 
-`shuttle.py` is a Python script designed to transfer files from a source directory to a destination directory on Ubuntu Linux systems. It includes malware scanning using ClamAV (preferred) and/or Microsoft Defender ATP (`mdatp`), handling of infected files, and supports parallel processing for efficiency. 
+`shuttle.py` is a Python application designed to transfer files from a source directory to a destination directory on Ubuntu Linux systems. It includes malware scanning using ClamAV (preferred) and/or Microsoft Defender ATP (`mdatp`), comprehensive file tracking, handling of infected files, and supports parallel processing for efficiency.
 
-The script primarily uses ClamAV for virus scanning, with Microsoft Defender available as an alternative or additional scanner. When both scanners are enabled, files must pass both scans to be considered clean. This dual-scanning approach provides an extra layer of security when needed.
+The system primarily uses ClamAV for virus scanning, with Microsoft Defender available as an alternative or additional scanner. When both scanners are enabled, files must pass both scans to be considered clean. This dual-scanning approach provides an extra layer of security when needed.
 
-The recommended configuration is to use ClamAV for on-demand scanning through the script, while disabling the script's Microsoft Defender integration. Instead, configure Microsoft Defender for real-time protection on the filesystem. This setup provides both thorough on-demand scanning via ClamAV and continuous real-time protection via Defender, while avoiding potential conflicts or performance issues that might arise from running both scanners simultaneously in on-demand mode.
+The recommended configuration is to use ClamAV for on-demand scanning through the application, while disabling the application's Microsoft Defender integration. Instead, configure Microsoft Defender for real-time protection on the filesystem. This setup provides both thorough on-demand scanning via ClamAV and continuous real-time protection via Defender, while avoiding potential conflicts or performance issues that might arise from running both scanners simultaneously in on-demand mode.
 
-The script may work on other Linux distributions; however, the installation scripts were written for Ubuntu. If you plan to use Microsoft Defender as a scanner, you'll need to check that it's supported on your distribution. ClamAV is widely available across Linux distributions.
+The application may work on other Linux distributions; however, the installation scripts were written for Ubuntu. If you plan to use Microsoft Defender as a scanner, you'll need to check that it's supported on your distribution. ClamAV is widely available across Linux distributions.
 
 ## **Features**
 
@@ -16,8 +16,14 @@ The script may work on other Linux distributions; however, the installation scri
   - Copies files from the source directory to a quarantine directory while ensuring files are stable and not being written to.
   - Moves clean files from the quarantine directory to the destination directory after scanning.
 
+- **Comprehensive File Tracking:**
+  - Tracks every file using unique hash identifiers
+  - Maintains detailed metrics by outcome (success/failure/suspect)
+  - Provides summary reports and processing statistics
+  - Ensures data persistence with transaction safety
+
 - **Malware Scanning:**
-  - Utilizes `clamdscan` and or `mdatp` to scan each file individually for malware.
+  - Utilizes `clamdscan` and/or `mdatp` to scan each file individually for malware.
 
 - **Handling Infected Files:**
   - When a file is identified as suspicious, it will be handled in one of two ways:
@@ -25,9 +31,9 @@ The script may work on other Linux distributions; however, the installation scri
     1. **Microsoft Defender Handling** (if configured):
        - If Defender is enabled (either for real-time or on-demand scanning) and configured to handle suspect files
        - Defender will automatically quarantine/archive the infected file according to its settings
-       - The script will verify that Defender has removed the file.
+       - The application will verify that Defender has removed the file.
     
-    2. **Manual Script Handling**:
+    2. **Manual Application Handling**:
        - Used when Defender is not configured to handle files or is not being used
        - If hazard archive parameters are provided:
          - Files are encrypted using GPG with the provided public key
@@ -37,24 +43,24 @@ The script may work on other Linux distributions; however, the installation scri
          - Infected files are deleted
          
   - **Source File Handling**:
-    - When malware is detected in a quarantine copy, the script also checks if the source file.
-    - If the source file has not been removed by defender and matches the infected quarantine copy, it will be handled according to the manual handling instructions.
+    - When malware is detected in a quarantine copy, the application also checks the source file
+    - If the source file has not been removed by defender and matches the infected quarantine copy, it will be handled according to the manual handling instructions
     - This ensures that infected files are not left in the source directory
 
 - **File Integrity Verification:**
-  - Verifies that the source and destination files match by comparing their hashes.
-  - Ensures data integrity during the transfer process.
+  - Verifies that the source and destination files match by comparing their hashes
+  - Ensures data integrity during the transfer process
 
 - **Concurrency and Performance:**
-  - Uses `ProcessPoolExecutor` to scan and process files in parallel.
-  - Limits the number of concurrent scans to optimize resource usage.
+  - Uses `ProcessPoolExecutor` to scan and process files in parallel
+  - Limits the number of concurrent scans to optimize resource usage
 
 - **Single Instance Enforcement:**
-  - Implements a lock file mechanism to prevent multiple instances of the script from running simultaneously.
+  - Implements a lock file mechanism to prevent multiple instances of the application from running simultaneously
 
 - **Configuration via Command-Line Arguments or Settings File:**
-  - Supports specifying paths and options through command-line arguments.
-  - Can load settings from a configuration file if arguments are not provided.
+  - Supports specifying paths and options through command-line arguments
+  - Can load settings from a configuration file if arguments are not provided
 
 
 ## **GPG Key Management**
@@ -90,7 +96,7 @@ hazard_encryption_key_path = /path/to/shuttle_public.gpg
 
 CAVEATS:
 
-This script support parallel scanning with a configurable number of concurrent scans,
+The application supports parallel scanning with a configurable number of concurrent scans,
 however either `mdatp` or the parallel libraries seem not to have been stable when used together with reading output from `mdatp`.
 Until this is understood, ONLY USE ONE THREAD.
 
@@ -106,11 +112,11 @@ This project includes several documentation files for different aspects of the s
 - GPG key management for secure file handling
 - Disk space throttling configuration
 
-### [Configuration Guide](readme_config.md)
+### [Configuration Guide](readme_configuration.md)
 - Detailed explanations of all configuration options
 - Sample configuration files
 
-### [Cron Job Setup](readme_cron.md)
+### [Cron Job Setup](readme_cron_notes.md)
 - Instructions for setting up scheduled tasks
 - Example crontab entries
 
@@ -126,7 +132,7 @@ This project includes several documentation files for different aspects of the s
    source ./activate_venv_CALL_BY_SOURCE.sh
    ```
 
-2. **Run the Shuttle Script:**
+2. **Run the Shuttle Application:**
 
    Make sure the virtual environment is active.
    You do not need to provide parameters if they are configured in the settings file.
@@ -168,11 +174,11 @@ Full parameters:
 - `--settings-path`: Path to the settings file (default: ~/.shuttle/settings.ini)
 - `--skip-stability-check`: Skip file stability check (testing only, default: False)
 
-**Note:** The script gives priority to command-line arguments over settings file values.
+**Note:** The application gives priority to command-line arguments over settings file values.
 
 ### **Settings File (`settings.ini`):**
 
-If command-line arguments are not provided, the script reads configuration from a settings file in INI format. A complete example `settings.ini` with all available options:
+If command-line arguments are not provided, the application reads configuration from a settings file in INI format. A complete example `settings.ini` with all available options:
 
 ```ini
 [paths]
@@ -225,7 +231,7 @@ log_level=INFO
 - `hazard_archive_path` - Directory for encrypted potentially malicious files
 - `hazard_encryption_key_path` - Path to GPG public key for encrypting hazard files
 - `ledger_file_path` - Path to track tested defender versions
-- `lock_file` - Lock file to prevent multiple script instances
+- `lock_file` - Lock file to prevent multiple application instances
 
 **[settings]**
 - `max_scan_threads` - Maximum number of parallel scans (default: 1)
@@ -245,40 +251,44 @@ log_level=INFO
 
 ### **Example Workflow:**
 
-- **Script Operations:**
+- **Application Operations:**
 
-   - The script copies files from the source to the quarantine directory, skipping files that are unstable or open.
-   - Files in the quarantine directory are scanned in parallel.
-     - Clean files are moved to the destination directory.
-     - Infected files are encrypted and moved to the hazard archive.
-   - Source files are optionally deleted after successful processing.
-   - The quarantine directory is cleaned up after processing.
+   - The application performs file hash calculation during the quarantine copy phase
+   - Each file is registered with the DailyProcessingTracker for metrics tracking
+   - Files in the quarantine directory are scanned in parallel
+     - Clean files are moved to the destination directory
+     - Infected files are encrypted and moved to the hazard archive
+   - The tracker updates file status and metrics based on scan outcomes
+   - Source files are optionally deleted after successful processing
+   - The quarantine directory is cleaned up after processing
+   - On shutdown, the tracker ensures all pending files are properly accounted for
 
 - **Review Results:**
 
-   - Check the destination directory for transferred files.
-   - Examine the hazard archive for any infected files, if applicable.
-   - Verify logs and output messages for any errors or issues.
+   - Check the destination directory for transferred files
+   - Examine the hazard archive for any infected files, if applicable
+   - Verify logs and output messages for any errors or issues
+   - Review metrics summary for processing statistics
 
 ## **Important Notes**
 
 - **Security Considerations:**
 
-  - Ensure only authorized users have access to the script and the directories involved.
+  - Ensure only authorized users have access to the application and the directories involved.
 
 - **Error Handling:**
 
-  - The script includes basic error handling but may require enhancements for production use.
-  - Logs and messages should be reviewed to identify and address any issues.
+  - The application includes improved error handling with proper lifecycle management
+  - Logs and messages should be reviewed to identify and address any issues
 
 - **Testing and Validation:**
 
-  - Thoroughly test the script in a controlled environment before deploying it in production.
-  - Validate that all operations perform as expected and that files are transferred securely.
+  - Thoroughly test the application in a controlled environment before deploying it in production
+  - Validate that all operations perform as expected and that files are transferred securely
 
 ## **Contributing and Feedback**
 
-This script is a work in progress. Contributions, suggestions, and feedback are welcome to improve its functionality and reliability.
+This application is a work in progress. Contributions, suggestions, and feedback are welcome to improve its functionality and reliability.
 
 ---
 
@@ -349,7 +359,7 @@ Feel free to explore the `mdatp` command-line options to better understand its c
 
 ### **Key Management**
 
-The script uses GPG encryption for securing hazard files. You'll need to:
+The application uses GPG encryption for securing hazard files. You'll need to:
 
 1. **Generate Key Pair**:
    ```bash
@@ -383,7 +393,7 @@ The script uses GPG encryption for securing hazard files. You'll need to:
 
 ### Virus Scanning Options
 
-The script supports two virus scanners:
+The application supports two virus scanners:
 - **ClamAV** (Default and preferred scanner)
 - **Microsoft Defender** (Alternative or additional scanner)
 
@@ -397,9 +407,9 @@ defender_handles_suspect_files=True  # Let Defender handle infected files
 ```
 
 These can also be set via command line arguments:
-- `-OnDemandDefender`: Enable Microsoft Defender scanning
-- `-OnDemandClamAV`: Enable ClamAV scanning
-- `-DefenderHandlesSuspectFiles`: Let Defender handle infected files
+- `--on-demand-defender`: Enable Microsoft Defender scanning
+- `--on-demand-clam-av`: Enable ClamAV scanning
+- `--defender-handles-suspect-files`: Let Defender handle infected files
 
 At least one scanner must be enabled. For maximum security, you can enable both scanners - files must pass both scans to be considered clean.
 

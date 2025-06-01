@@ -1,8 +1,6 @@
 # Deployment and Script Management on Ubuntu Server
 
 This guide provides instructions for deploying and managing the Shuttle project on an Ubuntu server.
-The steps below will guide you through the process of deploying and managing the Shuttle project on an Ubuntu server
-
 
 ## Project Structure
 
@@ -62,6 +60,16 @@ Key points to remember for deployment:
 - **Setup:**
   - Copy necessary setup scripts to this temporary location on the server.
 
+### 4. Data Directories
+- **Logs Directory:** (Configured in `log_path`)
+  - Purpose: Stores application logs
+  - Ensure this directory has appropriate write permissions
+
+- **Tracking Data Directory:** (Default: logs directory)
+  - Purpose: Stores DailyProcessingTracker files
+  - Contains YAML files with processing metrics and file tracking data
+  - Create with appropriate permissions if separate from logs
+
 ## Installation Workflow
 
 The installation process follows a sequential workflow using numbered scripts (01-10):
@@ -83,7 +91,7 @@ If you have issues with the virtual environment, see the Appendix for additional
 
 4. **Module Installation** (08-10)
    - `08_install_shared.sh` - Install shared library module
-   - `09_install_defender.sh` - Install defender test module
+   - `09_install_defender_test.sh` - Install defender test module
    - `10_install_shuttle.sh` - Install shuttle application module
 
 ### Additional Installation Details
@@ -135,8 +143,67 @@ By default, modules are installed in standard mode. For development mode (editab
 ```bash
 ./10_install_shuttle.sh -e
 ./08_install_shared.sh -e
-./09_install_defender.sh -e
+./09_install_defender_test.sh -e
 ```
+
+## Data Directory Setup
+
+For production deployments, you should create and configure these directories:
+
+### Tracking Data Directory
+
+The DailyProcessingTracker component requires a directory to store its YAML data files:
+
+1. **Create the directory**:
+   ```bash
+   sudo mkdir -p /var/lib/shuttle/tracking
+   ```
+
+2. **Set permissions**:
+   ```bash
+   sudo chown <shuttle_user>:<shuttle_group> /var/lib/shuttle/tracking
+   sudo chmod 755 /var/lib/shuttle/tracking
+   ```
+
+3. **Configure in settings**:
+   ```ini
+   [paths]
+   tracking_data_path = /var/lib/shuttle/tracking
+   ```
+   
+4. **Backup considerations**:
+   - Include this directory in your backup strategy
+   - These files contain important metrics and processing history
+   - YAML files are date-stamped and can be safely archived
+
+### Log Files
+
+Log files should be properly configured for production:
+
+1. **Create log directory**:
+   ```bash
+   sudo mkdir -p /var/log/shuttle
+   ```
+
+2. **Set permissions**:
+   ```bash
+   sudo chown <shuttle_user>:<shuttle_group> /var/log/shuttle
+   sudo chmod 755 /var/log/shuttle
+   ```
+
+3. **Configure log rotation**:
+   Create a file at `/etc/logrotate.d/shuttle` with:
+   ```
+   /var/log/shuttle/*.log {
+     daily
+     missingok
+     rotate 14
+     compress
+     delaycompress
+     notifempty
+     create 640 <shuttle_user> <shuttle_group>
+   }
+   ```
 
 ## Running Scripts as Cron Jobs
 
@@ -159,6 +226,39 @@ By default, modules are installed in standard mode. For development mode (editab
 - **Testing:** Run the test suite after installation to verify functionality.
 - **Documentation:** Refer to the module-specific READMEs in each source directory for detailed usage instructions.
 
+## Lifecycle Management
+
+Shuttle now implements proper component lifecycle management:
+
+1. **Initialization**: Components are created and configured
+2. **Operation**: Normal processing of files occurs
+3. **Shutdown**: 
+   - Tracking data is saved
+   - Pending files are handled
+   - Resources are properly released
+
+For proper shutdown handling, ensure Shuttle is launched with appropriate signal handling:
+
+```bash
+# Example systemd service file
+[Unit]
+Description=Shuttle File Transfer and Scanning Service
+After=network.target
+
+[Service]
+Type=simple
+User=shuttle
+Group=shuttle
+WorkingDirectory=/opt/shuttle
+ExecStart=/opt/shuttle/venv/bin/python -m shuttle.shuttle
+Restart=on-failure
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
+```
+
 ## Disk Space Throttling Feature
 
 The Shuttle application includes a disk space throttling feature that:
@@ -171,7 +271,6 @@ Configuration includes parameters:
 - `throttle_free_space` (integer) - Minimum MB to maintain
 
 By following these guidelines, you can efficiently deploy and manage the Shuttle project on your Ubuntu server.
-
 
 
 ## Appendix: Additional Notes on Virtual Environment Setup and Activation

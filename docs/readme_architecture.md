@@ -18,11 +18,14 @@ shuttle_project/
 
 1. **File Discovery** - Scans source directory for files
 2. **Pre-Processing Checks** - Verifies file stability and safety
-3. **Quarantine** - Copies files to quarantine area
-4. **Scanning** - Runs malware scans on quarantined files
-5. **Processing** - Handles files based on scan results
+3. **Quarantine** - Copies files to quarantine area, calculates file hash
+4. **File Tracking** - Registers files with DailyProcessingTracker
+5. **Scanning** - Runs malware scans on quarantined files
+6. **Processing** - Handles files based on scan results
    - Clean files → Move to destination
    - Suspect files → Archive or let Defender handle
+7. **Metrics Update** - Updates processing metrics with final outcomes
+8. **Cleanup** - Removes temporary files and source files (if configured)
 
 ### Security Model
 
@@ -33,12 +36,24 @@ The system uses a quarantine-first approach where all files are:
 
 This ensures the destination directory only ever receives verified safe files.
 
+### File Tracking System
+
+The DailyProcessingTracker component:
+1. Maintains individual file records using hash identifiers
+2. Tracks processing status (pending, completed)
+3. Categorizes outcomes (success, suspect, failed)
+4. Maintains daily totals for all metrics
+5. Provides reporting and summary generation
+6. Ensures data persistence with transaction safety
+
 ### Throttling System
 
 The throttling mechanism:
 1. Checks available disk space in all relevant directories
-2. Prevents file processing if any directory is below threshold
-3. Notifies administrators of space issues
+2. Tracks daily file count and volume limits
+3. Prevents file processing if any threshold is exceeded
+4. Notifies administrators of throttling conditions
+5. Provides detailed throttling reasons for diagnostics
 
 ## Configuration System
 
@@ -55,6 +70,18 @@ Notifications are triggered for:
 - Errors during processing
 - Suspect file detection
 - Disk space issues
+- Throttling events
 - Run completion (optional summary)
 
 These can be delivered via email using SMTP configuration.
+
+## Lifecycle Management
+
+The application manages component lifecycles:
+1. **Initialization** - Components created and configured
+2. **Operation** - Normal processing of files
+3. **Shutdown** - Graceful cleanup, including:
+   - Saving metrics and tracking data
+   - Completing pending file processing
+   - Removing temporary files
+   - Releasing resources
