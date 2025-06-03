@@ -9,6 +9,7 @@ import yaml
 import logging
 from datetime import datetime
 from shuttle_common.logging_setup import setup_logging
+from shuttle_common.logger_injection import with_logger
 
 
 class DailyProcessingTracker:
@@ -52,7 +53,8 @@ class DailyProcessingTracker:
         self.suspect_files = 0
         self.suspect_volume_mb = 0.0
         
-    def _load_daily_totals(self):
+    @with_logger
+    def _load_daily_totals(self, logger=None):
         """
         Load the current day's totals from the tracking file.
         

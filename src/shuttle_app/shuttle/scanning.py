@@ -3,6 +3,8 @@ import logging
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
+from shuttle_common.logger_injection import with_logger
+
 from shuttle_common.logging_setup import setup_logging
 from shuttle_common import (
     is_file_safe_for_processing,
@@ -40,6 +42,19 @@ from shuttle_common.scan_utils import (
     parse_defender_scan_result
 )
 
+
+@with_logger
+def is_clean_scan(scanner_enabled, scan_result, logger=None):
+    """Check if a scanner result indicates a clean file."""
+    return (
+        not scanner_enabled 
+        or (
+            scanner_enabled 
+            and scan_result == scan_result_types.FILE_IS_CLEAN
+        )
+    )
+
+@with_logger
 def scan_and_process_file(
         paths,     
         hazard_encryption_key_file_path, 
@@ -48,7 +63,8 @@ def scan_and_process_file(
         on_demand_defender, 
         on_demand_clam_av, 
         defender_handles_suspect_files, 
-        logging_options
+        logging_options,
+        logger=None
     ):
     """
     Scan a file for malware and process it accordingly.
@@ -78,7 +94,6 @@ def scan_and_process_file(
         file_hash  # Hash is now passed in from quarantine_files_for_scanning
     ) = paths
 
-    logger = setup_logging('shuttle.scanning.scan_and_process_file', logging_options)
  
     if not on_demand_defender and not on_demand_clam_av:
         logger.error("No virus scanner or defender specified. Please specify at least one.")
@@ -137,16 +152,6 @@ def scan_and_process_file(
             quarantine_hash,
             logging_options
         )
-    
-
-    def is_clean_scan(scanner_enabled, scan_result):
-        return (
-            not scanner_enabled 
-            or (
-                scanner_enabled 
-                and scan_result == scan_result_types.FILE_IS_CLEAN
-            )
-        )
 
     # Check if all enabled scanners report clean
     if (
@@ -180,7 +185,8 @@ def call_scan_and_process_file(file_paths, hazard_key_path, hazard_path, delete_
             logging_opts
         )
 
-def log_processing_progress(logger, processed_count, total_files):
+@with_logger
+def log_processing_progress(processed_count, total_files, logger=None):
     """
     Log file processing progress at regular intervals
     
@@ -192,15 +198,16 @@ def log_processing_progress(logger, processed_count, total_files):
     if processed_count % 5 == 0 or processed_count == total_files:
         logger.info(f"Processed {processed_count}/{total_files} files ({processed_count/total_files:.0%})")
 
-def log_final_status(logger, mode, processed_count, failed_count):
+@with_logger
+def log_final_status(mode, processed_count, failed_count, logger=None):
     """
     Log final processing status summary
     
     Args:
-        logger: Logger instance
         mode: Processing mode ("Parallel" or "Sequential")
         processed_count: Total number of files processed
         failed_count: Number of files that failed processing
+        logger: Logger instance
     """
     success_count = processed_count - failed_count
     logger.info(f"{mode} processing completed: {processed_count} files processed, "
@@ -263,11 +270,12 @@ def process_task_result(task_result, file_data, results, processed_count, failed
                 logger.warning(f"Failed to mark file as completed in tracker: {e}")
     
     # Log progress periodically
-    log_processing_progress(logger, processed_count, total_files)
+    log_processing_progress(processed_count, total_files)
     
     return processed_count, failed_count
 
-def quarantine_files_for_scanning(source_path, quarantine_path, destination_path, hazard_archive_path, throttle, throttle_free_space_mb, throttle_max_file_count_per_day=0, throttle_max_file_volume_per_day_mb=0, daily_processing_tracker=None, notifier=None, skip_stability_check=False, logging_options=None):
+@with_logger
+def quarantine_files_for_scanning(source_path, quarantine_path, destination_path, hazard_archive_path, throttle, throttle_free_space_mb, throttle_max_file_count_per_day=0, throttle_max_file_volume_per_day_mb=0, daily_processing_tracker=None, notifier=None, skip_stability_check=False, logging_options=None, logger=None):
     """
     Find eligible files in source directory, copy them to quarantine, and prepare for scanning.
     
@@ -290,7 +298,6 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
             - quarantine_files: List of (quarantine_path, source_path, destination_path) tuples
             - disk_error_stopped_processing: Whether processing was stopped due to disk issues
     """
-    logger = setup_logging('shuttle.scanning.quarantine_files_for_scanning', logging_options)
     quarantine_files = []
     disk_error_stopped_processing = False
     
@@ -384,7 +391,8 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
         logger.error(f"Error during file quarantine process: {e}")
         return [], True
 
-def send_summary_notification(notifier, source_path, destination_path, successful_files, failed_files, suspect_files, disk_error_stopped_processing, notify_summary, logging_options=None):
+@with_logger
+def send_summary_notification(notifier, source_path, destination_path, successful_files, failed_files, suspect_files, disk_error_stopped_processing, notify_summary, logging_options=None, logger=None):
     """
     Send a summary notification about the processing results.
     
@@ -402,7 +410,6 @@ def send_summary_notification(notifier, source_path, destination_path, successfu
     if not notifier:
         return
     
-    logger = setup_logging('shuttle.scanning.send_summary_notification', logging_options)
     total_files = successful_files + failed_files
     
     # Only send notification if configured or if there were failures or disk issues
@@ -440,7 +447,8 @@ def send_summary_notification(notifier, source_path, destination_path, successfu
     logger.info(f"Sent summary notification: {failed_files} failed, {successful_files} successful")
 
 
-def clean_up_source_files(quarantine_files, results, source_path, delete_source_files, logging_options):
+@with_logger
+def clean_up_source_files(quarantine_files, results, source_path, delete_source_files, logging_options, logger=None):
     """
     Clean up empty source directories after successful file transfers.
     
@@ -454,7 +462,6 @@ def clean_up_source_files(quarantine_files, results, source_path, delete_source_
     if not delete_source_files:
         return
         
-    logger = setup_logging('shuttle.scanning.clean_up_source_files', logging_options)
     
     directories_to_remove = []
 
@@ -485,7 +492,8 @@ def clean_up_source_files(quarantine_files, results, source_path, delete_source_
                 logger.info(f"Directory removed during cleanup: {directory_to_remove}")
 
 
-def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=None, logging_options=None):
+@with_logger
+def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=None, logging_options=None, logger=None):
     """
     Process a list of scan tasks either sequentially or in parallel based on max_scan_threads.
     
@@ -506,7 +514,6 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
     failed_count = 0
     
     # Create logger for this function
-    logger = setup_logging('shuttle.scanning.process_scan_tasks', logging_options)
     
     if max_scan_threads > 1:
         # Process files in parallel using a ProcessPoolExecutor
@@ -537,7 +544,7 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
                         )
                 
                 # Final status report
-                log_final_status(logger, "Parallel", processed_count, failed_count)
+                log_final_status("Parallel", processed_count, failed_count)
                         
             except Exception as e:
                 # This only happens for errors outside the task processing loop
@@ -563,7 +570,7 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
                 )
         
         # Final status report
-        log_final_status(logger, "Sequential", processed_count, failed_count)
+        log_final_status("Sequential", processed_count, failed_count)
     
     # Get summary from tracker instead of calculating manually
     if daily_processing_tracker:
@@ -583,6 +590,7 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
     return results, successful_files, failed_files
 
 
+@with_logger
 def scan_and_process_directory(
     source_path,
     destination_path,
@@ -605,7 +613,8 @@ def scan_and_process_directory(
     notify_summary=False,
     skip_stability_check=False,
 
-    logging_options=None
+    logging_options=None,
+    logger=None
     
     ):
     """
@@ -644,7 +653,6 @@ def scan_and_process_directory(
     suspect_files = 0
     
     # Initialize logging
-    logger = setup_logging('shuttle.scanning.scan_and_process_directory', logging_options)
     
     # The daily_processing_tracker is now a required parameter and should be initialized
     # by the caller (Shuttle class)

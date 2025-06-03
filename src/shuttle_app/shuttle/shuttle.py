@@ -16,6 +16,10 @@ from shuttle_common.logging_setup import (
     LoggingOptions,
     setup_logging
 )
+from shuttle_common.logger_injection import (
+    configure_logging,
+    with_logger
+)
 from .shuttle_config import (
     parse_shuttle_config
 )
@@ -142,27 +146,31 @@ class Shuttle:
         self.daily_processing_tracker = None
         self.using_simulator = False
     
-    def get_config(self):
+    @with_logger
+    def get_config(self, logger=None):
         """Get the Shuttle configuration object."""
         return self.config
-    
-    def get_quarantine_path(self):
+    @with_logger
+    def get_quarantine_path(self, logger=None):
         """Get the quarantine path from configuration."""
         return self.config.quarantine_path if hasattr(self.config, 'quarantine_path') else None
     
-    def get_destination_path(self):
+    @with_logger
+    def get_destination_path(self, logger=None):
         """Get the destination path from configuration."""
         return self.config.destination_path if hasattr(self.config, 'destination_path') else None
     
-    def get_hazard_archive_path(self):
+    @with_logger
+    def get_hazard_archive_path(self, logger=None):
         """Get the hazard archive path from configuration."""
         return self.config.hazard_archive_path if hasattr(self.config, 'hazard_archive_path') else None
-    
-    def get_source_path(self):
+    @with_logger
+    def get_source_path(self, logger=None):
         """Get the source path from configuration."""
         return self.config.source_path if hasattr(self.config, 'source_path') else None
         
-    def get_pending_volume(self):
+    @with_logger
+    def get_pending_volume(self, logger=None):
         """Get the pending volume in MB from the daily processing tracker.
         
         Returns:
@@ -172,7 +180,8 @@ class Shuttle:
             return self.daily_processing_tracker.pending_volume_mb
         return 0.0
     
-    def _create_lock_file(self):
+    @with_logger
+    def _create_lock_file(self, logger=None):
         """Create a lock file to prevent multiple instances from running."""
         if os.path.exists(self.config.lock_file):
             print(f"Another instance is running. Lock file {self.config.lock_file} exists.")
@@ -182,7 +191,8 @@ class Shuttle:
             lock_file.write(str(os.getpid()))
             self.lock_file_created = True
             
-    def _setup_logging(self):
+    @with_logger
+    def _setup_logging(self, logger=None):
         """Set up logging for the application."""
         # Create log file name with timestamp and unique ID
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -196,14 +206,21 @@ class Shuttle:
             os.makedirs(self.config.log_path, exist_ok=True)
             log_file_path = os.path.join(self.config.log_path, log_filename)
 
-        self.logging_options = LoggingOptions(filePath=log_file_path, level=logging.INFO)
+        self.logging_options = LoggingOptions(filePath=log_file_path, level=self.config.log_level)
+        
+        # Configure global logging for hierarchy tracking
+        configure_logging({
+            'log_file_path': log_file_path,
+            'log_level': self.config.log_level
+        })
 
         # Set up logging with the configured log level
         self.logger = setup_logging('shuttle', self.logging_options)
         
         return unique_id
         
-    def _init_notifier(self):
+    @with_logger
+    def _init_notifier(self, logger=None):
         """Initialize the notifier if configured."""
         if self.config.notify:
             self.notifier = Notifier(
@@ -218,7 +235,8 @@ class Shuttle:
                 using_simulator=self.using_simulator
             )
             
-    def _check_resources(self):
+    @with_logger
+    def _check_resources(self, logger=None):
         """Check for required external commands."""
         # Check for required external commands
         required_commands = ['lsof', 'gpg']
@@ -240,7 +258,8 @@ class Shuttle:
                 error_message += f"\n- '{cmd}' not found. Please ensure it is installed and accessible in your PATH."
             _shutdown_with_error(error_message, self)
             
-    def _check_hazard_path(self):
+    @with_logger
+    def _check_hazard_path(self, logger=None):
         """Check hazard archive path and encryption key."""
         if self.config.hazard_archive_path:
             if not self.config.hazard_encryption_key_file_path:
@@ -251,7 +270,8 @@ class Shuttle:
         else:
             self.config.hazard_encryption_key_file_path = None
             
-    def _validate_paths(self):
+    @with_logger
+    def _validate_paths(self, logger=None):
         """Validate required paths."""
         if not (self.config.source_path and self.config.destination_path and self.config.quarantine_path):
             _shutdown_with_error("SourcePath, DestinationPath, and QuarantinePath must all be provided either as parameters or in the settings file.", self)
@@ -260,7 +280,8 @@ class Shuttle:
         self.logger.info(f"DestinationPath: {self.config.destination_path}")
         self.logger.info(f"QuarantinePath: {self.config.quarantine_path}")
         
-    def _check_scan_config(self):
+    @with_logger
+    def _check_scan_config(self, logger=None):
         """Check scan configuration and verify Defender version."""
         if not self.config.on_demand_defender and not self.config.on_demand_clam_av:
             _shutdown_with_error("No virus scanner or defender specified. Please specify at least one.\nWhile a real time virus scanner may make on-demand scanning redundant, this application is for on-demand scanning.", self)
@@ -281,7 +302,8 @@ class Shuttle:
             if not ledger.is_version_tested(defender_version):
                 _shutdown_with_error("This application requires that the current version Microsoft Defender has been tested and this successful testing has been confirmed in the status file.", self)
                 
-    def _process_files(self):
+    @with_logger
+    def _process_files(self, logger=None):
         """Process the files using scan_and_process_directory function."""
         # Create the DailyProcessingTracker instance
         self.daily_processing_tracker = DailyProcessingTracker(
@@ -312,7 +334,8 @@ class Shuttle:
             logging_options=self.logging_options
         )
     
-    def run(self):
+    @with_logger
+    def run(self, logger=None):
         """Run the Shuttle application."""
         try:
             self._create_lock_file()
@@ -367,14 +390,14 @@ class Shuttle:
                 _cleanup_lock_file(self.config.lock_file)
 
 
-def main():
+@with_logger
+def main(logger=None):
     """Main entry point for Shuttle application."""
     # Create the Shuttle instance
     shuttle = Shuttle()
     
     # Run the Shuttle application
     return shuttle.run()
-
 
 def _cleanup_lock_file(lock_file):
     """Helper function to remove lock file if it exists"""

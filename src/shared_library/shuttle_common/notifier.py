@@ -7,6 +7,7 @@ from .logging_setup import (
     LoggingOptions,
     setup_logging
 )
+from .logger_injection import with_logger
 
 
 class Notifier:
@@ -47,9 +48,10 @@ class Notifier:
         self.password = password
         self.use_tls = use_tls
         self.using_simulator = using_simulator
-        self.logger = setup_logging('shuttle.common.notifier', logging_options)
+        self.logging_options = logging_options
 
-    def notify(self, title, message):
+    @with_logger
+    def notify(self, title, message, logger=None):
         """
         Send a notification with the given title and message.
         
@@ -63,7 +65,7 @@ class Notifier:
         
 
         if not self.recipient_email or not self.smtp_server:
-            self.logger.warning("Notification not sent: Missing recipient email or SMTP server configuration")
+            logger.warning("Notification not sent: Missing recipient email or SMTP server configuration")
             return False
             
         try:
@@ -97,10 +99,10 @@ class Notifier:
             server.send_message(msg)
             server.quit()
             
-            self.logger.info(f"Notification sent: {title}")
+            logger.info(f"Notification sent: {title}")
             return True
             
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Failed to send notification: {str(e)}")
+            if logger:
+                logger.error(f"Failed to send notification: {str(e)}")
             return False

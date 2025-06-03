@@ -273,11 +273,11 @@ class TestParameters:
             # Throttling parameters
             'setup_throttling': True,
             'max_files_per_day': 10,
-            'max_volume_per_day': 2,
-            'min_free_space': 1024,  # 1 GB in MB
+            'max_volume_per_day_mb': 1024,
+            'min_free_space_mb': 10,  # 10 MB
             'initial_files': 0,
             'initial_volume_mb': 0.0,
-            'mock_free_space_mb': 5,
+            'mock_free_space_mb': 1024,
             'daily_processing_tracker_logs_path': None,
             
             # Expected outcomes
@@ -467,7 +467,7 @@ class TestShuttle(unittest.TestCase):
     # Flag to determine if all tests should run
     run_all_tests = True
     
-    def test_scenario(self, params):
+    def run_test_scenario(self, params):
         """
         Unified test method for all throttling scenarios
         
@@ -540,20 +540,20 @@ class TestShuttle(unittest.TestCase):
             # Clean up test directories
             self._cleanup_test_directories()
             
-    def test_throttling_configurable(self):
-        """Configurable test entry point that uses command-line arguments"""
-        # Parse command-line arguments
-        args = self._parse_arguments()
+    # def test_throttling_configurable(self):
+    #     """Configurable test entry point that uses command-line arguments"""
+    #     # Parse command-line arguments
+    #     args = self._parse_arguments()
         
-        # Create parameters from command line args with defaults for missing values
-        params = TestParameters.with_defaults(**vars(args))
+    #     # Create parameters from command line args with defaults for missing values
+    #     params = TestParameters.with_defaults(**vars(args))
         
-        # Auto-calculate expected outcomes based on the parameters
-        # This means the user doesn't need to specify expected_throttled, expected_files_processed, etc.
-        params.calculate_expected_outcomes()
+    #     # Auto-calculate expected outcomes based on the parameters
+    #     # This means the user doesn't need to specify expected_throttled, expected_files_processed, etc.
+    #     params.calculate_expected_outcomes()
         
-        # Run the test with the configured parameters
-        return self.test_scenario(params)
+    #     # Run the test with the configured parameters
+    #     return self.run_test_scenario(params)
     
     def setUp(self):
         """Set up the test environment"""
@@ -672,7 +672,7 @@ class TestShuttle(unittest.TestCase):
         
         return clean_files, malware_files
 
-    def test_scenario(self, params):
+    def run_test_scenario(self, params):
         """Run a throttling test scenario with the given parameters"""
         # Print test description
         print(f"\n=== Running Test: {params.description} ===")
@@ -1017,7 +1017,7 @@ class TestShuttle(unittest.TestCase):
             expected_throttle_reason="THROTTLE REASON: Insufficient disk space",
             description="Space throttling with insufficient disk space"
         )
-        self.test_scenario(params)
+        self.run_test_scenario(params)
     
     def test_daily_volume_limit(self):
         """Test throttling with daily volume limit"""
@@ -1044,7 +1044,7 @@ class TestShuttle(unittest.TestCase):
             expected_throttle_reason="THROTTLE REASON: Daily Limit Reached",
             description="Daily volume limit with existing log"
         )
-        self.test_scenario(params)
+        self.run_test_scenario(params)
     
     def test_throttling_disabled(self):
         """Test that throttling can be disabled"""
@@ -1072,7 +1072,7 @@ class TestShuttle(unittest.TestCase):
             expected_throttle_reason=None,
             description="Throttling disabled"
         )
-        self.test_scenario(params)
+        self.run_test_scenario(params)
         
     def test_daily_file_count_limit_with_existing_log(self):
         """Test throttling with daily file count limit and existing log"""
@@ -1100,7 +1100,7 @@ class TestShuttle(unittest.TestCase):
             expected_throttle_reason="THROTTLE REASON: Daily Limit Reached",
             description="Daily file count limit with existing log"
         )
-        self.test_scenario(params)
+        self.run_test_scenario(params)
         
     def test_daily_volume_limit_with_existing_log(self):
         """Test throttling with daily volume limit and existing log"""
@@ -1128,7 +1128,7 @@ class TestShuttle(unittest.TestCase):
             expected_throttle_reason="THROTTLE REASON: Daily Limit Reached",
             description="Daily volume limit with existing log"
         )
-        self.test_scenario(params)
+        self.run_test_scenario(params)
         
     def test_daily_file_count_limit_no_existing_log(self):
         """Test throttling with daily file count limit without existing log"""
@@ -1156,7 +1156,7 @@ class TestShuttle(unittest.TestCase):
             expected_throttle_reason="THROTTLE REASON: Daily Limit Reached",
             description="Daily file count limit without existing log"
         )
-        self.test_scenario(params)
+        self.run_test_scenario(params)
         
     def test_path_specific_mock_space(self):
         """Test path-specific mock space throttling"""
@@ -1190,7 +1190,7 @@ class TestShuttle(unittest.TestCase):
             expected_throttle_reason="THROTTLE REASON: Insufficient disk space",
             description="Path-specific insufficient disk space (destination)"
         )
-        self.test_scenario(params)
+        self.run_test_scenario(params)
         
     def run_configurable(self, args=None):
         """Configurable test entry point that uses command-line parameters"""
@@ -1208,7 +1208,7 @@ class TestShuttle(unittest.TestCase):
         
         try:
             # Run the test with the configured parameters
-            result = self.test_scenario(params)
+            result = self.run_test_scenario(params)
             print("\nTest completed successfully!")
             return 0
         except Exception as e:

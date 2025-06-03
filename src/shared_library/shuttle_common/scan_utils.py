@@ -12,12 +12,14 @@ import time
 from typing import List, Callable, Any, Optional
 from . import files
 from .logging_setup import setup_logging, LoggingOptions
+from .logger_injection import with_logger
 
 # Define commands for real defender and simulator
 REAL_DEFENDER_COMMAND = "mdatp"
 DEFENDER_COMMAND = "mdatp"
 
-def is_using_simulator():
+@with_logger
+def is_using_simulator(logger=None):
     """
     Check if the DEFENDER_COMMAND has been patched to use the simulator.
     
@@ -53,7 +55,8 @@ class DefenderScanResult:
         self.scanner_handles_suspect = scanner_handles_suspect  # Is scanner handling it?
 
 
-def process_defender_result(result_code, path, scanner_handles_suspect=False, logging_options=None):
+@with_logger
+def process_defender_result(result_code, path, scanner_handles_suspect=False, logging_options=None, logger=None):
     """
     Process defender scan result and determine actions
     
@@ -66,7 +69,7 @@ def process_defender_result(result_code, path, scanner_handles_suspect=False, lo
     Returns:
         DefenderScanResult: Information about the scan result and how to handle it
     """
-    logger = setup_logging('shuttle.common.scan_utils.process_defender_result', logging_options)
+    # Logger provided by decorator
     
     # Threat detection
     if result_code == scan_result_types.FILE_IS_SUSPECT:
@@ -114,7 +117,8 @@ def process_defender_result(result_code, path, scanner_handles_suspect=False, lo
         )
 
 
-def get_mdatp_version(logging_options=None) -> Optional[str]:
+@with_logger
+def get_mdatp_version(logging_options=None, logger=None) -> Optional[str]:
     """
     Get the current Microsoft Defender for Endpoint (mdatp) version.
     
@@ -126,7 +130,7 @@ def get_mdatp_version(logging_options=None) -> Optional[str]:
         str: Version number in format XXX.XXXX.XXXX, or None if version cannot be determined
     """
 
-    logger = setup_logging('shuttle.common.scan_utils.get_mdatp_version', logging_options)
+    # Logger provided by decorator
     
 
     try:
@@ -140,7 +144,7 @@ def get_mdatp_version(logging_options=None) -> Optional[str]:
         
         # Check if command succeeded
         if result.returncode != 0:
-            logger.error(f"{defender_command} version command failed with code {result.returncode}: {result.stderr}")
+            logger.error(f"{DEFENDER_COMMAND} version command failed with code {result.returncode}: {result.stderr}")
             return None
             
         # Parse output for version number
@@ -156,14 +160,15 @@ def get_mdatp_version(logging_options=None) -> Optional[str]:
             return None
             
     except FileNotFoundError:
-        logger.error(f"{defender_command} command not found. Microsoft Defender for Endpoint may not be installed.")
+        logger.error(f"{DEFENDER_COMMAND} command not found. Microsoft Defender for Endpoint may not be installed.")
         return None
     except Exception as e:
-        logger.error(f"Error getting {defender_command} version: {e}")
+        logger.error(f"Error getting {DEFENDER_COMMAND} version: {e}")
         return None
 
 
-def run_malware_scan(cmd, path, result_handler, logging_options=None):
+@with_logger
+def run_malware_scan(cmd, path, result_handler, logging_options=None, logger=None):
     """
     Run a malware scan using the specified command and process the results.
     SECURITY NOTE: This function executes external commands. Only use with trusted,
@@ -178,7 +183,7 @@ def run_malware_scan(cmd, path, result_handler, logging_options=None):
     Returns:
         int: scan_result_types value
     """
-    logger = setup_logging('shuttle.common.scan_utils.run_malware_scan', logging_options)
+    # Logger provided by decorator
     
     # Security validation
     if not isinstance(cmd, list):
@@ -216,7 +221,8 @@ def run_malware_scan(cmd, path, result_handler, logging_options=None):
         return scan_result_types.FILE_SCAN_FAILED
 
 
-def parse_defender_scan_result(returncode, output, logging_options=None):
+@with_logger
+def parse_defender_scan_result(returncode, output, logging_options=None, logger=None):
     """
     Process Microsoft Defender scan results.
     
@@ -228,7 +234,7 @@ def parse_defender_scan_result(returncode, output, logging_options=None):
     Returns:
         int: scan_result_types value
     """
-    logger = setup_logging('shuttle.common.scan_utils.parse_defender_scan_result', logging_options)
+    # Logger provided by decorator
     
     if returncode == 0:
         # Always check for threat pattern first, otherwise a malicious filename could be used to add clean response text to output
@@ -253,7 +259,8 @@ def parse_defender_scan_result(returncode, output, logging_options=None):
     return scan_result_types.FILE_SCAN_FAILED
 
 
-def scan_for_malware_using_defender(path, logging_options=None):
+@with_logger
+def scan_for_malware_using_defender(path, logging_options=None, logger=None):
     """Scan a file using Microsoft Defender.
     
     Args:
@@ -276,7 +283,8 @@ def scan_for_malware_using_defender(path, logging_options=None):
 
     return run_malware_scan(cmd, path, parse_defender_scan_result, logging_options)
 
-def handle_clamav_scan_result(returncode, output, logging_options=None):
+@with_logger
+def handle_clamav_scan_result(returncode, output, logging_options=None, logger=None):
     """
     Process ClamAV scan results.
     
@@ -288,7 +296,7 @@ def handle_clamav_scan_result(returncode, output, logging_options=None):
     Returns:
         int: scan_result_types value
     """
-    logger = setup_logging('shuttle.common.scan_utils.handle_clamav_scan_result', logging_options)
+    # Logger provided by decorator
     
     # RETURN CODES
     #        0 : No virus found.
@@ -311,7 +319,8 @@ def handle_clamav_scan_result(returncode, output, logging_options=None):
     return scan_result_types.FILE_SCAN_FAILED
 
 
-def scan_for_malware_using_clam_av(path, logging_options=None):
+@with_logger
+def scan_for_malware_using_clam_av(path, logging_options=None, logger=None):
     """Scan a file using ClamAV.
     
     Args:

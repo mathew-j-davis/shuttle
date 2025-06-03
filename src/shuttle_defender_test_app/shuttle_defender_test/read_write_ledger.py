@@ -14,6 +14,7 @@ from datetime import datetime
 # Import Ledger from shuttle_common package using absolute imports
 from shuttle_common.ledger import Ledger
 from shuttle_common.logging_setup import setup_logging, LoggingOptions
+from shuttle_common.logger_injection import with_logger
 
 
 class ReadWriteLedger(Ledger):
@@ -33,7 +34,8 @@ class ReadWriteLedger(Ledger):
         """
         super().__init__(logging_options)
     
-    def save(self, ledger_file_path) -> bool:
+    @with_logger
+    def save(self, ledger_file_path, logger=None) -> bool:
         """
         Save the ledger data to the file.
         
@@ -59,7 +61,8 @@ class ReadWriteLedger(Ledger):
             self.logger.error(f"Error saving ledger file: {e}")
             return False
             
-    def add_tested_version(self, ledger_file_path, version: str, test_result: str, test_details: str = "") -> bool:
+    @with_logger
+    def add_tested_version(self, ledger_file_path, version: str, test_result: str, test_details: str = "", logger=None) -> bool:
         """
         Add a tested version to the ledger.
         
@@ -102,7 +105,8 @@ class ReadWriteLedger(Ledger):
         
         return self.save(ledger_file_path)
         
-    def get_defender_tested_versions(self) -> List[Dict[str, Any]]:
+    @with_logger
+    def get_defender_tested_versions(self, logger=None) -> List[Dict[str, Any]]:
         """
         Get all tested versions.
         

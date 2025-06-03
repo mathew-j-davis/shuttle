@@ -10,6 +10,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from .logging_setup import setup_logging
+from .logger_injection import with_logger
 
 class Ledger:
     """
@@ -32,10 +33,11 @@ class Ledger:
         Args:
             logging_options (LoggingOptions): Logger properties to use for logging
         """
-        self.logger = setup_logging('shuttle.common.ledger', logging_options)
+        self.logging_options = logging_options
         self.data = None
         
-    def load(self,ledger_file_path: str) -> bool:
+    @with_logger
+    def load(self,ledger_file_path: str, logger=None) -> bool:
         """
         Load the ledger data from the file.
         
@@ -50,16 +52,17 @@ class Ledger:
                 self.data = yaml.safe_load(file)
                 return True
         except FileNotFoundError:
-            self.logger.error(f"Ledger file not found at: {ledger_file_path}")
+            logger.error(f"Ledger file not found at: {ledger_file_path}")
             return False
         except yaml.YAMLError as e:
-            self.logger.error(f"Error parsing ledger file: {e}")
+            logger.error(f"Error parsing ledger file: {e}")
             return False
         except Exception as e:
-            self.logger.error(f"Unexpected error reading ledger file: {e}")
+            logger.error(f"Unexpected error reading ledger file: {e}")
             return False
             
-    def is_version_tested(self, version: str) -> bool:
+    @with_logger
+    def is_version_tested(self, version: str, logger=None) -> bool:
         """
         Check if the specified version has been successfully tested.
         
@@ -70,16 +73,16 @@ class Ledger:
             bool: True if version has been tested successfully, False otherwise
         """
         if not self.data:
-            self.logger.error("Ledger data not loaded")
+            logger.error("Ledger data not loaded")
             return False
             
         try:
             if 'defender' not in self.data:
-                self.logger.error("No 'defender' section in ledger")
+                logger.error("No 'defender' section in ledger")
                 return False
                 
             if 'tested_versions' not in self.data['defender']:
-                self.logger.error("No 'tested_versions' list in ledger")
+                logger.error("No 'tested_versions' list in ledger")
                 return False
                 
             tested_versions = self.data['defender']['tested_versions']
@@ -94,13 +97,13 @@ class Ledger:
             )
             
             if matching_version:
-                self.logger.info(f"Found matching tested version: {version}")
+                logger.info(f"Found matching tested version: {version}")
                 return True
                 
-            self.logger.warning(f"Version {version} not found in tested versions or did not pass testing")
+            logger.warning(f"Version {version} not found in tested versions or did not pass testing")
             return False
             
         except Exception as e:
-            if self.logger:
-                self.logger.error(f"Error checking tested versions: {e}")
+            if logger:
+                logger.error(f"Error checking tested versions: {e}")
             return False

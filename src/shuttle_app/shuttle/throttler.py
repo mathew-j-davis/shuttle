@@ -10,6 +10,7 @@ import logging
 import types
 from typing import Optional
 from shuttle_common.logging_setup import setup_logging
+from shuttle_common.logger_injection import with_logger
 
 
 class Throttler:
@@ -26,7 +27,8 @@ class Throttler:
     """
     
     @staticmethod
-    def get_free_space_mb(directory_path):
+    @with_logger
+    def get_free_space_mb(directory_path, logger=None):
         """
         Get the free space in a directory in megabytes.
         
@@ -47,7 +49,8 @@ class Throttler:
             return 0.0
     
     @staticmethod
-    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, logging_options=None, include_pending_volume=False, pending_volume_mb=0):
+    @with_logger
+    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, logging_options=None, include_pending_volume=False, pending_volume_mb=0, logger=None):
         """
         Check if a directory has enough free space for a file, leaving a minimum amount free after copy.
         
@@ -63,7 +66,6 @@ class Throttler:
             bool: True if directory has enough space, False otherwise
         """
 
-        logger = setup_logging('shuttle.throttler.check_directory_space', logging_options)
         
         try:
             # Get free space in MB
@@ -116,7 +118,6 @@ class Throttler:
                 - daily_limit_exceeded: Whether a daily throttling limit was exceeded (bool)
                 - daily_limit_message: Description of the daily limit that was exceeded (str)
         """
-        logger = setup_logging('shuttle.throttler.can_process_file', logging_options)
         
         # Default values
         quarantine_has_space = True

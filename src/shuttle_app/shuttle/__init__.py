@@ -17,7 +17,7 @@ from .shuttle_config import (
 # Import all scanning related functions
 from .scanning import (
     scan_and_process_directory,
-    scan_and_process_file,
+    scan_and_process_file
 )
 
 # Import processing tracking

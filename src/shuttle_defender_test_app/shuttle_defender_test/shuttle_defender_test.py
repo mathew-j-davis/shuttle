@@ -37,15 +37,16 @@ from shuttle_common.scan_utils import (
 from shuttle_common.logging_setup import setup_logging, LoggingOptions
 from shuttle_common.config import CommonConfig, add_common_arguments, parse_common_config
 from shuttle_common.notifier import Notifier
+from shuttle_common.logger_injection import with_logger
 from .read_write_ledger import ReadWriteLedger
 
 # EICAR test string (standard test file for antivirus)
 # This is the official EICAR test string that all antivirus programs should detect
 EICAR_STRING = r'X5O!P%@AP[4\PZX54(P^)7CC)7}$EICAR-STANDARD-ANTIVIRUS-TEST-FILE!$H+H*'
 
-def create_test_files(logging_options=None):
+@with_logger
+def create_test_files(logging_options=None, logger=None):
     """Create a clean test file and an EICAR test file."""
-    logger = setup_logging('defender_test.create_test_files', logging_options)
     temp_dir = tempfile.mkdtemp(prefix="defender_test_")
     logger.info(f"Created temporary directory: {temp_dir}")
     
@@ -66,7 +67,8 @@ def create_test_files(logging_options=None):
 
 
 
-def run_defender_scan(file_path, logging_options=None):
+@with_logger
+def run_defender_scan(file_path, logging_options=None, logger=None):
     """
     Run Microsoft Defender scan on a file and return the result code.
     The result code will be one of the scan_result_types values.
@@ -78,7 +80,6 @@ def run_defender_scan(file_path, logging_options=None):
     Returns:
         int: A scan_result_types value indicating the scan result
     """
-    logger = setup_logging('defender_test.run_defender_scan', logging_options)
     logger.info(f"Scanning file: {file_path} using Microsoft Defender")
 
     try:
@@ -89,9 +90,9 @@ def run_defender_scan(file_path, logging_options=None):
 
 
 
-def cleanup(temp_dir, logging_options=None):
+@with_logger
+def cleanup(temp_dir, logging_options=None, logger=None):
     """Clean up temporary files."""
-    logger = setup_logging('defender_test.cleanup', logging_options)
     try:
         # Remove temporary directory and all contained files
         import shutil
@@ -100,7 +101,8 @@ def cleanup(temp_dir, logging_options=None):
     except Exception as e:
         logger.warning(f"Error cleaning up: {e}")
 
-def send_notification(message, error=False, config=None, logging_options=None):
+@with_logger
+def send_notification(message, error=False, config=None, logging_options=None, logger=None):
     """Send a notification about test results.
     
     Args:
@@ -109,7 +111,6 @@ def send_notification(message, error=False, config=None, logging_options=None):
         config (CommonConfig): Configuration containing notification settings
         logging_options (LoggingOptions): Logging configuration options
     """
-    logger = setup_logging('defender_test.send_notification', logging_options)
     # Log the message first
     if error:
         logger.error(message)
@@ -135,7 +136,8 @@ def send_notification(message, error=False, config=None, logging_options=None):
         except Exception as e:
             logger.error(f"Failed to send notification: {e}", exc_info=True)
 
-def update_ledger(ledger_file_path, version, test_result, test_details, logging_options=None):
+@with_logger
+def update_ledger(ledger_file_path, version, test_result, test_details, logging_options=None, logger=None):
     """Update the ledger file with the test results.
     
     Args:
@@ -148,7 +150,6 @@ def update_ledger(ledger_file_path, version, test_result, test_details, logging_
     Returns:
         bool: True if ledger was successfully updated, False otherwise
     """
-    logger = setup_logging('defender_test.update_ledger', logging_options)
     try:
         # Expand ~ to user's home directory if present
         if ledger_file_path and ledger_file_path.startswith('~'):
@@ -176,7 +177,8 @@ def update_ledger(ledger_file_path, version, test_result, test_details, logging_
         logger.error(f"Error updating ledger: {e}", exc_info=True)
         return False
 
-def main():
+@with_logger
+def main(logger=None):
     # Create argument parser
     parser = argparse.ArgumentParser(description='Test Microsoft Defender scan output patterns')
     
@@ -197,6 +199,14 @@ def main():
         log_file_path = log_dir / f"defender_test_{datetime.datetime.now().strftime('%Y%m%d')}.log"
 
     logging_options = LoggingOptions(filePath=log_file_path, level=logging.INFO)
+    
+    # Configure hierarchy logging
+    from shuttle_common.logger_injection import configure_logging
+    configure_logging({
+        'log_file_path': log_file_path,
+        'log_level': logging.INFO
+    })
+    
     logger = setup_logging('defender_test', logging_options)
 
     logger.info("=== Starting Microsoft Defender Output Test ===")

@@ -15,6 +15,7 @@ from .notifier import Notifier
 from .logging_setup import setup_logging
 from .config import CommonConfig, add_common_arguments, parse_common_config, get_setting_from_arg_or_file
 from .files import is_file_safe_for_processing, are_file_and_path_names_safe, is_file_ready
+from .logger_injection import configure_logging, with_logger
 
 # Define what's publicly available when using "from shuttle_common import *"
 __all__ = [
@@ -48,5 +49,10 @@ __all__ = [
     # File safety
     'is_file_safe_for_processing',
     'are_file_and_path_names_safe',
-    'is_file_ready'
+    'is_file_ready',
+    
+    # Hierarchy logging
+    'configure_logging',
+    'with_logger',
+    'get_logger'
 ]

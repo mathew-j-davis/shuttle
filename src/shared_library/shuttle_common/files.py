@@ -6,8 +6,10 @@ import subprocess
 from pathlib import Path
 import gnupg
 from .logging_setup import setup_logging, LoggingOptions
+from .logger_injection import with_logger
 
-def is_filename_safe(filename):
+@with_logger
+def is_filename_safe(filename, logger=None):
     """
     Check if a filename contains potentially dangerous characters.
     Allows alphanumeric, spaces, and valid UTF-8 characters, but blocks
@@ -23,7 +25,8 @@ def is_filename_safe(filename):
     return is_name_safe(filename)
 
 
-def is_pathname_safe(pathname):
+@with_logger
+def is_pathname_safe(pathname, logger=None):
     """
     Check if a filename contains potentially dangerous characters.
     Allows alphanumeric, spaces, and valid UTF-8 characters, but blocks
@@ -38,7 +41,8 @@ def is_pathname_safe(pathname):
         
     return is_name_safe(pathname, True)
 
-def is_name_safe(name, is_path = False):
+@with_logger
+def is_name_safe(name, is_path = False, logger=None):
     """
     Check if a filename contains potentially dangerous characters.
     Allows alphanumeric, spaces, and valid UTF-8 characters, but blocks
@@ -84,7 +88,8 @@ def is_name_safe(name, is_path = False):
         
     return True
 
-def get_file_hash(file_path, logging_options=None):
+@with_logger
+def get_file_hash(file_path, logging_options=None, logger=None):
     """
     Compute the SHA-256 hash of a file.
 
@@ -96,7 +101,7 @@ def get_file_hash(file_path, logging_options=None):
         str: The computed hash or None if an error occurred.
     """
     hash_sha256 = hashlib.sha256()
-    logger = setup_logging('shuttle.common.files.get_file_hash', logging_options)
+    # Logger provided by decorator
         
     try:
         with open(file_path, 'rb') as f:
@@ -114,7 +119,8 @@ def get_file_hash(file_path, logging_options=None):
         logger.error(f"Error computing hash for {file_path}: {e}")
         return None
 
-def compare_file_hashes(hash1, hash2):
+@with_logger
+def compare_file_hashes(hash1, hash2, logger=None):
     """
     Compare two hash strings.
     
@@ -127,7 +133,8 @@ def compare_file_hashes(hash1, hash2):
     """
     return hash1 == hash2
 
-def remove_file_with_logging(file_path, logging_options=None):
+@with_logger
+def remove_file_with_logging(file_path, logging_options=None, logger=None):
     """
     Remove a file and log the result.
     
@@ -138,7 +145,7 @@ def remove_file_with_logging(file_path, logging_options=None):
     Returns:
         bool: True if file was successfully deleted, False otherwise.
     """
-    logger = setup_logging('shuttle.common.files.remove_file_with_logging', logging_options)
+    # Logger provided by decorator
         
     try:
         os.remove(file_path)
@@ -153,7 +160,8 @@ def remove_file_with_logging(file_path, logging_options=None):
         logger.error(f"Failed to delete file {file_path}: {e}")
     return False
 
-def test_write_access(path, logging_options=None):
+@with_logger
+def test_write_access(path, logging_options=None, logger=None):
     """
     Test if the script has write access to a given directory.
     
@@ -164,7 +172,7 @@ def test_write_access(path, logging_options=None):
     Returns:
         bool: True if write access is confirmed, False otherwise.
     """
-    logger = setup_logging('shuttle.common.files.test_write_access', logging_options)
+    # Logger provided by decorator
         
     try:
         test_file = os.path.join(path, 'write_test.tmp')
@@ -179,7 +187,8 @@ def test_write_access(path, logging_options=None):
 
 
 
-def verify_file_integrity(source_file_path, comparison_file_path, logging_options=None):
+@with_logger
+def verify_file_integrity(source_file_path, comparison_file_path, logging_options=None, logger=None):
     """
     Verify file integrity between source and destination.
     
@@ -191,7 +200,7 @@ def verify_file_integrity(source_file_path, comparison_file_path, logging_option
     Returns:
         dict: Result dictionary with success status and hash values
     """
-    logger = setup_logging('shuttle.common.files.verify_file_integrity', logging_options)
+    # Logger provided by decorator
 
     result = dict(); 
     result['success'] = False
@@ -227,7 +236,8 @@ def verify_file_integrity(source_file_path, comparison_file_path, logging_option
         return result
 
 
-def copy_temp_then_rename(from_path, to_path, logging_options=None):
+@with_logger
+def copy_temp_then_rename(from_path, to_path, logging_options=None, logger=None):
     """
     Copy a file to a temporary location then rename it to the final destination.
     
@@ -236,7 +246,7 @@ def copy_temp_then_rename(from_path, to_path, logging_options=None):
         to_path (str): Destination file path
         logging_options (LoggingOptions, optional): Logger properties to use for logging.
     """
-    logger = setup_logging('shuttle.common.files.copy_temp_then_rename', logging_options)
+    # Logger provided by decorator
         
     to_dir = os.path.dirname(to_path)
     to_path_temp = os.path.join(to_path + '.copying')
@@ -271,12 +281,14 @@ def copy_temp_then_rename(from_path, to_path, logging_options=None):
         if os.path.exists(to_path_temp):
             os.remove(to_path_temp)
 
-def normalize_path(path):
+@with_logger
+def normalize_path(path, logger=None):
     p = Path(path)
     return str(p.parent.resolve().joinpath(p.name))
 
 
-def remove_empty_directories(root, keep_root=False, logging_options=None):
+@with_logger
+def remove_empty_directories(root, keep_root=False, logging_options=None, logger=None):
     """
     Remove empty directories recursively.
     
@@ -285,7 +297,7 @@ def remove_empty_directories(root, keep_root=False, logging_options=None):
         keep_root (bool): Whether to keep the root directory
         logging_options (LoggingOptions, optional): Logger properties to use for logging.
     """
-    logger = setup_logging('shuttle.common.files.remove_empty_directories', logging_options)
+    # Logger provided by decorator
         
     for path, _, _ in os.walk(root, topdown=False):  # Listing the files
         if keep_root and path == root:
@@ -297,7 +309,8 @@ def remove_empty_directories(root, keep_root=False, logging_options=None):
             if logger:
                 logger.debug(f"Could not remove directory: {path}, {ex}")
 
-def remove_directory(path, logging_options=None):
+@with_logger
+def remove_directory(path, logging_options=None, logger=None):
     """
     Remove a directory.
     
@@ -308,7 +321,7 @@ def remove_directory(path, logging_options=None):
     Returns:
         bool: True if directory was removed, False otherwise
     """
-    logger = setup_logging('shuttle.common.files.remove_directory', logging_options)
+    # Logger provided by decorator
         
     try:
         os.rmdir(path)
@@ -320,7 +333,8 @@ def remove_directory(path, logging_options=None):
             logger.debug(f"Could not remove directory: {path}, {ex}")
         return False
 
-def remove_directory_contents(root, logging_options=None):
+@with_logger
+def remove_directory_contents(root, logging_options=None, logger=None):
     """
     Remove all contents of a directory.
     
@@ -328,7 +342,7 @@ def remove_directory_contents(root, logging_options=None):
         root (str): Directory to empty
         logging_options (LoggingOptions, optional): Logger properties to use for logging.
     """
-    logger = setup_logging('shuttle.common.files.remove_directory_contents', logging_options)
+    # Logger provided by decorator
         
     for filename in os.listdir(root):
         file_path = os.path.join(root, filename)
@@ -345,7 +359,8 @@ def remove_directory_contents(root, logging_options=None):
 
 
 
-def is_file_open(file_path, logging_options=None):
+@with_logger
+def is_file_open(file_path, logging_options=None, logger=None):
     """
     Check if a file is currently open by any process.
     
@@ -356,7 +371,7 @@ def is_file_open(file_path, logging_options=None):
     Returns:
         bool: True if the file is open, False otherwise.
     """
-    logger = setup_logging('shuttle.common.files.is_file_open', logging_options)
+    # Logger provided by decorator
         
     try:
         result = subprocess.run(
@@ -388,7 +403,8 @@ def is_file_open(file_path, logging_options=None):
             logger.error(f"Exception occurred while checking if file is open: {e}")
         return False
     
-def is_file_stable(file_path, stability_time=5, logging_options=None):
+@with_logger
+def is_file_stable(file_path, stability_time=5, logging_options=None, logger=None):
     """
     Check if a file has not been modified in the last 'stability_time' seconds.
     
@@ -400,7 +416,7 @@ def is_file_stable(file_path, stability_time=5, logging_options=None):
     Returns:
         bool: True if the file is stable, False otherwise.
     """
-    logger = setup_logging('shuttle.common.files.is_file_stable', logging_options)
+    # Logger provided by decorator
         
     try:
         last_modified_time = os.path.getmtime(file_path)
@@ -423,7 +439,8 @@ def is_file_stable(file_path, stability_time=5, logging_options=None):
         return False
     
 
-def encrypt_file(file_path, output_path, key_file_path, logging_options=None):
+@with_logger
+def encrypt_file(file_path, output_path, key_file_path, logging_options=None, logger=None):
     """
     Encrypt a file using GPG with a specified public key file.
     
@@ -436,7 +453,7 @@ def encrypt_file(file_path, output_path, key_file_path, logging_options=None):
     Returns:
         bool: True if encryption successful, False otherwise
     """
-    logger = setup_logging('shuttle.common.files.encrypt_file', logging_options)
+    # Logger provided by decorator
         
     try:
         gpg = gnupg.GPG()
@@ -482,7 +499,8 @@ File safety checking functionality for Shuttle.
 This module contains functions to ensure files are safe to process.
 """
 
-def are_file_and_path_names_safe(source_file, source_root, logging_options=None):
+@with_logger
+def are_file_and_path_names_safe(source_file, source_root, logging_options=None, logger=None):
     """
     Check if filenames and paths are safe for processing.
     
@@ -494,7 +512,7 @@ def are_file_and_path_names_safe(source_file, source_root, logging_options=None)
     Returns:
         bool: True if all names are safe, False otherwise
     """
-    logger = setup_logging('shuttle.scanning.are_file_and_path_names_safe', logging_options)
+    # Logger provided by decorator
     
     # Calculate the full path
     source_file_path = os.path.join(source_root, source_file)
@@ -516,7 +534,8 @@ def are_file_and_path_names_safe(source_file, source_root, logging_options=None)
     
     return True
 
-def is_file_ready(source_file_path, skip_stability_check=False, logging_options=None):
+@with_logger
+def is_file_ready(source_file_path, skip_stability_check=False, logging_options=None, logger=None):
     """
     Check if a file is ready for processing (stable and not open).
     
@@ -528,7 +547,7 @@ def is_file_ready(source_file_path, skip_stability_check=False, logging_options=
     Returns:
         bool: True if file is ready for processing, False otherwise
     """
-    logger = setup_logging('shuttle.scanning.is_file_ready', logging_options)
+    # Logger provided by decorator
     
     # Check file stability
     if not skip_stability_check and not is_file_stable(source_file_path, logging_options=logging_options):
@@ -544,7 +563,8 @@ def is_file_ready(source_file_path, skip_stability_check=False, logging_options=
     
     return True
 
-def is_file_safe_for_processing(source_file, source_root, skip_stability_check=False, logging_options=None):
+@with_logger
+def is_file_safe_for_processing(source_file, source_root, skip_stability_check=False, logging_options=None, logger=None):
     """
     Check if a file is safe to process (filename, path, stability, not open).
     

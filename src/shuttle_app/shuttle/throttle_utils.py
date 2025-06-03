@@ -8,9 +8,11 @@ import os
 import yaml
 from datetime import datetime
 from shuttle_common.logging_setup import setup_logging
+from shuttle_common.logger_injection import ( with_logger, get_logger)
 from shuttle.daily_processing_tracker import DailyProcessingTracker
 
 
+@with_logger
 def check_daily_limits(daily_processing_tracker, file_count_limit, volume_limit_mb, file_size_mb, logger=None):
     """
     Check if daily limits would be exceeded by processing another file.
@@ -47,6 +49,7 @@ def check_daily_limits(daily_processing_tracker, file_count_limit, volume_limit_
             
     return True, None
 
+
 def handle_throttle_check(
         source_file_path, 
         quarantine_path,
@@ -58,7 +61,8 @@ def handle_throttle_check(
         max_volume_per_day=0,
         daily_processing_tracker=None,
         notifier=None,
-        logging_options=None
+        logging_options=None,
+        logger=None
     ):
     """
     Check if a file can be processed based on available disk space and daily processing limits.
@@ -79,12 +83,7 @@ def handle_throttle_check(
     Returns:
         bool: True if processing can continue, False if it should stop
     """
-    # Create a logger for this function
-    logger = setup_logging('shuttle.throttle_utils.handle_throttle_check', logging_options)
-    
-    # Default values
-    can_continue = True
-    
+    logger = get_logger(logging_options=logging_options, logger=logger)
     # Get file size for throttling calculations
     file_size_bytes = 0
     file_size_mb = 0
@@ -137,7 +136,6 @@ def handle_throttle_check(
         
         if not space_check_passed:
             # At least one directory didn't have enough space
-            can_continue = False
             logger.warning("THROTTLE REASON: Insufficient disk space in required directories")
             
             # Log which directories failed
@@ -202,8 +200,6 @@ def handle_throttle_check(
             notifier.notify("Shuttle Throttle Error", error_message)
         
         return False  # Stop processing due to error
-    
-    return can_continue  # This line will never be reached due to explicit returns above
 
 
 # ThrottleLogger has been completely replaced by DailyProcessingTracker
