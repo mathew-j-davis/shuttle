@@ -156,7 +156,7 @@ def handle_throttle_check(
                 if not hazard_has_space:
                     disk_message += f"- Hazard archive directory is full\n"
                 
-                notifier.notify("Shuttle Disk Space Alert", disk_message)
+                notifier.notify_error("Shuttle Disk Space Alert", disk_message)
             
             return False  # Stop processing due to disk space issues
         
@@ -175,7 +175,7 @@ def handle_throttle_check(
                 # We've hit a daily limit
                 logger.warning(f"THROTTLE REASON: Daily Limit Reached: {limit_message}")
                 if notifier:
-                    notifier.notify("Daily Limit Reached", 
+                    notifier.notify_error("Daily Limit Reached", 
                                   f"Processing stopped: {limit_message}\n\n"
                                   f"File: {os.path.basename(source_file_path)}\n"
                                   f"Daily limits: {max_files_per_day or 'unlimited'} files, {max_volume_per_day or 'unlimited'} MB")
@@ -197,7 +197,7 @@ def handle_throttle_check(
         # Send error notification if notifier provided
         if notifier:
             error_message = f"Critical error during throttle check: {str(e)}"
-            notifier.notify("Shuttle Throttle Error", error_message)
+            notifier.notify_error("Shuttle Throttle Error", error_message)
         
         return False  # Stop processing due to error
 

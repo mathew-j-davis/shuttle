@@ -42,6 +42,7 @@ shuttle/
 - **scan_utils.py** - Scanning utilities for malware detection
 - **files.py** - File operations and integrity verification
 - **logging_setup.py** - Logging configuration
+- **logger_injection.py** - Decorator and factory for hierarchical logging
 - **notifier.py** - Email notification system
 - **ledger.py** - Interface for Defender compatibility tracking
 
@@ -251,9 +252,12 @@ The disk space throttling system:
 ### Test Infrastructure
 
 The test suite contains:
-- `test_shuttle_multithreaded.py` - Throttling and core functionality tests
+- `test_shuttle.py` - Core functionality tests
 - `test_daily_processing_tracker.py` - Unit tests for the tracker component
-- `run_configurable_throttling_test.py` - Configurable test runner
+- `test_hierarchy_logging.py` - Unit tests for hierarchical logging
+- `test_shuttle_hierarchy_integration.py` - Integration tests for logging in shuttle
+- `run_configurable_shuttle_test.py` - Configurable test runner
+- `run_shuttle_with_simulator.py` - Run shuttle with MDATP simulator
 
 ### Test App
 
@@ -279,6 +283,12 @@ When writing new tests, follow these patterns:
    - Use configurable parameters for different scenarios
    - Verify end-to-end workflows
    - Implement appropriate cleanup
+
+3. **Logging and Debugging**
+   - Use `@with_logger` decorator for automatic logging in test functions
+   - For functions requiring debugging, use `get_logger()` manually
+   - Hierarchy logging shows call chains in DEBUG mode
+   - Logger names include embedded call hierarchy for context
 
 ### DailyProcessingTracker Testing
 

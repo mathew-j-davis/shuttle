@@ -225,6 +225,9 @@ class Shuttle:
         if self.config.notify:
             self.notifier = Notifier(
                 recipient_email=self.config.notify_recipient_email,
+                recipient_email_error=self.config.notify_recipient_email_error,
+                recipient_email_summary=self.config.notify_recipient_email_summary,
+                recipient_email_hazard=self.config.notify_recipient_email_hazard,
                 sender_email=self.config.notify_sender_email,
                 smtp_server=self.config.notify_smtp_server,
                 smtp_port=self.config.notify_smtp_port,

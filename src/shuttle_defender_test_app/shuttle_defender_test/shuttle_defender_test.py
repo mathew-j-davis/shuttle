@@ -122,6 +122,9 @@ def send_notification(message, error=False, config=None, logging_options=None, l
         try:
             notifier = Notifier(
                 recipient_email=config.notify_recipient_email,
+                recipient_email_error=config.notify_recipient_email_error,
+                recipient_email_summary=config.notify_recipient_email_summary,
+                recipient_email_hazard=config.notify_recipient_email_hazard,
                 sender_email=config.notify_sender_email,
                 smtp_server=config.notify_smtp_server,
                 smtp_port=config.notify_smtp_port,
@@ -131,7 +134,10 @@ def send_notification(message, error=False, config=None, logging_options=None, l
                 logging_options=logging_options
             )
             subject = "Defender Test " + ("ERROR" if error else "INFO")
-            notifier.notify(subject, message)
+            if error:
+                notifier.notify_error(subject, message)
+            else:
+                notifier.notify(subject, message)
             logger.info(f"Notification sent to {config.notify_recipient_email}")
         except Exception as e:
             logger.error(f"Failed to send notification: {e}", exc_info=True)

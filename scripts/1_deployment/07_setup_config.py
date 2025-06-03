@@ -68,7 +68,7 @@ if not os.path.exists(settings_file):
             'on_demand_defender': 'False',
             'on_demand_clam_av': 'True',
             'throttle': 'False',
-            'throttle_free_space': '10000'
+            'throttle_free_space_mb': '100'
         }
 
     config['logging'] = {
@@ -79,6 +79,9 @@ if not os.path.exists(settings_file):
             'notify': 'False',
             'notify_summary': 'False',
             'recipient_email': 'admin@example.com',
+            'recipient_email_error': 'admin@example.com',
+            'recipient_email_summary': 'admin@example.com',
+            'recipient_email_hazard': 'admin@example.com',
             'sender_email': 'shuttle@yourdomain.com',
             'smtp_server': 'smtp.yourdomain.com', 
             'smtp_port': '587',

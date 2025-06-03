@@ -136,6 +136,9 @@ class CommonConfig:
     notify: bool = False
     notify_summary: bool = False
     notify_recipient_email: Optional[str] = None
+    notify_recipient_email_error: Optional[str] = None
+    notify_recipient_email_summary: Optional[str] = None
+    notify_recipient_email_hazard: Optional[str] = None
     notify_sender_email: Optional[str] = None
     notify_smtp_server: Optional[str] = None
     notify_smtp_port: Optional[int] = None
@@ -180,6 +183,15 @@ def add_common_arguments(parser: argparse.ArgumentParser, logger=None) -> None:
                       default=None)
     parser.add_argument('--notify-recipient-email', 
                       help='Email address of the recipient for notifications',
+                      default=None)
+    parser.add_argument('--notify-recipient-email-error', 
+                      help='Email address for error notifications (defaults to notify-recipient-email)',
+                      default=None)
+    parser.add_argument('--notify-recipient-email-summary', 
+                      help='Email address for summary notifications (defaults to notify-recipient-email)',
+                      default=None)
+    parser.add_argument('--notify-recipient-email-hazard', 
+                      help='Email address for hazard/malware notifications (defaults to notify-recipient-email)',
                       default=None)
     parser.add_argument('--notify-sender-email', 
                       help='Email address of the sender for notifications',
@@ -296,6 +308,9 @@ def parse_common_config(args=None, logger=None):
     config.notify_summary = get_setting_from_arg_or_file(args, 'notify_summary', 'notifications', 'notify_summary', False, bool, settings_file_config)
     
     config.notify_recipient_email = get_setting_from_arg_or_file(args, 'notify_recipient_email', 'notifications', 'recipient_email', None, None, settings_file_config)
+    config.notify_recipient_email_error = get_setting_from_arg_or_file(args, 'notify_recipient_email_error', 'notifications', 'recipient_email_error', None, None, settings_file_config)
+    config.notify_recipient_email_summary = get_setting_from_arg_or_file(args, 'notify_recipient_email_summary', 'notifications', 'recipient_email_summary', None, None, settings_file_config)
+    config.notify_recipient_email_hazard = get_setting_from_arg_or_file(args, 'notify_recipient_email_hazard', 'notifications', 'recipient_email_hazard', None, None, settings_file_config)
     config.notify_sender_email = get_setting_from_arg_or_file(args, 'notify_sender_email', 'notifications', 'sender_email', None, None, settings_file_config)
     config.notify_smtp_server = get_setting_from_arg_or_file(args, 'notify_smtp_server', 'notifications', 'smtp_server', None, None, settings_file_config)
     config.notify_smtp_port = get_setting_from_arg_or_file(args, 'notify_smtp_port', 'notifications', 'smtp_port', None, int, settings_file_config)

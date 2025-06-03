@@ -32,6 +32,8 @@ python tests/run_tests.py
 python -m unittest tests.test_notifier
 python -m unittest tests.test_shuttle
 python -m unittest tests.test_daily_processing_tracker
+python -m unittest tests.test_hierarchy_logging
+python -m unittest tests.test_shuttle_hierarchy_integration
 
 # Run configurable test
 python tests/run_configurable_shuttle_test.py --thread-count 4 --clean-file-count 10
@@ -80,6 +82,8 @@ Source → Quarantine (with hash) → Scan → Clean/Suspect → Destination/Haz
 - `DailyProcessingTracker`: Thread-safe file tracking
 - `Throttler`: Disk space and limit monitoring
 - `Scanner`: Abstraction for ClamAV/Defender integration
+- `get_logger()`: Logger factory with hierarchy support
+- `@with_logger`: Decorator for automatic logging injection
 
 ### Testing Approach
 - Unit tests for individual components
@@ -107,6 +111,9 @@ Use `-e` flag for editable installs during development to avoid reinstalling aft
 - Logs to syslog and file simultaneously
 - Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
 - File logs in tracking directory with rotation
+- Hierarchy logging with decorators (`@with_logger`) shows call chains in DEBUG mode
+- Manual logging available via `get_logger()` for debugging-critical functions
+- Logger injection pattern for cross-cutting concerns
 
 ### Error Handling
 - All exceptions logged with full context

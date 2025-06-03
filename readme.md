@@ -115,7 +115,10 @@ When a file is identified as suspicious:
 Throttling system monitors available disk space in all relevant directories and prevents processing when space is low to avoid filling up disks.
 
 ### Logging and Notifications
-Comprehensive logging with configurable levels and email notifications for errors, suspect files, and process completion.
+- Comprehensive logging with configurable levels to syslog and file
+- Hierarchy logging shows call chains in DEBUG mode using `@with_logger` decorator
+- Email notifications for errors, suspect files, and process completion
+- Logger injection pattern provides consistent logging across all modules
 
 ### Concurrency and Single Instance
 - Uses `ProcessPoolExecutor` for parallel file processing
@@ -158,4 +161,5 @@ You don't need to provide parameters if they're configured in the settings file.
 - [Deployment Notes](docs/readme_deployment_notes.md) - Instructions for deployment
 - [Cron Notes](docs/readme_cron_notes.md) - Setting up scheduled tasks
 - [VSCode Debugging](docs/readme_vscode_remote_python_debugging.md) - Remote debugging guide
+- [Samba Configuration](docs/samba-config.md) - Setting up Windows file shares
 - [Process Diagram](dev_notes/updated_shuttle_process_diagram.md) - Detailed process flow diagram

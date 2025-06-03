@@ -18,6 +18,9 @@ class Notifier:
     
     def __init__(self, 
                  recipient_email=None, 
+                 recipient_email_error=None,
+                 recipient_email_summary=None,
+                 recipient_email_hazard=None,
                  sender_email=None, 
                  smtp_server=None, 
                  smtp_port=None, 
@@ -30,7 +33,10 @@ class Notifier:
         Initialize the notification system with recipient and sender details.
         
         Args:
-            recipient_email (str): Email address of the recipient
+            recipient_email (str): Default email address for all notifications
+            recipient_email_error (str): Email address for error notifications (defaults to recipient_email)
+            recipient_email_summary (str): Email address for summary notifications (defaults to recipient_email)
+            recipient_email_hazard (str): Email address for hazard notifications (defaults to recipient_email)
             sender_email (str): Email address of the sender
             smtp_server (str): SMTP server address
             smtp_port (int): SMTP server port
@@ -41,6 +47,10 @@ class Notifier:
             using_simulator (bool): Whether running in simulator mode
         """
         self.recipient_email = recipient_email
+        # Set specific email addresses with fallback to main recipient_email
+        self.recipient_email_error = recipient_email_error or recipient_email
+        self.recipient_email_summary = recipient_email_summary or recipient_email
+        self.recipient_email_hazard = recipient_email_hazard or recipient_email
         self.sender_email = sender_email
         self.smtp_server = smtp_server
         self.smtp_port = smtp_port
@@ -53,7 +63,7 @@ class Notifier:
     @with_logger
     def notify(self, title, message, logger=None):
         """
-        Send a notification with the given title and message.
+        Send a notification with the given title and message to the default recipient.
         
         Args:
             title (str): The notification title
@@ -62,17 +72,72 @@ class Notifier:
         Returns:
             bool: True if the notification was sent successfully, False otherwise
         """
-        
+        return self._send_notification(self.recipient_email, title, message, logger)
 
-        if not self.recipient_email or not self.smtp_server:
-            logger.warning("Notification not sent: Missing recipient email or SMTP server configuration")
+    @with_logger
+    def notify_error(self, title, message, logger=None):
+        """
+        Send an error notification to the designated error recipient.
+        
+        Args:
+            title (str): The notification title
+            message (str): The notification message body
+            
+        Returns:
+            bool: True if the notification was sent successfully, False otherwise
+        """
+        return self._send_notification(self.recipient_email_error, title, message, logger)
+
+    @with_logger
+    def notify_summary(self, title, message, logger=None):
+        """
+        Send a summary notification to the designated summary recipient.
+        
+        Args:
+            title (str): The notification title
+            message (str): The notification message body
+            
+        Returns:
+            bool: True if the notification was sent successfully, False otherwise
+        """
+        return self._send_notification(self.recipient_email_summary, title, message, logger)
+
+    @with_logger
+    def notify_hazard(self, title, message, logger=None):
+        """
+        Send a hazard notification to the designated hazard recipient.
+        
+        Args:
+            title (str): The notification title
+            message (str): The notification message body
+            
+        Returns:
+            bool: True if the notification was sent successfully, False otherwise
+        """
+        return self._send_notification(self.recipient_email_hazard, title, message, logger)
+
+    @with_logger
+    def _send_notification(self, recipient_email, title, message, logger=None):
+        """
+        Internal method to send notifications to a specific recipient.
+        
+        Args:
+            recipient_email (str): Email address to send to
+            title (str): The notification title
+            message (str): The notification message body
+            
+        Returns:
+            bool: True if the notification was sent successfully, False otherwise
+        """
+        if not recipient_email or not self.smtp_server:
+            logger.warning(f"Notification not sent: Missing recipient email ({recipient_email}) or SMTP server configuration")
             return False
             
         try:
             # Create a multipart message
             msg = MIMEMultipart()
             msg['From'] = self.sender_email
-            msg['To'] = self.recipient_email
+            msg['To'] = recipient_email
             
             # Add simulation warning to title and message if in simulator mode
             if self.using_simulator:
@@ -99,10 +164,10 @@ class Notifier:
             server.send_message(msg)
             server.quit()
             
-            logger.info(f"Notification sent: {title}")
+            logger.info(f"Notification sent to {recipient_email}: {title}")
             return True
             
         except Exception as e:
             if logger:
-                logger.error(f"Failed to send notification: {str(e)}")
+                logger.error(f"Failed to send notification to {recipient_email}: {str(e)}")
             return False

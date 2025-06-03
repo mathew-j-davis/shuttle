@@ -443,7 +443,7 @@ def send_summary_notification(notifier, source_path, destination_path, successfu
         summary_title += f"{successful_files} successful"
 
     # Send the notification
-    notifier.notify(summary_title, summary_message)
+    notifier.notify_summary(summary_title, summary_message)
     logger.info(f"Sent summary notification: {failed_files} failed, {successful_files} successful")
 
 
@@ -740,4 +740,4 @@ def scan_and_process_directory(
             error_message = f"Critical error occurred during file processing: {str(e)}\n\n"
             error_message += f"Source directory: {source_path}\n"
             error_message += f"Destination directory: {destination_path}\n"
-            notifier.notify("Shuttle: Critical Processing Error", error_message)
+            notifier.notify_error("Shuttle: Critical Processing Error", error_message)
