@@ -119,3 +119,55 @@ Use `-e` flag for editable installs during development to avoid reinstalling aft
 - All exceptions logged with full context
 - Email notifications for errors and suspect files
 - Graceful shutdown on errors with cleanup
+
+## Recent Changes
+
+### Email Notification Enhancement (December 2024)
+Added support for different recipient emails for different notification types:
+
+#### Configuration Changes
+- Added to `CommonConfig` dataclass:
+  - `notify_recipient_email_error`: Email for error notifications
+  - `notify_recipient_email_summary`: Email for summary notifications  
+  - `notify_recipient_email_hazard`: Email for hazard/malware notifications
+- New CLI arguments: `--notify-recipient-email-error`, `--notify-recipient-email-summary`, `--notify-recipient-email-hazard`
+- Config file options: `recipient_email_error`, `recipient_email_summary`, `recipient_email_hazard` in `[notifications]` section
+
+#### Notifier Class Updates
+- Constructor now accepts specific email parameters that fallback to main `recipient_email` if not provided
+- Refactored `notify()` method to use internal `_send_notification()` helper
+- Added new methods:
+  - `notify_error()`: Sends to error recipient
+  - `notify_summary()`: Sends to summary recipient
+  - `notify_hazard()`: Sends to hazard recipient
+- Full backwards compatibility maintained
+
+#### Usage Example
+```python
+# Config file
+[notifications]
+recipient_email = admin@example.com
+recipient_email_error = errors@example.com
+recipient_email_summary = reports@example.com
+recipient_email_hazard = security@example.com
+
+# Code usage
+notifier.notify_error("Critical Error", "Details...")  # Goes to errors@example.com
+notifier.notify_summary("Daily Summary", "...")       # Goes to reports@example.com
+notifier.notify_hazard("Malware Found", "...")       # Goes to security@example.com
+notifier.notify("General Info", "...")               # Goes to admin@example.com
+```
+
+#### Updated Files
+- `src/shared_library/shuttle_common/config.py`: Added new config fields and parsing
+- `src/shared_library/shuttle_common/notifier.py`: Added new methods and fallback logic
+- `src/shuttle_app/shuttle/shuttle.py`: Updated Notifier instantiation
+- `src/shuttle_defender_test_app/shuttle_defender_test/shuttle_defender_test.py`: Updated Notifier instantiation
+- `tests/test_notifier.py`: Added comprehensive tests for new functionality
+
+### Environment Variables Documentation
+Created comprehensive documentation for running shuttle via cron/service:
+- `/docs/run-cron-service-config.md`: Details on environment variable handling
+- Recommended environment file location: `/etc/shuttle/shuttle_env.sh`
+- Three methods for cron jobs: source in command, set in crontab, or wrapper script
+- Phased deployment approach: manual → cron → systemd service

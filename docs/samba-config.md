@@ -4,11 +4,21 @@ This guide explains how to set up Samba on a Linux server to share the `/mnt/in`
 
 ## Overview
 
-The shuttle application runs as a specific user (we'll call it `zzzz` in this guide) that needs:
-- Read access to scan files
-- Write access to move/delete files  
-- Create/delete directory permissions
-- No execute permissions (for security, though this prevents using `ls`)
+yThis configuration supports two service accounts with different permission levels:
+
+### Service Account: `sa-shuttle-run`
+- **Purpose**: Runs the shuttle application for scanning and processing
+- **File Access**: Read/write files, no execute
+- **Directory Access**: Read/write/execute (for traversal and listing)
+- **Security**: Full access needed to scan, move, and delete files
+
+### Service Account: `sa-shuttle-lab` 
+- **Purpose**: Receives files from lab systems for scanning
+- **File Access**: Write-only (no read, no execute)
+- **Directory Access**: Read/write/list directories
+- **Security**: Cannot read unscanned files, preventing exposure to malware
+
+**Note**: For additional write-only configurations, see [samba-writeonly-config.md](./samba-writeonly-config.md)
 
 ## 1. Install Samba
 
@@ -60,72 +70,89 @@ Add this configuration with detailed comments:
    # Use kernel sendfile() for better performance
    use sendfile = yes
 
-[shuttle-in]
-   # Description shown when browsing shares
-   comment = Shuttle Input Directory
-   
-   # Physical path on the server
+# Share for shuttle processing service (full access)
+[shuttle-processor]
+   comment = Shuttle Processing Access
    path = /mnt/in
-   
-   # Allow this share to be seen when browsing
    browseable = yes
-   
-   # Disable guest access (require authentication)
    guest ok = no
-   
-   # Allow both read and write access
    read only = no
    
-   # File creation permissions (octal)
-   # 0664 = rw-rw-r-- (owner: rw, group: rw, others: r)
+   # Standard permissions for processing
    create mask = 0664
-   
-   # Directory creation permissions
-   # 0775 = rwxrwxr-x (owner: rwx, group: rwx, others: r-x)
    directory mask = 0775
-   
-   # Force minimum permissions for files
    force create mode = 0664
-   
-   # Force minimum permissions for directories
    force directory mode = 0775
    
-   # Only allow users in the shuttle-users group
-   # @ prefix means it's a group, not individual user
+   # Only allow processor service account
+   valid users = sa-shuttle-run
+
+# Share for lab submission (write-only access)
+[shuttle-lab-inbox]
+   comment = Shuttle Lab File Submission
+   path = /mnt/in
+   browseable = yes
+   guest ok = no
+   read only = no
+   
+   # Write-only permissions
+   write list = sa-shuttle-lab
+   read list = 
+   
+   # Restrictive file permissions (write-only)
+   create mask = 0220
+   directory mask = 0330
+   force create mode = 0220
+   force directory mode = 0330
+   
+   # Force ownership to prevent conflicts
+   force user = sa-shuttle-run
+   force group = shuttle-processors
+   
+   # Only allow lab service account
+   valid users = sa-shuttle-lab
+
+# General share for human users (standard access)
+[shuttle-in]
+   comment = Shuttle Input Directory
+   path = /mnt/in
+   browseable = yes
+   guest ok = no
+   read only = no
+   
+   create mask = 0664
+   directory mask = 0775
+   force create mode = 0664
+   force directory mode = 0775
+   
    valid users = @shuttle-users
 ```
 
 ## 3. Create Users and Set Permissions
 
-### Create the Shuttle Service User
+### Create the Shuttle Service Users
 
 ```bash
-# Create the shuttle service user 'zzzz' as a system account
-#
-# Command breakdown:
-# useradd           - Command to add a new user to the system
-# -r                - Create a system account (UID < 1000, no home dir by default)
-#                     System accounts are for services, not human users
-# -s /usr/sbin/nologin - Set the user's shell to nologin
-#                     This prevents the user from logging in interactively
-#                     Security measure: service accounts shouldn't have shell access
-# zzzz              - The username we're creating
-#
-# Why use a system account?
-# - Lower UID (typically < 1000) keeps it separate from human users
-# - No home directory needed for a service
-# - Shows up differently in user listings
-# - Standard practice for service accounts
-sudo useradd -r -s /usr/sbin/nologin zzzz
+# Create the shuttle processing service user
+# This user runs the shuttle application and needs full access
+sudo useradd -r -s /usr/sbin/nologin sa-shuttle-run
 
-# Create group for all users who need Samba access
-sudo groupadd shuttle-users
+# Create the lab input service user  
+# This user receives files from lab systems but cannot read them
+sudo useradd -r -s /usr/sbin/nologin sa-shuttle-lab
 
-# Add the shuttle service user to the group
-sudo usermod -a -G shuttle-users zzzz
+# Create groups for different access levels
+sudo groupadd shuttle-processors  # Full read/write access
+sudo groupadd shuttle-submitters   # Write-only access
+sudo groupadd shuttle-users        # General Samba access group
+
+# Add shuttle processing user to processor group
+sudo usermod -a -G shuttle-processors,shuttle-users sa-shuttle-run
+
+# Add lab user to submitter group
+sudo usermod -a -G shuttle-submitters,shuttle-users sa-shuttle-lab
 
 # Add human users who need access (replace 'human' with actual username)
-# -a = append to existing groups, -G = supplementary groups
 sudo usermod -a -G shuttle-users human
 ```
 
@@ -328,51 +355,15 @@ smbclient //server/share -U DOMAIN\\username
 ### Configure Directory Permissions
 
 ```bash
-# Change group ownership of files and directories
-#
-# Command breakdown for chgrp:
-# sudo              - Run with superuser privileges (needed to change ownership)
-# chgrp             - Change group ownership command (stands for "change group")
-# -R                - Recursive flag - apply to all files and subdirectories
-#                     Without -R, only /mnt/in itself would change, not its contents
-# shuttle-users     - The new group name to assign
-#                     This group must already exist (created with groupadd)
-# /mnt/in           - The target directory whose group ownership will change
-#
-# This command changes the group owner of /mnt/in and everything inside it
-# to the 'shuttle-users' group, ensuring all users in that group can access the files
-sudo chgrp -R shuttle-users /mnt/in
+# Set base ownership to shuttle processing user
+# This ensures the scanner can access all files
+sudo chown -R sa-shuttle-run:shuttle-processors /mnt/in
 
-# Set permissions for read/write but no execute (for data security)
-#
-# Command breakdown for find:
-# sudo              - Run with superuser privileges (needed to change permissions)
-# find              - Search for files/directories in a directory hierarchy
-# /mnt/in           - Starting directory path (where to begin the search)
-# -type f           - Filter by type: 'f' means regular files only
-# -type d           - Filter by type: 'd' means directories only
-# -exec             - Execute a command on each found item
-# chmod             - Command to change file permissions
-# 664               - Octal permission notation for files:
-#                     6 (rw-) = 4+2 = read(4) + write(2) for owner
-#                     6 (rw-) = 4+2 = read(4) + write(2) for group
-#                     4 (r--) = 4   = read(4) only for others
-#                     Result: rw-rw-r-- (no execute for security)
-# 775               - Octal permission notation for directories:
-#                     7 (rwx) = 4+2+1 = read(4) + write(2) + execute(1) for owner
-#                     7 (rwx) = 4+2+1 = read(4) + write(2) + execute(1) for group  
-#                     5 (r-x) = 4+1   = read(4) + execute(1) for others
-#                     Result: rwxrwxr-x (execute needed to enter directories)
-# {}                - Placeholder that gets replaced with each found file/directory path
-#                     Example: if find locates /mnt/in/file1.txt, {} becomes /mnt/in/file1.txt
-# \;                - Marks the end of the -exec command
-#                     The backslash (\) escapes the semicolon so shell doesn't interpret it
-#                     The semicolon (;) tells find where the -exec command ends
-#
-# First command: Find all files and set their permissions to 664
-sudo find /mnt/in -type f -exec chmod 664 {} \;
-# Second command: Find all directories and set their permissions to 775
-sudo find /mnt/in -type d -exec chmod 775 {} \;
+# Set base permissions for existing files and directories
+# Files: 660 (owner: rw, group: rw, others: none)
+# Directories: 770 (owner: rwx, group: rwx, others: none)
+sudo find /mnt/in -type f -exec chmod 660 {} \;
+sudo find /mnt/in -type d -exec chmod 770 {} \;
 
 # Alternative: If you need to allow file execution
 # sudo chmod -R 775 /mnt/in
@@ -460,12 +451,19 @@ sudo setfacl -Rdm u::rw,g::rw,o::r /mnt/in
 # Why separate command? Directories need execute permission to be traversable
 sudo find /mnt/in -type d -exec setfacl -dm u::rwx,g::rwx,o::rx {} \;
 
-# 2. Set specific defaults for the shuttle user
-# u:zzzz:rw means user zzzz gets read+write on new files
-# This overrides the general ACL for this specific user
-sudo setfacl -Rdm u:zzzz:rw /mnt/in
-# Directories need execute permission, so set rwx for zzzz on directories
-sudo find /mnt/in -type d -exec setfacl -dm u:zzzz:rwx {} \;
+# 2. Set specific ACLs for service accounts
+
+# sa-shuttle-run: Full access (read/write files, read/write/execute directories)
+sudo setfacl -Rdm u:sa-shuttle-run:rw /mnt/in
+sudo find /mnt/in -type d -exec setfacl -dm u:sa-shuttle-run:rwx {} \;
+sudo setfacl -Rm u:sa-shuttle-run:rw /mnt/in
+sudo find /mnt/in -type d -exec setfacl -m u:sa-shuttle-run:rwx {} \;
+
+# sa-shuttle-lab: Write-only for files, read/write/execute for directories
+sudo setfacl -Rdm u:sa-shuttle-lab:-w- /mnt/in
+sudo find /mnt/in -type d -exec setfacl -dm u:sa-shuttle-lab:rwx {} \;
+sudo setfacl -Rm u:sa-shuttle-lab:-w- /mnt/in
+sudo find /mnt/in -type d -exec setfacl -m u:sa-shuttle-lab:rwx {} \;
 
 # 3. Configure umask for the shuttle service user
 #
@@ -510,13 +508,20 @@ getfacl /mnt/in
 #### Testing Permission Inheritance
 
 ```bash
-# Test as shuttle user
-sudo -u zzzz touch /mnt/in/test-file.txt
-ls -la /mnt/in/test-file.txt  # Should show -rw-rw-r--
+# Test as shuttle processor (should have full access)
+sudo -u sa-shuttle-run touch /mnt/in/test-processor-file.txt
+sudo -u sa-shuttle-run cat /mnt/in/test-processor-file.txt  # Should succeed
+ls -la /mnt/in/test-processor-file.txt  # Should show -rw-rw----
+
+# Test as lab user (write-only)
+sudo -u sa-shuttle-lab touch /mnt/in/test-lab-file.txt
+sudo -u sa-shuttle-lab cat /mnt/in/test-lab-file.txt  # Should fail (Permission denied)
+sudo -u sa-shuttle-lab ls /mnt/in/  # Should succeed (can list directories)
 
 # Test directory creation
-sudo -u zzzz mkdir /mnt/in/test-dir
-ls -la /mnt/in/ | grep test-dir  # Should show drwxrwxr-x
+sudo -u sa-shuttle-run mkdir /mnt/in/test-dir
+sudo -u sa-shuttle-lab mkdir /mnt/in/test-lab-dir  # Should succeed
+ls -la /mnt/in/ | grep test-dir  # Should show drwxrwx---
 
 # Test via Samba (from Windows)
 # Create a file through Windows Explorer
@@ -641,17 +646,18 @@ sudo journalctl -u smbd -u nmbd --since "5 minutes ago"
 # This will also show the effective configuration
 sudo testparm
 
-# Test listing shares as the shuttle service user
-smbclient -L localhost -U zzzz
+# Test listing shares as the shuttle processing user
+smbclient -L localhost -U sa-shuttle-run
 
-# Test listing shares as a human user
-# -L = list shares, -U = username
-# You'll be prompted for the password
-smbclient -L localhost -U human
+# Test listing shares as the lab user
+smbclient -L localhost -U sa-shuttle-lab
 
-# Test accessing the share
-# Connect to the share and get an interactive prompt
-smbclient //localhost/shuttle-in -U zzzz
+# Test accessing the shares
+# Processor should have full access
+smbclient //localhost/shuttle-processor -U sa-shuttle-run
+
+# Lab user should have write-only access
+smbclient //localhost/shuttle-lab-inbox -U sa-shuttle-lab
 
 # Test from another Linux machine
 smbclient //<server-ip>/shuttle-in -U zzzz
@@ -665,9 +671,23 @@ Windows users can connect using:
 - Command line: `net use Z: \\<server-ip>\shuttle-in`
 
 ### Connection Details:
+
+**For Shuttle Processing:**
+- Share name: `shuttle-processor`
+- Username: `sa-shuttle-run`
+- Password: Set with `smbpasswd`
+- Access: Full read/write
+
+**For Lab File Submission:**
+- Share name: `shuttle-lab-inbox`
+- Username: `sa-shuttle-lab`
+- Password: Set with `smbpasswd`
+- Access: Write-only (cannot read files)
+
+**For General Users:**
 - Share name: `shuttle-in`
 - Username: Linux username (e.g., `human`)
-- Password: Password set with `smbpasswd`
+- Password: Set with `smbpasswd`
 
 ## Troubleshooting
 
@@ -684,10 +704,13 @@ Windows users can connect using:
 - Each user must have both a Linux account and Samba password
 
 ### Permission Security
-- Files are created with 664 permissions (no execute) for security
-- Directories need 775 (execute required to traverse)
+- **sa-shuttle-run**: Full access to scan and process files (660/770 permissions)
+- **sa-shuttle-lab**: Write-only access prevents reading unscanned files
+- Files created with no execute permissions for security
+- Directories need execute permissions for traversal
 - Consider using `noexec` mount option for additional security
-- The shuttle service user (zzzz) has no shell access
+- All service accounts have no shell access (`/usr/sbin/nologin`)
+- ACLs provide granular control over file access
 
 ### Additional Hardening
 ```bash
