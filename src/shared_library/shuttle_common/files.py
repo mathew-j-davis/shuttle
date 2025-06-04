@@ -6,10 +6,9 @@ import subprocess
 from pathlib import Path
 import gnupg
 from .logging_setup import setup_logging, LoggingOptions
-from .logger_injection import with_logger
+from .logger_injection import get_logger
 
-@with_logger
-def is_filename_safe(filename, logger=None):
+def is_filename_safe(filename):
     """
     Check if a filename contains potentially dangerous characters.
     Allows alphanumeric, spaces, and valid UTF-8 characters, but blocks
@@ -25,8 +24,7 @@ def is_filename_safe(filename, logger=None):
     return is_name_safe(filename)
 
 
-@with_logger
-def is_pathname_safe(pathname, logger=None):
+def is_pathname_safe(pathname):
     """
     Check if a filename contains potentially dangerous characters.
     Allows alphanumeric, spaces, and valid UTF-8 characters, but blocks
@@ -41,8 +39,7 @@ def is_pathname_safe(pathname, logger=None):
         
     return is_name_safe(pathname, True)
 
-@with_logger
-def is_name_safe(name, is_path = False, logger=None):
+def is_name_safe(name, is_path = False):
     """
     Check if a filename contains potentially dangerous characters.
     Allows alphanumeric, spaces, and valid UTF-8 characters, but blocks
@@ -88,8 +85,7 @@ def is_name_safe(name, is_path = False, logger=None):
         
     return True
 
-@with_logger
-def get_file_hash(file_path, logging_options=None, logger=None):
+def get_file_hash(file_path, logging_options=None):
     """
     Compute the SHA-256 hash of a file.
 
@@ -101,7 +97,6 @@ def get_file_hash(file_path, logging_options=None, logger=None):
         str: The computed hash or None if an error occurred.
     """
     hash_sha256 = hashlib.sha256()
-    # Logger provided by decorator
         
     try:
         with open(file_path, 'rb') as f:
@@ -110,17 +105,19 @@ def get_file_hash(file_path, logging_options=None, logger=None):
                 hash_sha256.update(chunk)
         return hash_sha256.hexdigest()
     except FileNotFoundError:
+        logger = get_logger(logging_options=logging_options)
         logger.error(f"File not found: {file_path}")
         return None
     except PermissionError:
+        logger = get_logger(logging_options=logging_options)
         logger.error(f"Permission denied when accessing file: {file_path}")
         return None
     except Exception as e:
+        logger = get_logger(logging_options=logging_options)
         logger.error(f"Error computing hash for {file_path}: {e}")
         return None
 
-@with_logger
-def compare_file_hashes(hash1, hash2, logger=None):
+def compare_file_hashes(hash1, hash2):
     """
     Compare two hash strings.
     
@@ -133,8 +130,7 @@ def compare_file_hashes(hash1, hash2, logger=None):
     """
     return hash1 == hash2
 
-@with_logger
-def remove_file_with_logging(file_path, logging_options=None, logger=None):
+def remove_file_with_logging(file_path, logging_options=None):
     """
     Remove a file and log the result.
     
@@ -145,7 +141,7 @@ def remove_file_with_logging(file_path, logging_options=None, logger=None):
     Returns:
         bool: True if file was successfully deleted, False otherwise.
     """
-    # Logger provided by decorator
+    logger = get_logger(logging_options=logging_options)
         
     try:
         os.remove(file_path)
@@ -160,8 +156,7 @@ def remove_file_with_logging(file_path, logging_options=None, logger=None):
         logger.error(f"Failed to delete file {file_path}: {e}")
     return False
 
-@with_logger
-def test_write_access(path, logging_options=None, logger=None):
+def test_write_access(path, logging_options=None):
     """
     Test if the script has write access to a given directory.
     
@@ -172,7 +167,7 @@ def test_write_access(path, logging_options=None, logger=None):
     Returns:
         bool: True if write access is confirmed, False otherwise.
     """
-    # Logger provided by decorator
+    logger = get_logger(logging_options=logging_options)
         
     try:
         test_file = os.path.join(path, 'write_test.tmp')
@@ -187,8 +182,7 @@ def test_write_access(path, logging_options=None, logger=None):
 
 
 
-@with_logger
-def verify_file_integrity(source_file_path, comparison_file_path, logging_options=None, logger=None):
+def verify_file_integrity(source_file_path, comparison_file_path, logging_options=None):
     """
     Verify file integrity between source and destination.
     
@@ -200,7 +194,7 @@ def verify_file_integrity(source_file_path, comparison_file_path, logging_option
     Returns:
         dict: Result dictionary with success status and hash values
     """
-    # Logger provided by decorator
+    logger = get_logger(logging_options=logging_options)
 
     result = dict(); 
     result['success'] = False
@@ -236,8 +230,7 @@ def verify_file_integrity(source_file_path, comparison_file_path, logging_option
         return result
 
 
-@with_logger
-def copy_temp_then_rename(from_path, to_path, logging_options=None, logger=None):
+def copy_temp_then_rename(from_path, to_path, logging_options=None):
     """
     Copy a file to a temporary location then rename it to the final destination.
     
@@ -246,7 +239,7 @@ def copy_temp_then_rename(from_path, to_path, logging_options=None, logger=None)
         to_path (str): Destination file path
         logging_options (LoggingOptions, optional): Logger properties to use for logging.
     """
-    # Logger provided by decorator
+    logger = get_logger(logging_options=logging_options)
         
     to_dir = os.path.dirname(to_path)
     to_path_temp = os.path.join(to_path + '.copying')
@@ -263,32 +256,27 @@ def copy_temp_then_rename(from_path, to_path, logging_options=None, logger=None)
         logger.info(f"Copied file {from_path} to : {to_path}")
 
     except FileNotFoundError as e:
-        if logger:
-            logger.error(f"File not found during copying: {from_path} to: {to_path}. Error: {e}")
+        logger.error(f"File not found during copying: {from_path} to: {to_path}. Error: {e}")
         raise
 
     except PermissionError as e:
-        if logger:
-            logger.error(f"Permission denied when copying file: {from_path} to: {to_path}. Error: {e}")
+        logger.error(f"Permission denied when copying file: {from_path} to: {to_path}. Error: {e}")
         raise
 
     except Exception as e:
-        if logger:
-            logger.error(f"Failed to copy file: {from_path} to : {to_path}. Error: {e}")
+        logger.error(f"Failed to copy file: {from_path} to : {to_path}. Error: {e}")
         raise
 
     finally:
         if os.path.exists(to_path_temp):
             os.remove(to_path_temp)
 
-@with_logger
-def normalize_path(path, logger=None):
+def normalize_path(path):
     p = Path(path)
     return str(p.parent.resolve().joinpath(p.name))
 
 
-@with_logger
-def remove_empty_directories(root, keep_root=False, logging_options=None, logger=None):
+def remove_empty_directories(root, keep_root=False, logging_options=None):
     """
     Remove empty directories recursively.
     
@@ -297,7 +285,7 @@ def remove_empty_directories(root, keep_root=False, logging_options=None, logger
         keep_root (bool): Whether to keep the root directory
         logging_options (LoggingOptions, optional): Logger properties to use for logging.
     """
-    # Logger provided by decorator
+    logger = get_logger(logging_options=logging_options)
         
     for path, _, _ in os.walk(root, topdown=False):  # Listing the files
         if keep_root and path == root:
@@ -306,11 +294,9 @@ def remove_empty_directories(root, keep_root=False, logging_options=None, logger
             os.rmdir(path)
             logger.debug(f"Removed empty directory: {path}")
         except OSError as ex:
-            if logger:
-                logger.debug(f"Could not remove directory: {path}, {ex}")
+            logger.debug(f"Could not remove directory: {path}, {ex}")
 
-@with_logger
-def remove_directory(path, logging_options=None, logger=None):
+def remove_directory(path, logging_options=None):
     """
     Remove a directory.
     
@@ -321,20 +307,17 @@ def remove_directory(path, logging_options=None, logger=None):
     Returns:
         bool: True if directory was removed, False otherwise
     """
-    # Logger provided by decorator
+    logger = get_logger(logging_options=logging_options)
         
     try:
         os.rmdir(path)
-        if logger:
-            logger.debug(f"Removed directory: {path}")
+        logger.debug(f"Removed directory: {path}")
         return True
     except OSError as ex:
-        if logger:
-            logger.debug(f"Could not remove directory: {path}, {ex}")
+        logger.debug(f"Could not remove directory: {path}, {ex}")
         return False
 
-@with_logger
-def remove_directory_contents(root, logging_options=None, logger=None):
+def remove_directory_contents(root, logging_options=None):
     """
     Remove all contents of a directory.
     
@@ -342,7 +325,7 @@ def remove_directory_contents(root, logging_options=None, logger=None):
         root (str): Directory to empty
         logging_options (LoggingOptions, optional): Logger properties to use for logging.
     """
-    # Logger provided by decorator
+    logger = get_logger(logging_options=logging_options)
         
     for filename in os.listdir(root):
         file_path = os.path.join(root, filename)
@@ -354,13 +337,11 @@ def remove_directory_contents(root, logging_options=None, logger=None):
                 shutil.rmtree(file_path)
                 logger.debug(f"Removed directory tree: {file_path}")
         except Exception as e:
-            if logger:
-                logger.error(f"Failed to delete {file_path}. Reason: {e}")
+            logger.error(f"Failed to delete {file_path}. Reason: {e}")
 
 
 
-@with_logger
-def is_file_open(file_path, logging_options=None, logger=None):
+def is_file_open(file_path, logging_options=None):
     """
     Check if a file is currently open by any process.
     
@@ -371,8 +352,6 @@ def is_file_open(file_path, logging_options=None, logger=None):
     Returns:
         bool: True if the file is open, False otherwise.
     """
-    # Logger provided by decorator
-        
     try:
         result = subprocess.run(
             ['lsof', file_path],
@@ -388,23 +367,23 @@ def is_file_open(file_path, logging_options=None, logger=None):
             return False
         else:
             if result.stderr:
+                logger = get_logger(logging_options=logging_options)
                 logger.error(f"Error checking if file is open: {result.stderr.strip()}")
             return False
     except FileNotFoundError:
-        if logger:
-            logger.error(f"'lsof' command not found. Please ensure it is installed.")
+        logger = get_logger(logging_options=logging_options)
+        logger.error(f"'lsof' command not found. Please ensure it is installed.")
         return False
     except PermissionError:
-        if logger:
-            logger.error(f"Permission denied when accessing 'lsof' or file: {file_path}")
+        logger = get_logger(logging_options=logging_options)
+        logger.error(f"Permission denied when accessing 'lsof' or file: {file_path}")
         return False
     except Exception as e:
-        if logger:
-            logger.error(f"Exception occurred while checking if file is open: {e}")
+        logger = get_logger(logging_options=logging_options)
+        logger.error(f"Exception occurred while checking if file is open: {e}")
         return False
     
-@with_logger
-def is_file_stable(file_path, stability_time=5, logging_options=None, logger=None):
+def is_file_stable(file_path, stability_time=5, logging_options=None):
     """
     Check if a file has not been modified in the last 'stability_time' seconds.
     
@@ -416,31 +395,29 @@ def is_file_stable(file_path, stability_time=5, logging_options=None, logger=Non
     Returns:
         bool: True if the file is stable, False otherwise.
     """
-    # Logger provided by decorator
-        
     try:
         last_modified_time = os.path.getmtime(file_path)
         current_time = time.time()
         is_stable = (current_time - last_modified_time) > stability_time
         if not is_stable:
+            logger = get_logger(logging_options=logging_options)
             logger.debug(f"File is not yet stable: {file_path}")
         return is_stable
     except FileNotFoundError:
-        if logger:
-            logger.error(f"File not found when checking if file is stable: {file_path}")
+        logger = get_logger(logging_options=logging_options)
+        logger.error(f"File not found when checking if file is stable: {file_path}")
         return False
     except PermissionError:
-        if logger:
-            logger.error(f"Permission denied when accessing file size: {file_path}")
+        logger = get_logger(logging_options=logging_options)
+        logger.error(f"Permission denied when accessing file size: {file_path}")
         return False
     except Exception as e:
-        if logger:
-            logger.error(f"Error checking if file is stable {file_path}: {e}")
+        logger = get_logger(logging_options=logging_options)
+        logger.error(f"Error checking if file is stable {file_path}: {e}")
         return False
     
 
-@with_logger
-def encrypt_file(file_path, output_path, key_file_path, logging_options=None, logger=None):
+def encrypt_file(file_path, output_path, key_file_path, logging_options=None):
     """
     Encrypt a file using GPG with a specified public key file.
     
@@ -453,7 +430,7 @@ def encrypt_file(file_path, output_path, key_file_path, logging_options=None, lo
     Returns:
         bool: True if encryption successful, False otherwise
     """
-    # Logger provided by decorator
+    logger = get_logger(logging_options=logging_options)
         
     try:
         gpg = gnupg.GPG()
@@ -485,12 +462,10 @@ def encrypt_file(file_path, output_path, key_file_path, logging_options=None, lo
             return False
             
     except FileNotFoundError:
-        if logger:
-            logger.error(f"Key file not found: {key_file_path}")
+        logger.error(f"Key file not found: {key_file_path}")
         return False
     except Exception as e:
-        if logger:
-            logger.error(f"Error during encryption: {e}")
+        logger.error(f"Error during encryption: {e}")
         return False
 
 """
@@ -499,8 +474,7 @@ File safety checking functionality for Shuttle.
 This module contains functions to ensure files are safe to process.
 """
 
-@with_logger
-def are_file_and_path_names_safe(source_file, source_root, logging_options=None, logger=None):
+def are_file_and_path_names_safe(source_file, source_root, logging_options=None):
     """
     Check if filenames and paths are safe for processing.
     
@@ -512,7 +486,7 @@ def are_file_and_path_names_safe(source_file, source_root, logging_options=None,
     Returns:
         bool: True if all names are safe, False otherwise
     """
-    # Logger provided by decorator
+    logger = get_logger(logging_options=logging_options)
     
     # Calculate the full path
     source_file_path = os.path.join(source_root, source_file)
@@ -534,8 +508,7 @@ def are_file_and_path_names_safe(source_file, source_root, logging_options=None,
     
     return True
 
-@with_logger
-def is_file_ready(source_file_path, skip_stability_check=False, logging_options=None, logger=None):
+def is_file_ready(source_file_path, skip_stability_check=False, logging_options=None):
     """
     Check if a file is ready for processing (stable and not open).
     
@@ -547,7 +520,7 @@ def is_file_ready(source_file_path, skip_stability_check=False, logging_options=
     Returns:
         bool: True if file is ready for processing, False otherwise
     """
-    # Logger provided by decorator
+    logger = get_logger(logging_options=logging_options)
     
     # Check file stability
     if not skip_stability_check and not is_file_stable(source_file_path, logging_options=logging_options):
@@ -563,8 +536,7 @@ def is_file_ready(source_file_path, skip_stability_check=False, logging_options=
     
     return True
 
-@with_logger
-def is_file_safe_for_processing(source_file, source_root, skip_stability_check=False, logging_options=None, logger=None):
+def is_file_safe_for_processing(source_file, source_root, skip_stability_check=False, logging_options=None):
     """
     Check if a file is safe to process (filename, path, stability, not open).
     
@@ -572,21 +544,21 @@ def is_file_safe_for_processing(source_file, source_root, skip_stability_check=F
         source_file: Filename only
         source_root: Directory containing the file
         skip_stability_check: Whether to skip file stability check
-        logging_options: Logging configuration
+        logging_options: Optional logging configuration (passed in tests)
         
     Returns:
         bool: True if file is safe to process, False otherwise
     """
 
     # First check if names are safe
-    if not are_file_and_path_names_safe(source_file, source_root, logging_options):
+    if not are_file_and_path_names_safe(source_file, source_root, logging_options=logging_options):
         return False
     
     # Calculate the full path
     source_file_path = os.path.join(source_root, source_file)
     
     # Then check if the file is ready
-    if not is_file_ready(source_file_path, skip_stability_check, logging_options):
+    if not is_file_ready(source_file_path, skip_stability_check, logging_options=logging_options):
         return False
     
     return True

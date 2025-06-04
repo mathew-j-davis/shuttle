@@ -15,7 +15,7 @@ from typing import Optional
 
 # Import common configuration using relative imports
 from shuttle_common.config import CommonConfig, add_common_arguments, parse_common_config, get_setting_from_arg_or_file, find_config_file
-from shuttle_common.logger_injection import with_logger
+from shuttle_common.logger_injection import get_logger
 
 
 @dataclass
@@ -57,7 +57,6 @@ class ShuttleConfig(CommonConfig):
     mock_free_space_hazard_mb: Optional[int] = None  # Mock free space for hazard
 
 
-@with_logger
 def parse_shuttle_config() -> ShuttleConfig:
     """
     Parse Shuttle configuration from command line arguments and settings file.

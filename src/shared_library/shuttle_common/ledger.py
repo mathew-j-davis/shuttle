@@ -10,7 +10,7 @@ import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 from .logging_setup import setup_logging
-from .logger_injection import with_logger
+from .logger_injection import get_logger
 
 class Ledger:
     """
@@ -26,18 +26,14 @@ class Ledger:
           test_details: "All detection tests passed"
     """
     
-    def __init__(self, logging_options):
+    def __init__(self):
         """
         Initialize the Ledger
-        
-        Args:
-            logging_options (LoggingOptions): Logger properties to use for logging
         """
-        self.logging_options = logging_options
+
         self.data = None
         
-    @with_logger
-    def load(self,ledger_file_path: str, logger=None) -> bool:
+    def load(self, ledger_file_path: str, logging_options=None) -> bool:
         """
         Load the ledger data from the file.
         
@@ -47,6 +43,7 @@ class Ledger:
         Returns:
             bool: True if loaded successfully, False otherwise
         """
+        logger = get_logger(logging_options=logging_options)
         try:
             with open(ledger_file_path, 'r') as file:
                 self.data = yaml.safe_load(file)
@@ -61,8 +58,7 @@ class Ledger:
             logger.error(f"Unexpected error reading ledger file: {e}")
             return False
             
-    @with_logger
-    def is_version_tested(self, version: str, logger=None) -> bool:
+    def is_version_tested(self, version: str, logging_options=None) -> bool:
         """
         Check if the specified version has been successfully tested.
         
@@ -72,6 +68,7 @@ class Ledger:
         Returns:
             bool: True if version has been tested successfully, False otherwise
         """
+        logger = get_logger(logging_options=logging_options)
         if not self.data:
             logger.error("Ledger data not loaded")
             return False
@@ -104,6 +101,5 @@ class Ledger:
             return False
             
         except Exception as e:
-            if logger:
-                logger.error(f"Error checking tested versions: {e}")
+            logger.error(f"Error checking tested versions: {e}")
             return False

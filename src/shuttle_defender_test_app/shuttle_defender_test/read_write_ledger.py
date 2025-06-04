@@ -14,7 +14,7 @@ from datetime import datetime
 # Import Ledger from shuttle_common package using absolute imports
 from shuttle_common.ledger import Ledger
 from shuttle_common.logging_setup import setup_logging, LoggingOptions
-from shuttle_common.logger_injection import with_logger
+from shuttle_common.logger_injection import get_logger
 
 
 class ReadWriteLedger(Ledger):
@@ -25,17 +25,14 @@ class ReadWriteLedger(Ledger):
     methods to save changes and add new tested versions.
     """
     
-    def __init__(self, logging_options=None):
+    def __init__(self):
         """
         Initialize the ReadWriteLedger.
         
-        Args:
-            logging_options (LoggingOptions): Logging configuration options
         """
-        super().__init__(logging_options)
+        super().__init__()
     
-    @with_logger
-    def save(self, ledger_file_path, logger=None) -> bool:
+    def save(self, ledger_file_path, logging_options=None) -> bool:
         """
         Save the ledger data to the file.
         
@@ -45,12 +42,14 @@ class ReadWriteLedger(Ledger):
         Returns:
             bool: True if saved successfully, False otherwise
         """
+        logger = get_logger(logging_options=logging_options)
+
         if not ledger_file_path:
-            self.logger.error("No ledger file path provided")
+            logger.error("No ledger file path provided")
             return False
         
         if self.data is None:
-            self.logger.error("No ledger data to save")
+            logger.error("No ledger data to save")
             return False
             
         try:
@@ -58,11 +57,10 @@ class ReadWriteLedger(Ledger):
                 yaml.dump(self.data, file, default_flow_style=False, sort_keys=False)
                 return True
         except Exception as e:
-            self.logger.error(f"Error saving ledger file: {e}")
+            logger.error(f"Error saving ledger file: {e}")
             return False
             
-    @with_logger
-    def add_tested_version(self, ledger_file_path, version: str, test_result: str, test_details: str = "", logger=None) -> bool:
+    def add_tested_version(self, ledger_file_path, version: str, test_result: str, test_details: str = "", logging_options=None) -> bool:
         """
         Add a tested version to the ledger.
         
@@ -75,6 +73,7 @@ class ReadWriteLedger(Ledger):
         Returns:
             bool: True if added successfully, False otherwise
         """
+        
         if not self.data:
             self.data = {}
             
@@ -93,7 +92,7 @@ class ReadWriteLedger(Ledger):
                     'test_result': test_result,
                     'test_details': test_details
                 })
-                return self.save(ledger_file_path)
+                return self.save(ledger_file_path, logging_options)
                 
         # Add new version
         self.data['defender']['tested_versions'].append({
@@ -103,17 +102,16 @@ class ReadWriteLedger(Ledger):
             'test_details': test_details
         })
         
-        return self.save(ledger_file_path)
+        return self.save(ledger_file_path, logging_options)
         
-    @with_logger
-    def get_defender_tested_versions(self, logger=None) -> List[Dict[str, Any]]:
-        """
-        Get all tested versions.
+    # def get_defender_tested_versions(self) -> List[Dict[str, Any]]:
+    #     """
+    #     Get all tested versions.
         
-        Returns:
-            list: List of tested version dictionaries
-        """
-        if not self.data or 'defender' not in self.data or 'tested_versions' not in self.data['defender']:
-            return []
+    #     Returns:
+    #         list: List of tested version dictionaries
+    #     """
+    #     if not self.data or 'defender' not in self.data or 'tested_versions' not in self.data['defender']:
+    #         return []
             
-        return self.data['defender']['tested_versions']
+    #     return self.data['defender']['tested_versions']

@@ -11,14 +11,13 @@ import configparser
 import logging
 from dataclasses import dataclass
 from typing import Optional, Any, Callable, TypeVar, Union
-from .logger_injection import with_logger
+from .logger_injection import get_logger
 
 T = TypeVar('T')
 
 
 # Convert a value to boolean using string matching for string values
-@with_logger
-def convert_to_bool(value, logger=None) -> bool:
+def convert_to_bool(value) -> bool:
     """
     Convert a value to boolean using string matching for string values.
     Strings like 'true', 'yes', and '1' are converted to True.
@@ -36,8 +35,7 @@ def convert_to_bool(value, logger=None) -> bool:
     
 
 # Safely convert a value to a specified type
-@with_logger
-def convert_to_type(value, type_func, logger=None) -> Any:
+def convert_to_type(value, type_func) -> Any:
     """
     Safely convert a value to the specified type.
     Special handling for boolean conversion using string matching.
@@ -64,8 +62,7 @@ def convert_to_type(value, type_func, logger=None) -> Any:
 
 
 # Helper function to get settings with priority: CLI args > settings file > default
-@with_logger
-def get_setting(arg_value, section, option, default: T = None, type: Optional[Callable[[Any], T]] = None, config=None, logger=None) -> T:
+def get_setting(arg_value, section, option, default: T = None, type: Optional[Callable[[Any], T]] = None, config=None) -> T:
     """
     Get setting with priority: CLI args > settings file > default
     
@@ -100,8 +97,7 @@ def get_setting(arg_value, section, option, default: T = None, type: Optional[Ca
 
 
 # Helper function to get settings from args or config file
-@with_logger
-def get_setting_from_arg_or_file(args_obj, arg_name: str, section: str, option: str, default: T = None, type: Optional[Callable[[Any], T]] = None, config=None, logger=None) -> T:
+def get_setting_from_arg_or_file(args_obj, arg_name: str, section: str, option: str, default: T = None, type: Optional[Callable[[Any], T]] = None, config=None) -> T:
     """
     Get setting with priority: CLI args > settings file > default
     Extracts the arg_name from args_obj automatically
@@ -155,8 +151,7 @@ class CommonConfig:
  
 
 
-@with_logger
-def add_common_arguments(parser: argparse.ArgumentParser, logger=None) -> None:
+def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     """
     Add common command-line arguments to an argument parser.
     
@@ -226,8 +221,7 @@ def add_common_arguments(parser: argparse.ArgumentParser, logger=None) -> None:
                       default=None)
 
 
-@with_logger
-def find_config_file(logger=None):
+def find_config_file():
     """
     Search for a config file in standard locations.
     
@@ -259,8 +253,7 @@ def find_config_file(logger=None):
     return None
 
 
-@with_logger
-def parse_common_config(args=None, logger=None):
+def parse_common_config(args=None):
     """
     Parse common configuration settings from command line arguments and settings file.
     

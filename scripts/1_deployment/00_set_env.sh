@@ -2,15 +2,17 @@
 # 00_set_env.sh - Set up Shuttle environment variables
 
 # Default paths
-# HOME_DIR=$(eval echo ~$USER)
-# DEFAULT_CONFIG_PATH="$HOME_DIR/.config/shuttle/config.conf"
-# DEFAULT_VENV_PATH="$HOME_DIR/.local/share/shuttle/venv"
-# DEFAULT_WORK_DIR="$HOME_DIR/.local/share/shuttle/work"
 
-HOME_DIR=$(eval echo ~$USER)
-DEFAULT_CONFIG_PATH="$HOME_DIR/shuttle/config.conf"
-DEFAULT_VENV_PATH="$HOME_DIR/shuttle/.venv"
-DEFAULT_WORK_DIR="$HOME_DIR/shuttle/work"
+DEFAULT_CONFIG_PATH="$HOME_DIR/.config/shuttle/config.conf"
+DEFAULT_VENV_PATH="$HOME_DIR/.local/share/shuttle/venv"
+DEFAULT_WORK_DIR="$HOME_DIR/.local/share/shuttle/work"
+
+
+# for development use
+# HOME_DIR=$(eval echo ~$USER)
+# DEFAULT_CONFIG_PATH="$HOME_DIR/shuttle/config.conf"
+# DEFAULT_VENV_PATH="$HOME_DIR/shuttle/.venv"
+# DEFAULT_WORK_DIR="$HOME_DIR/shuttle/work"
 
 
 # Parse arguments

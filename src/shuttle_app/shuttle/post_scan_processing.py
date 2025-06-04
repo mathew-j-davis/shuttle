@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
 from shuttle_common.logging_setup import setup_logging
-from shuttle_common.logger_injection import with_logger
+from shuttle_common.logger_injection import get_logger
 from shuttle_common.files import (
     copy_temp_then_rename,
     get_file_hash,
@@ -12,14 +12,12 @@ from shuttle_common.files import (
     encrypt_file
 )
 
-@with_logger
 def handle_suspect_source_file(
     source_file_path,
     quarantine_hash,
     hazard_archive_path,
     key_file_path,
-    logging_options=None,
-    logger=None
+    logging_options=None
 ):
     """
     Handle a source file when its quarantine copy is found to be suspect.
@@ -35,6 +33,7 @@ def handle_suspect_source_file(
     Returns:
         bool: True if handled successfully, False otherwise
     """
+    logger = get_logger(logging_options=logging_options)
     
     if not os.path.exists(source_file_path):
         return True
@@ -59,7 +58,6 @@ def handle_suspect_source_file(
         
     return True
 
-@with_logger
 def handle_suspect_scan_result(
     quarantine_file_path,
     source_file_path,
@@ -68,8 +66,7 @@ def handle_suspect_scan_result(
     delete_source_files,
     scanner_handling_suspect_file,
     quarantine_hash,
-    logging_options=None,
-    logger=None
+    logging_options=None
 ):
     """
     Handle the result of a malware scan that found a suspect file.
@@ -86,6 +83,7 @@ def handle_suspect_scan_result(
     Returns:
         bool: True if handled successfully, False otherwise
     """
+    logger = get_logger(logging_options=logging_options)
     scanner_handled_suspect_file = False
 
     if scanner_handling_suspect_file:
@@ -118,14 +116,12 @@ def handle_suspect_scan_result(
             logging_options
         )
 
-@with_logger
 def handle_clean_file(
     quarantine_file_path,
     source_file_path,
     destination_file_path,
     delete_source_files,
-    logging_options=None,
-    logger=None
+    logging_options=None
 ):
     """
     Handle processing of clean files by moving them to the destination.
@@ -140,6 +136,7 @@ def handle_clean_file(
         bool: True if the file was successfully handled, False
           otherwise
     """
+    logger = get_logger(logging_options=logging_options)
     
     try:
         copy_temp_then_rename(quarantine_file_path, destination_file_path, logging_options)
@@ -179,15 +176,13 @@ def handle_clean_file(
     return True
 
 
-@with_logger
 def handle_suspect_quarantine_file_and_delete_source(
     quarantine_file_path,
     source_file_path,
     hazard_archive_path,
     key_file_path,
     delete_source_files,
-    logging_options=None,
-    logger=None
+    logging_options=None
 ):
     """
     Handle a file that has been identified as suspicious/infected.
@@ -203,6 +198,7 @@ def handle_suspect_quarantine_file_and_delete_source(
     Returns:
         bool: True if file was handled successfully, False otherwise
     """
+    logger = get_logger(logging_options=logging_options)
     
     try:
         # If hazard archive path and encryption key are provided, archive the file
@@ -258,13 +254,11 @@ def handle_suspect_quarantine_file_and_delete_source(
             logger.error(f"Unexpected error handling suspect file {quarantine_file_path}: {e}")
         return False
     
-@with_logger
 def handle_suspect_file(
     suspect_file_path,
     hazard_archive_path,
     key_file_path,
-    logging_options=None,
-    logger=None
+    logging_options=None
 ):
     """
     Archive a suspect file by encrypting it and then remove the original.
@@ -277,6 +271,7 @@ def handle_suspect_file(
     Returns:
         bool: True if file was archived successfully and removed, False otherwise
     """
+    logger = get_logger(logging_options=logging_options)
 
     if not os.path.exists(suspect_file_path):
         logger.error(f"Cannot archive non-existent file: {suspect_file_path}")

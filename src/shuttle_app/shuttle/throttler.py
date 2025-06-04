@@ -10,7 +10,7 @@ import logging
 import types
 from typing import Optional
 from shuttle_common.logging_setup import setup_logging
-from shuttle_common.logger_injection import with_logger
+from shuttle_common.logger_injection import get_logger
 
 
 class Throttler:
@@ -27,8 +27,7 @@ class Throttler:
     """
     
     @staticmethod
-    @with_logger
-    def get_free_space_mb(directory_path, logger=None):
+    def get_free_space_mb(directory_path):
         """
         Get the free space in a directory in megabytes.
         
@@ -38,6 +37,7 @@ class Throttler:
         Returns:
             float: Free space in MB, or 0 if there was an error
         """
+
         try:
             if not os.path.exists(directory_path):
                 os.makedirs(directory_path, exist_ok=True)
@@ -49,8 +49,7 @@ class Throttler:
             return 0.0
     
     @staticmethod
-    @with_logger
-    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, logging_options=None, include_pending_volume=False, pending_volume_mb=0, logger=None):
+    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, include_pending_volume=False, pending_volume_mb=0, logging_options=None):
         """
         Check if a directory has enough free space for a file, leaving a minimum amount free after copy.
         
@@ -65,7 +64,7 @@ class Throttler:
         Returns:
             bool: True if directory has enough space, False otherwise
         """
-
+        logger = get_logger(logging_options=logging_options)
         
         try:
             # Get free space in MB
@@ -86,8 +85,7 @@ class Throttler:
             return has_space
             
         except Exception as e:
-            if logger:
-                logger.error(f"Error checking space in directory {directory_path}: {e}")
+            logger.error(f"Error checking space in directory {directory_path}: {e}")
             return False
             
     @staticmethod
@@ -126,6 +124,9 @@ class Throttler:
         disk_error = False
         daily_limit_exceeded = False
         daily_limit_message = ""
+        
+        # Get logger for this method
+        logger = get_logger(logging_options=logging_options)
         
         # Check daily throttling limits if enabled
         if daily_totals and (max_files_per_day > 0 or max_volume_per_day_mb > 0):
@@ -168,8 +169,8 @@ class Throttler:
                 quarantine_path, 
                 file_size_mb, 
                 min_free_space_mb,
-                logging_options,
-                include_pending_volume=False
+                include_pending_volume=False,
+                logging_options=logging_options
             )
             
             # Check space in destination directory (include pending volume)
@@ -177,9 +178,9 @@ class Throttler:
                 destination_path, 
                 file_size_mb, 
                 min_free_space_mb,
-                logging_options,
                 include_pending_volume=True,
-                pending_volume_mb=pending_volume_mb
+                pending_volume_mb=pending_volume_mb,
+                logging_options=logging_options
             )
             
             # Check space in hazard archive directory (include pending volume)
@@ -187,9 +188,9 @@ class Throttler:
                 hazard_path, 
                 file_size_mb, 
                 min_free_space_mb,
-                logging_options,
                 include_pending_volume=True,
-                pending_volume_mb=pending_volume_mb
+                pending_volume_mb=pending_volume_mb,
+                logging_options=logging_options
             )
             
             # Log warning if any directory is full
@@ -197,8 +198,7 @@ class Throttler:
                 logger.warning(f"Stopping file processing due to insufficient disk space")
             
         except Exception as e:
-            if logger:
-                logger.error(f"Error checking disk space: {e}")
+            logger.error(f"Error checking disk space: {e}")
             quarantine_has_space = False
             destination_has_space = False
             hazard_has_space = False

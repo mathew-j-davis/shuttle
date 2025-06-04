@@ -8,12 +8,11 @@ import os
 import yaml
 from datetime import datetime
 from shuttle_common.logging_setup import setup_logging
-from shuttle_common.logger_injection import ( with_logger, get_logger)
+from shuttle_common.logger_injection import ( get_logger)
 from shuttle.daily_processing_tracker import DailyProcessingTracker
 
 
-@with_logger
-def check_daily_limits(daily_processing_tracker, file_count_limit, volume_limit_mb, file_size_mb, logger=None):
+def check_daily_limits(daily_processing_tracker, file_count_limit, volume_limit_mb, file_size_mb, logging_options=None):
     """
     Check if daily limits would be exceeded by processing another file.
     
@@ -29,6 +28,9 @@ def check_daily_limits(daily_processing_tracker, file_count_limit, volume_limit_
             - can_proceed: True if processing can continue, False if limit reached
             - message: Description of the limit reached or None
     """
+
+    logger = get_logger(logging_options=logging_options)
+
     # Get the total counts including the new file
     total_files = daily_processing_tracker.get_total_files_count(include_additional=1)  # +1 for current file
     total_volume = daily_processing_tracker.get_total_volume_mb(include_additional_mb=file_size_mb)
@@ -36,15 +38,13 @@ def check_daily_limits(daily_processing_tracker, file_count_limit, volume_limit_
     # Check file count limit
     if file_count_limit and file_count_limit > 0 and total_files > file_count_limit:
         message = f"Daily file count limit ({file_count_limit}) would be exceeded with {total_files} files"
-        if logger:
-            logger.info(message)
+        logger.info(message)
         return False, message
             
     # Check volume limit
     if volume_limit_mb and volume_limit_mb > 0 and total_volume > volume_limit_mb:
         message = f"Daily volume limit ({volume_limit_mb} MB) would be exceeded with {total_volume:.2f} MB"
-        if logger:
-            logger.info(message)
+        logger.info(message)
         return False, message
             
     return True, None
@@ -61,8 +61,7 @@ def handle_throttle_check(
         max_volume_per_day=0,
         daily_processing_tracker=None,
         notifier=None,
-        logging_options=None,
-        logger=None
+        logging_options=None
     ):
     """
     Check if a file can be processed based on available disk space and daily processing limits.
@@ -83,7 +82,8 @@ def handle_throttle_check(
     Returns:
         bool: True if processing can continue, False if it should stop
     """
-    logger = get_logger(logging_options=logging_options, logger=logger)
+    logger = get_logger(logging_options=logging_options)
+
     # Get file size for throttling calculations
     file_size_bytes = 0
     file_size_mb = 0
@@ -101,8 +101,8 @@ def handle_throttle_check(
             quarantine_path,
             file_size_mb,
             throttle_free_space_mb,
-            logging_options,
-            include_pending_volume=False
+            include_pending_volume=False,
+            logging_options=logging_options
         )
         
         # Get pending volume for destination and hazard checks
@@ -116,9 +116,9 @@ def handle_throttle_check(
             destination_path,
             file_size_mb,
             throttle_free_space_mb,
-            logging_options,
             include_pending_volume=True,
-            pending_volume_mb=pending_volume_mb
+            pending_volume_mb=pending_volume_mb,
+            logging_options=logging_options
         )
         
         # Check hazard archive directory (include pending volume)
@@ -126,9 +126,9 @@ def handle_throttle_check(
             hazard_archive_path,
             file_size_mb,
             throttle_free_space_mb,
-            logging_options,
             include_pending_volume=True,
-            pending_volume_mb=pending_volume_mb
+            pending_volume_mb=pending_volume_mb,
+            logging_options=logging_options
         )
         
         # Determine if disk space check passed
@@ -156,7 +156,7 @@ def handle_throttle_check(
                 if not hazard_has_space:
                     disk_message += f"- Hazard archive directory is full\n"
                 
-                notifier.notify_error("Shuttle Disk Space Alert", disk_message)
+                notifier.notify_error("Shuttle Disk Space Alert", disk_message, logging_options=logging_options)
             
             return False  # Stop processing due to disk space issues
         
@@ -168,7 +168,7 @@ def handle_throttle_check(
                 file_count_limit=max_files_per_day,
                 volume_limit_mb=max_volume_per_day,
                 file_size_mb=file_size_mb,
-                logger=logger
+                logging_options=logging_options
             )
             
             if not can_proceed:
@@ -178,7 +178,8 @@ def handle_throttle_check(
                     notifier.notify_error("Daily Limit Reached", 
                                   f"Processing stopped: {limit_message}\n\n"
                                   f"File: {os.path.basename(source_file_path)}\n"
-                                  f"Daily limits: {max_files_per_day or 'unlimited'} files, {max_volume_per_day or 'unlimited'} MB")
+                                  f"Daily limits: {max_files_per_day or 'unlimited'} files, {max_volume_per_day or 'unlimited'} MB", 
+                                  logging_options=logging_options)
                 
                 # Log the rejected file
                 daily_processing_tracker.log_rejected_file(source_file_path, limit_message)
@@ -197,10 +198,6 @@ def handle_throttle_check(
         # Send error notification if notifier provided
         if notifier:
             error_message = f"Critical error during throttle check: {str(e)}"
-            notifier.notify_error("Shuttle Throttle Error", error_message)
+            notifier.notify_error("Shuttle Throttle Error", error_message, logging_options=logging_options)
         
         return False  # Stop processing due to error
-
-
-# ThrottleLogger has been completely replaced by DailyProcessingTracker
-# Please use DailyProcessingTracker directly from the daily_processing_tracker module

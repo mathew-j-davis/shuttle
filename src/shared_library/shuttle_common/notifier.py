@@ -7,7 +7,7 @@ from .logging_setup import (
     LoggingOptions,
     setup_logging
 )
-from .logger_injection import with_logger
+from .logger_injection import get_logger
 
 
 class Notifier:
@@ -27,7 +27,6 @@ class Notifier:
                  username=None, 
                  password=None, 
                  use_tls=True,
-                 logging_options=None,
                  using_simulator=False):
         """
         Initialize the notification system with recipient and sender details.
@@ -43,7 +42,6 @@ class Notifier:
             username (str): SMTP authentication username
             password (str): SMTP authentication password
             use_tls (bool): Whether to use TLS encryption
-            logging_options (LoggingOptions): Logger properties to use for logging
             using_simulator (bool): Whether running in simulator mode
         """
         self.recipient_email = recipient_email
@@ -58,66 +56,67 @@ class Notifier:
         self.password = password
         self.use_tls = use_tls
         self.using_simulator = using_simulator
-        self.logging_options = logging_options
 
-    @with_logger
-    def notify(self, title, message, logger=None):
+    def notify(self, title, message, logging_options=None):
         """
         Send a notification with the given title and message to the default recipient.
         
         Args:
             title (str): The notification title
             message (str): The notification message body
+            logging_options: Optional logging configuration options
             
         Returns:
             bool: True if the notification was sent successfully, False otherwise
         """
-        return self._send_notification(self.recipient_email, title, message, logger)
 
-    @with_logger
-    def notify_error(self, title, message, logger=None):
+        return self._send_notification(self.recipient_email, title, message, logging_options)
+
+    def notify_error(self, title, message, logging_options=None):
         """
         Send an error notification to the designated error recipient.
         
         Args:
             title (str): The notification title
             message (str): The notification message body
+            logging_options: Optional logging configuration options
             
         Returns:
             bool: True if the notification was sent successfully, False otherwise
         """
-        return self._send_notification(self.recipient_email_error, title, message, logger)
 
-    @with_logger
-    def notify_summary(self, title, message, logger=None):
+        return self._send_notification(self.recipient_email_error, title, message, logging_options)
+
+    def notify_summary(self, title, message, logging_options=None):
         """
         Send a summary notification to the designated summary recipient.
         
         Args:
             title (str): The notification title
             message (str): The notification message body
+            logging_options: Optional logging configuration options
             
         Returns:
             bool: True if the notification was sent successfully, False otherwise
         """
-        return self._send_notification(self.recipient_email_summary, title, message, logger)
 
-    @with_logger
-    def notify_hazard(self, title, message, logger=None):
+        return self._send_notification(self.recipient_email_summary, title, message, logging_options)
+
+    def notify_hazard(self, title, message, logging_options=None):
         """
         Send a hazard notification to the designated hazard recipient.
         
         Args:
             title (str): The notification title
             message (str): The notification message body
+            logging_options: Optional logging configuration options
             
         Returns:
             bool: True if the notification was sent successfully, False otherwise
         """
-        return self._send_notification(self.recipient_email_hazard, title, message, logger)
+        return self._send_notification(self.recipient_email_hazard, title, message, logging_options)
 
-    @with_logger
-    def _send_notification(self, recipient_email, title, message, logger=None):
+    def _send_notification(self, recipient_email, title, message, logging_options=None):
         """
         Internal method to send notifications to a specific recipient.
         
@@ -129,6 +128,8 @@ class Notifier:
         Returns:
             bool: True if the notification was sent successfully, False otherwise
         """
+        logger = get_logger(logging_options=logging_options)
+
         if not recipient_email or not self.smtp_server:
             logger.warning(f"Notification not sent: Missing recipient email ({recipient_email}) or SMTP server configuration")
             return False

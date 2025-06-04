@@ -9,7 +9,7 @@ import yaml
 import logging
 from datetime import datetime
 from shuttle_common.logging_setup import setup_logging
-from shuttle_common.logger_injection import with_logger
+from shuttle_common.logger_injection import get_logger
 
 
 class DailyProcessingTracker:
@@ -30,7 +30,6 @@ class DailyProcessingTracker:
             logging_options: Logging configuration for activity reporting
         """
         self.data_directory = data_directory
-        self.activity_logger = setup_logging('shuttle.daily_processing_tracker', logging_options)
         self.today = datetime.now().date()
         self.tracking_file = os.path.join(data_directory, f"throttle_{self.today.isoformat()}.yaml")
         self.run_data = {
@@ -53,27 +52,33 @@ class DailyProcessingTracker:
         self.suspect_files = 0
         self.suspect_volume_mb = 0.0
         
-    @with_logger
-    def _load_daily_totals(self, logger=None):
+
+    def _load_daily_totals(self, logging_options=None):
         """
         Load the current day's totals from the tracking file.
+        
+        Args:
+            logging_options: Optional logging configuration (passed in tests)
         
         Returns:
             dict: Current daily totals or zeroed counters if no tracking file exists
         """
+
+        logger = get_logger(logging_options=logging_options)
+
         if not os.path.exists(self.tracking_file):
-            self.activity_logger.info(f"No existing tracking data for today, creating new record")
+            logger.info(f"No existing tracking data for today, creating new record")
             return {'files_processed': 0, 'volume_processed_mb': 0}
                 
         try:
             with open(self.tracking_file, 'r') as f:
                 data = yaml.safe_load(f)
                 if data and 'totals' in data:
-                    self.activity_logger.info(f"Loaded existing tracking data with {data['totals']['files_processed']} files and {data['totals']['volume_processed_mb']} MB processed today")
+                    logger.info(f"Loaded existing tracking data with {data['totals']['files_processed']} files and {data['totals']['volume_processed_mb']} MB processed today")
                     return data['totals']
                 return {'files_processed': 0, 'volume_processed_mb': 0}
         except Exception as e:
-            self.activity_logger.error(f"Error loading tracking data: {e}")
+            logger.error(f"Error loading tracking data: {e}")
             return {'files_processed': 0, 'volume_processed_mb': 0}
     
     def get_total_files_count(self, include_pending=True, include_additional=0):
@@ -106,7 +111,7 @@ class DailyProcessingTracker:
         pending_volume = self.pending_volume_mb if include_pending else 0.0
         return base_volume + pending_volume + include_additional_mb
         
-    def add_pending_file(self, file_path, file_size_mb, file_hash, source_path):
+    def add_pending_file(self, file_path, file_size_mb, file_hash, source_path, logging_options=None):
         """
         Track a file that has been approved for processing.
         
@@ -115,10 +120,14 @@ class DailyProcessingTracker:
             file_size_mb: Size of the file in MB
             file_hash: Unique hash identifier for the file
             source_path: Original path of the file before quarantine
+            logging_options: Optional logging configuration (passed in tests)
             
         Returns:
             str: The file hash for later reference
         """
+
+        logger = get_logger(logging_options=logging_options)
+
         timestamp = datetime.now().isoformat()
         
         self.pending_files += 1
@@ -139,10 +148,10 @@ class DailyProcessingTracker:
             'error': None
         }
         
-        self.activity_logger.debug(f"Added pending file: {file_path} ({file_size_mb:.2f} MB), hash: {file_hash}")
+        logger.debug(f"Added pending file: {file_path} ({file_size_mb:.2f} MB), hash: {file_hash}")
         return file_hash  # Return hash for later reference
         
-    def complete_pending_file(self, file_hash, outcome='success', error=None):
+    def complete_pending_file(self, file_hash, outcome='success', error=None, logging_options=None):
         """
         Move a file from pending to processed status.
         
@@ -150,12 +159,15 @@ class DailyProcessingTracker:
             file_hash: Unique hash identifier of the file to complete
             outcome: Processing outcome ('success', 'failed', or 'suspect')
             error: Error message if outcome is 'failed'
+            logging_options: Optional logging configuration (passed in tests)
             
         Returns:
             bool: True if file was successfully completed, False otherwise
         """
+        logger = get_logger(logging_options=logging_options)
+
         if file_hash not in self.file_records:
-            self.activity_logger.warning(f"File hash {file_hash} not found in tracking records")
+            logger.warning(f"File hash {file_hash} not found in tracking records")
             return False
             
         record = self.file_records[file_hash]
@@ -188,17 +200,21 @@ class DailyProcessingTracker:
         # Save updated data
         self._save_daily_totals()
         
-        self.activity_logger.debug(f"Completed file: {record['file_path']} with outcome: {outcome}")
+        logger.debug(f"Completed file: {record['file_path']} with outcome: {outcome}")
         return True
     
-    def update_counts(self, files_processed, volume_processed_mb):
+    def update_counts(self, files_processed, volume_processed_mb, logging_options=None):
         """
         Update the counts for the current run.
         
         Args:
             files_processed: Number of files processed in this run
             volume_processed_mb: Volume of data processed in MB in this run
+            logging_options: Optional logging configuration (passed in tests)
         """
+
+        logger = get_logger(logging_options=logging_options)
+
         self.run_data['files_processed'] += files_processed
         self.run_data['volume_processed_mb'] += volume_processed_mb
         
@@ -206,13 +222,13 @@ class DailyProcessingTracker:
         self.daily_totals['volume_processed_mb'] += volume_processed_mb
         
         # Log the update
-        self.activity_logger.info(f"Updated processing counts: +{files_processed} files, +{volume_processed_mb:.2f} MB")
-        self.activity_logger.info(f"Daily totals now: {self.daily_totals['files_processed']} files, {self.daily_totals['volume_processed_mb']:.2f} MB")
+        logger.info(f"Updated processing counts: +{files_processed} files, +{volume_processed_mb:.2f} MB")
+        logger.info(f"Daily totals now: {self.daily_totals['files_processed']} files, {self.daily_totals['volume_processed_mb']:.2f} MB")
         
         # Save the updated counts to the tracking file
         self._save_daily_totals()
     
-    def initialize_with_values(self, files_processed=0, volume_processed_mb=0.0):
+    def initialize_with_values(self, files_processed=0, volume_processed_mb=0.0, logging_options=None):
         """
         Initialize the tracking file with specific values.
         
@@ -221,17 +237,28 @@ class DailyProcessingTracker:
         Args:
             files_processed: Initial number of files processed
             volume_processed_mb: Initial volume processed in MB
+            logging_options: Optional logging configuration (passed in tests)
         """
+        logger = get_logger(logging_options=logging_options)
+
         self.daily_totals = {
             'files_processed': files_processed,
             'volume_processed_mb': volume_processed_mb
         }
         
-        self.activity_logger.info(f"Initializing tracking with {files_processed} files and {volume_processed_mb:.2f} MB")
+        logger.info(f"Initializing tracking with {files_processed} files and {volume_processed_mb:.2f} MB")
         self._save_daily_totals()
         
-    def _save_daily_totals(self):
-        """Save the current daily totals to the tracking file with transaction safety."""
+    def _save_daily_totals(self, logging_options=None):
+
+        """Save the current daily totals to the tracking file with transaction safety.
+        
+        Args:
+            logging_options: Optional logging configuration (passed in tests)
+        """
+
+        logger = get_logger(logging_options=logging_options)
+
         os.makedirs(os.path.dirname(self.tracking_file), exist_ok=True)
         
         # Use a temporary file for atomic write
@@ -262,7 +289,7 @@ class DailyProcessingTracker:
                 os.rename(temp_file, self.tracking_file)
                 
         except Exception as e:
-            self.activity_logger.error(f"Error saving tracking data: {e}")
+            logger.error(f"Error saving tracking data: {e}")
             # Try to remove the temporary file if it exists
             if os.path.exists(temp_file):
                 try:
@@ -270,15 +297,18 @@ class DailyProcessingTracker:
                 except:
                     pass
             
-    def log_rejected_file(self, file_path, reason):
+    def log_rejected_file(self, file_path, reason, logging_options=None):
         """
         Log a file that was rejected due to throttling limits.
         
         Args:
             file_path (str): Path to the file that was rejected
             reason (str): Reason the file was rejected
+            logging_options: Optional logging configuration (passed in tests)
         """
-        self.activity_logger.warning(f"File rejected due to throttling: {file_path}. Reason: {reason}")
+        logger = get_logger(logging_options=logging_options)
+
+        logger.warning(f"File rejected due to throttling: {file_path}. Reason: {reason}")
     
     def generate_summary(self):
         """
@@ -336,8 +366,15 @@ class DailyProcessingTracker:
             'total_volume_mb': self.successful_volume_mb + self.failed_volume_mb + self.suspect_volume_mb
         }
     
-    def _save_run_summary(self):
-        """Save a summary of this run to a separate file."""
+    def _save_run_summary(self, logging_options=None):
+
+        logger = get_logger(logging_options=logging_options)
+
+        """Save a summary of this run to a separate file.
+        
+        Args:
+            logging_options: Optional logging configuration (passed in tests)
+        """
         summary_file = os.path.join(
             self.data_directory,
             f"summary_{self.today.isoformat()}_{datetime.now().strftime('%H%M%S')}.yaml"
@@ -347,20 +384,24 @@ class DailyProcessingTracker:
             summary = self.generate_summary()
             with open(summary_file, 'w') as f:
                 yaml.dump(summary, f)
-            self.activity_logger.info(f"Saved run summary to {summary_file}")
+            logger.info(f"Saved run summary to {summary_file}")
         except Exception as e:
-            self.activity_logger.error(f"Error saving run summary: {e}")
+            logger.error(f"Error saving run summary: {e}")
     
-    def export_to_yaml(self, file_path=None):
+    def export_to_yaml(self, file_path=None, logging_options=None):
         """
         Export file records to YAML format.
         
         Args:
             file_path: Optional path for the export file
+            logging_options: Optional logging configuration (passed in tests)
             
         Returns:
             str: Path to the export file or None if export failed
         """
+
+        logger = get_logger(logging_options=logging_options)
+
         if file_path is None:
             file_path = os.path.join(
                 self.data_directory,
@@ -383,24 +424,29 @@ class DailyProcessingTracker:
             with open(file_path, 'w') as f:
                 yaml.dump(export_data, f)
                     
-            self.activity_logger.info(f"Exported file records to {file_path}")
+            logger.info(f"Exported file records to {file_path}")
             return file_path
         except Exception as e:
-            self.activity_logger.error(f"Error exporting to YAML: {e}")
+            logger.error(f"Error exporting to YAML: {e}")
             return None
     
-    def close(self):
+    def close(self, logging_options=None):
         """
         Finalize tracking and save all data.
         
         This should be called at the end of processing to finalize the entry.
+        
+        Args:
+            logging_options: Optional logging configuration (passed in tests)
         """
+        logger = get_logger(logging_options=logging_options)
+
         # Handle any remaining pending files
         pending_hashes = [hash for hash, record in self.file_records.items()
                         if record['status'] == 'pending']
         
         if pending_hashes:
-            self.activity_logger.warning(f"Found {len(pending_hashes)} pending files during shutdown")
+            logger.warning(f"Found {len(pending_hashes)} pending files during shutdown")
             for file_hash in pending_hashes:
                 self.complete_pending_file(file_hash, 'unknown', 'Process terminated before completion')
         
@@ -411,5 +457,5 @@ class DailyProcessingTracker:
         self._save_daily_totals()
         
         # Log a message about finalization
-        self.activity_logger.info(f"Finalized daily processing tracking at {self.tracking_file}")
-        self.activity_logger.info(f"Daily totals: {self.daily_totals['files_processed']} files, {self.daily_totals['volume_processed_mb']:.2f} MB")
+        logger.info(f"Finalized daily processing tracking at {self.tracking_file}")
+        logger.info(f"Daily totals: {self.daily_totals['files_processed']} files, {self.daily_totals['volume_processed_mb']:.2f} MB")

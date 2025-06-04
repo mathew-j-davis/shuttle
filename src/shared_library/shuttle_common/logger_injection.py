@@ -152,45 +152,6 @@ def get_logger(logging_options=None, logger=None, func_name: str = None, func_mo
     return logger
 
 
-def with_logger(func: Callable) -> Callable:
-    """
-    Decorator that injects a logger using the get_logger function.
-    
-    Usage:
-        @with_logger
-        def my_function(arg1, arg2, logging_options=None, logger=None):
-            logger.info("This works!")
-    """
-    
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        
-        # Extract logging_options and logger from kwargs
-        logging_options = kwargs.get('logging_options')
-        logger = kwargs.get('logger')
-        
-        # Determine instance if this is a method call
-        instance = args[0] if args and hasattr(args[0], '__class__') else None
-        
-        # Get logger using the standalone function
-        logger = get_logger(
-            logging_options=logging_options,
-            logger=logger,
-            func_name=func.__name__,
-            func_module=func.__module__,
-            instance=instance,
-            enable_hierarchy=True
-        )
-        
-        # Inject logger if the function accepts it
-        if 'logger' in inspect.signature(func).parameters:
-            kwargs['logger'] = logger
-        
-        return func(*args, **kwargs)
-    
-    return wrapper
-
-
 def get_logging_options() -> Dict[str, Any]:
     """Get the current global logging options"""
     return _global_logging_options
@@ -206,31 +167,23 @@ def reset_logging_config() -> None:
 """
 Example Integration with Shuttle:
 
-1. DECORATOR USAGE (for functions where debugging is not critical):
-    
-    from shuttle_common.logger_injection import with_logger
-    
-    @with_logger
-    def process_files(source_path, destination_path, logging_options=None, logger=None):
-        logger.info(f"Processing {source_path} to {destination_path}")
-
-2. MANUAL USAGE (for functions where debugging is important):
+1. USAGE (for functions where debugging is important):
     
     from shuttle_common.logger_injection import get_logger
     
-    def handle_throttle_check(source_file_path, quarantine_path, logging_options=None, logger=None):
+    def handle_throttle_check(source_file_path, quarantine_path, logging_options=None):
         logger = get_logger(logging_options, logger, func_name='handle_throttle_check', func_module=__name__)
         logger.info(f"Checking throttle for {source_file_path}")
         # Now you can debug this function normally!
 
-3. METHOD USAGE:
+2. METHOD USAGE:
     
     class Scanner:
-        def scan_file(self, file_path, logging_options=None, logger=None):
+        def scan_file(self, file_path, logging_options=None):
             logger = get_logger(logging_options, logger, func_name='scan_file', func_module=__name__, instance=self)
             logger.debug(f"Scanning {file_path}")
 
-4. GLOBAL CONFIGURATION (call once at startup):
+3. GLOBAL CONFIGURATION (call once at startup):
     
     from shuttle_common.logger_injection import configure_logging
     
