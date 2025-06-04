@@ -61,6 +61,11 @@
 
 ## Overview
 
+WARNING THIS SOFTWARE IS EXPERIMENTAL FOR MY PERSONAL USE, INFORMATION AND CODE HERE ARE MY PERSONAL NOTES
+THEY ARE NOT ADVICE OR RECOMMENDATIONS
+THIS IS UNTESTED, NO GUARANTEES OR WARRANTEES
+YOU ARE RESPONSIBLE FOR YOUR OWN ACTIONS
+
 Shuttle is a secure file transfer and scanning utility designed to safely move files between directories while performing malware scanning. It features:
 
 - On-demand malware scanning using Microsoft Defender and ClamAV
