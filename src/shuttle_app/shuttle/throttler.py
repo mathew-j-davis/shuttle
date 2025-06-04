@@ -9,7 +9,6 @@ import shutil
 import logging
 import types
 from typing import Optional
-from shuttle_common.logging_setup import setup_logging
 from shuttle_common.logger_injection import get_logger
 
 
@@ -49,7 +48,7 @@ class Throttler:
             return 0.0
     
     @staticmethod
-    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, include_pending_volume=False, pending_volume_mb=0, logging_options=None):
+    def check_directory_space(directory_path, file_size_mb, min_free_space_mb, include_pending_volume=False, pending_volume_mb=0):
         """
         Check if a directory has enough free space for a file, leaving a minimum amount free after copy.
         
@@ -57,14 +56,13 @@ class Throttler:
             directory_path (str): Path to the directory to check
             file_size_mb (float): Size of the file in MB
             min_free_space_mb (int): Minimum free space to maintain after copy in MB
-            logging_options (LoggingOptions, optional): logging configuration details
             include_pending_volume (bool): Whether to include pending volume in the calculation
             pending_volume_mb (float): Volume of pending files in MB to consider
             
         Returns:
             bool: True if directory has enough space, False otherwise
         """
-        logger = get_logger(logging_options=logging_options)
+        logger = get_logger()
         
         try:
             # Get free space in MB
@@ -91,7 +89,7 @@ class Throttler:
     @staticmethod
     def can_process_file(source_file_path, quarantine_path, destination_path, 
                          hazard_path, min_free_space_mb, daily_totals=None, max_files_per_day=0, 
-                         max_volume_per_day_mb=0, logging_options=None):
+                         max_volume_per_day_mb=0):
         """
         Check if a file can be processed with the given paths and return detailed status.
         
@@ -104,7 +102,6 @@ class Throttler:
             daily_totals (dict): Current daily totals with 'files_processed' and 'volume_processed_mb' keys
             max_files_per_day (int): Maximum number of files to process per day (0 for no limit)
             max_volume_per_day_mb (int): Maximum volume to process per day in MB (0 for no limit)
-            logging_options (LoggingOptions, optional): logging configuration details
             
         Returns:
             SimpleNamespace: Object with the following attributes:
@@ -126,7 +123,7 @@ class Throttler:
         daily_limit_message = ""
         
         # Get logger for this method
-        logger = get_logger(logging_options=logging_options)
+        logger = get_logger()
         
         # Check daily throttling limits if enabled
         if daily_totals and (max_files_per_day > 0 or max_volume_per_day_mb > 0):
@@ -169,8 +166,7 @@ class Throttler:
                 quarantine_path, 
                 file_size_mb, 
                 min_free_space_mb,
-                include_pending_volume=False,
-                logging_options=logging_options
+                include_pending_volume=False
             )
             
             # Check space in destination directory (include pending volume)
@@ -179,8 +175,7 @@ class Throttler:
                 file_size_mb, 
                 min_free_space_mb,
                 include_pending_volume=True,
-                pending_volume_mb=pending_volume_mb,
-                logging_options=logging_options
+                pending_volume_mb=pending_volume_mb
             )
             
             # Check space in hazard archive directory (include pending volume)
@@ -189,8 +184,7 @@ class Throttler:
                 file_size_mb, 
                 min_free_space_mb,
                 include_pending_volume=True,
-                pending_volume_mb=pending_volume_mb,
-                logging_options=logging_options
+                pending_volume_mb=pending_volume_mb
             )
             
             # Log warning if any directory is full

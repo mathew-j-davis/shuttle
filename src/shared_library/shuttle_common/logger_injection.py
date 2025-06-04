@@ -27,36 +27,27 @@ def configure_logging(logging_options: Dict[str, Any]) -> None:
 
 def _get_logger_name_from_context(func_name: str = None, func_module: str = None, instance=None) -> str:
     """Helper function to determine logger name from context."""
-    if instance and hasattr(instance, '__class__'):
-        return f"{instance.__class__.__module__}.{instance.__class__.__name__}.{func_name}"
-    elif func_module and func_name:
+
+    if func_module and func_name:
         return f"{func_module}.{func_name}"
     else:
         return "shuttle.unknown"
 
 
-def _resolve_logging_options(logging_options=None, instance=None):
+def _resolve_logging_options():
     """Helper function to resolve logging options with fallback chain."""
     
-    # 1. Use provided logging_options if given
-    if logging_options is not None:
-        return logging_options
-    
-    # 2. Check for instance-level logging options (legacy support)
-    if instance and hasattr(instance, 'logging_options'):
-        return instance.logging_options
-    
-    # 3. Check global configuration
+    # Check global configuration
     if _global_logging_options:
         return LoggingOptions(
             filePath=_global_logging_options.get('log_file_path'),
             level=_global_logging_options.get('log_level', logging.INFO)
         )
     
-    # 4. Final fallback: create default console-only logger
+    # fallback: create debug console-only logger for tests
     return LoggingOptions(
         filePath=None,  # No file logging
-        level=logging.INFO  # Default to INFO level
+        level=logging.DEBUG  # Default to INFO level
     )
 
 
@@ -99,52 +90,36 @@ def _get_call_hierarchy():
     return call_chain, target_function
 
 
-def get_logger(logging_options=None, logger=None, func_name: str = None, func_module: str = None, instance=None, enable_hierarchy: bool = True):
+def get_logger():
     """
     Get a logger with comprehensive fallback logic.
-    
-    Args:
-        logging_options: Specific logging options to use
-        logger: If provided, just returns this logger
-        func_name: Name of the function requesting the logger (auto-detected if not provided)
-        func_module: Module of the function requesting the logger (auto-detected if not provided)
-        instance: Instance object (for method calls)
-        enable_hierarchy: Whether to log call hierarchy in debug mode
-    
+
     Returns:
         Logger instance
     """
-
-    
-    # If logger already provided, just return it
-    if logger is not None:
-        return logger
     
     # Auto-detect function info if not provided
-    if func_name is None or func_module is None:
-        caller_frame = inspect.currentframe().f_back
-        if caller_frame:
-            if func_name is None:
-                func_name = caller_frame.f_code.co_name
-            if func_module is None:
-                func_module = caller_frame.f_globals.get('__name__', 'unknown')
+    caller_frame = inspect.currentframe().f_back
+    if caller_frame:
+        func_name = caller_frame.f_code.co_name
+        func_module = caller_frame.f_globals.get('__name__', 'unknown')
     
     # Determine logger name
-    logger_name = _get_logger_name_from_context(func_name, func_module, instance)
+    logger_name = _get_logger_name_from_context(func_name, func_module)
     
     # Resolve logging options
-    resolved_logging_options = _resolve_logging_options(logging_options, instance)
+    resolved_logging_options = _resolve_logging_options()
     
-    # Add call hierarchy to logger name if enabled
-    if enable_hierarchy:
-        try:
-            call_chain, current = _get_call_hierarchy()
-            if call_chain and current:
-                chain_str = " → ".join(call_chain[-3:] + [current])
-                logger_name = f"{logger_name}[{chain_str}]"
-        except Exception:
-            # If hierarchy logging fails, don't break the main functionality
-            pass
+    # # Add call hierarchy to logger name if enabled
+    # if enable_hierarchy:
+    #     try:
+    #         call_chain, current = _get_call_hierarchy()
+    #         if call_chain and current:
+    #             chain_str = " → ".join(call_chain[-3:] + [current])
+    #             logger_name = f"{logger_name}[{chain_str}]"
+    #     except Exception:
+    #         # If hierarchy logging fails, don't break the main functionality
+    #         pass
     
     # Create logger with hierarchy-enhanced name
     logger = setup_logging(logger_name, resolved_logging_options)
@@ -171,16 +146,16 @@ Example Integration with Shuttle:
     
     from shuttle_common.logger_injection import get_logger
     
-    def handle_throttle_check(source_file_path, quarantine_path, logging_options=None):
-        logger = get_logger(logging_options, logger, func_name='handle_throttle_check', func_module=__name__)
+    def handle_throttle_check(source_file_path, quarantine_path):
+        logger = get_logger()
         logger.info(f"Checking throttle for {source_file_path}")
         # Now you can debug this function normally!
 
 2. METHOD USAGE:
     
     class Scanner:
-        def scan_file(self, file_path, logging_options=None):
-            logger = get_logger(logging_options, logger, func_name='scan_file', func_module=__name__, instance=self)
+        def scan_file(self, file_path):
+            logger = get_logger()
             logger.debug(f"Scanning {file_path}")
 
 3. GLOBAL CONFIGURATION (call once at startup):

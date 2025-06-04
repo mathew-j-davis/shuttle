@@ -23,10 +23,10 @@
 - Formats logs with timestamps, levels, filenames, and function names
 
 ### logger_injection.py
-- Provides `@with_logger` decorator for automatic logger injection
-- Implements `get_logger()` for manual logger creation
+- Implements `get_logger()` for function-level logger creation
 - Shows call hierarchy in DEBUG mode for better debugging context
 - Embeds call chain information into logger names
+- Provides `logging_options` parameter pattern for dependency injection
 
 ### notifier.py
 - Email notification system for alerts and summaries

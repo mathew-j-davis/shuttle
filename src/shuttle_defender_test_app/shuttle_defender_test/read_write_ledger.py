@@ -13,7 +13,6 @@ from datetime import datetime
 
 # Import Ledger from shuttle_common package using absolute imports
 from shuttle_common.ledger import Ledger
-from shuttle_common.logging_setup import setup_logging, LoggingOptions
 from shuttle_common.logger_injection import get_logger
 
 
@@ -32,7 +31,7 @@ class ReadWriteLedger(Ledger):
         """
         super().__init__()
     
-    def save(self, ledger_file_path, logging_options=None) -> bool:
+    def save(self, ledger_file_path) -> bool:
         """
         Save the ledger data to the file.
         
@@ -42,7 +41,7 @@ class ReadWriteLedger(Ledger):
         Returns:
             bool: True if saved successfully, False otherwise
         """
-        logger = get_logger(logging_options=logging_options)
+        logger = get_logger()
 
         if not ledger_file_path:
             logger.error("No ledger file path provided")
@@ -60,7 +59,7 @@ class ReadWriteLedger(Ledger):
             logger.error(f"Error saving ledger file: {e}")
             return False
             
-    def add_tested_version(self, ledger_file_path, version: str, test_result: str, test_details: str = "", logging_options=None) -> bool:
+    def add_tested_version(self, ledger_file_path, version: str, test_result: str, test_details: str = "") -> bool:
         """
         Add a tested version to the ledger.
         
@@ -92,7 +91,7 @@ class ReadWriteLedger(Ledger):
                     'test_result': test_result,
                     'test_details': test_details
                 })
-                return self.save(ledger_file_path, logging_options)
+                return self.save(ledger_file_path)
                 
         # Add new version
         self.data['defender']['tested_versions'].append({
@@ -102,7 +101,7 @@ class ReadWriteLedger(Ledger):
             'test_details': test_details
         })
         
-        return self.save(ledger_file_path, logging_options)
+        return self.save(ledger_file_path)
         
     # def get_defender_tested_versions(self) -> List[Dict[str, Any]]:
     #     """

@@ -23,8 +23,7 @@ class TestNotifier(unittest.TestCase):
             smtp_port=587,
             username="username",
             password="password",
-            use_tls=True,
-            logging_options=None
+            use_tls=True
         )
     
     def test_init(self):
@@ -82,7 +81,7 @@ class TestNotifier(unittest.TestCase):
     
     def test_notify_missing_config(self):
         """Test notifier behavior when configuration is missing."""
-        notifier = Notifier(logging_options=None)  # No email config, explicitly set logging_options=None
+        notifier = Notifier()  # No email config
         result = notifier.notify("Test", "Test message")
         self.assertFalse(result)  # Should return False when config is missing
     
@@ -236,8 +235,7 @@ class TestNotifier(unittest.TestCase):
         """Test that missing recipient email is properly logged."""
         # Create notifier without recipient email but with SMTP config
         notifier = Notifier(
-            smtp_server="smtp.example.com",
-            logging_options=None
+            smtp_server="smtp.example.com"
         )
         
         # All methods should return False when no recipient email

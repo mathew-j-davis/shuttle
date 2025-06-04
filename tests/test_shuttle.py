@@ -584,11 +584,6 @@ class TestShuttle(unittest.TestCase):
         # Create a mock notifier that we can inspect
         self.notifier = MagicMock(spec=Notifier)
         
-        # Configure logging options
-        self.logging_options = {
-            'log_path': self.logs_dir,
-        }
-        
         # Throttling will be set up in the test_throttling_scenario method
         # based on the TestParameters object passed to it
         

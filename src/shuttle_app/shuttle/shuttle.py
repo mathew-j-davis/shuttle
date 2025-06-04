@@ -12,10 +12,7 @@ from shuttle_common.scan_utils import (
     get_mdatp_version,
     is_using_simulator
 )
-from shuttle_common.logging_setup import (
-    LoggingOptions,
-    setup_logging
-)
+
 from shuttle_common.logger_injection import (
     configure_logging,
     get_logger
@@ -208,7 +205,7 @@ class Shuttle:
 
         return unique_id
         
-    def _init_notifier(self, logging_options=None):
+    def _init_notifier(self):
         """Initialize the notifier if configured."""
         if self.config.notify:
             self.notifier = Notifier(
@@ -258,24 +255,24 @@ class Shuttle:
         else:
             self.config.hazard_encryption_key_file_path = None
             
-    def _validate_paths(self, logging_options=None):
+    def _validate_paths(self):
         """Validate required paths."""
         if not (self.config.source_path and self.config.destination_path and self.config.quarantine_path):
             _shutdown_with_error("SourcePath, DestinationPath, and QuarantinePath must all be provided either as parameters or in the settings file.", self)
             
-        logger = get_logger(logging_options=logging_options)
+        logger = get_logger()
         logger.info(f"SourcePath: {self.config.source_path}")
         logger.info(f"DestinationPath: {self.config.destination_path}")
         logger.info(f"QuarantinePath: {self.config.quarantine_path}")
         
-    def _check_scan_config(self, logging_options=None):
+    def _check_scan_config(self):
         """Check scan configuration and verify Defender version."""
         if not self.config.on_demand_defender and not self.config.on_demand_clam_av:
             _shutdown_with_error("No virus scanner or defender specified. Please specify at least one.\nWhile a real time virus scanner may make on-demand scanning redundant, this application is for on-demand scanning.", self)
             
         if self.config.on_demand_defender and self.config.ledger_path is not None:
             # Get current version of Microsoft Defender
-            defender_version = get_mdatp_version(logging_options=logging_options)
+            defender_version = get_mdatp_version()
             
             if not defender_version:
                 _shutdown_with_error("Could not get Microsoft Defender version", self)
@@ -283,18 +280,17 @@ class Shuttle:
             # Check status file
             ledger = Ledger()    
             
-            if not ledger.load(self.config.ledger_path, logging_options=logging_options):
+            if not ledger.load(self.config.ledger_path):
                 _shutdown_with_error("Could not load ledger file", self)
             
-            if not ledger.is_version_tested(defender_version, logging_options=logging_options):
+            if not ledger.is_version_tested(defender_version):
                 _shutdown_with_error("This application requires that the current version Microsoft Defender has been tested and this successful testing has been confirmed in the status file.", self)
                 
-    def _process_files(self, logging_options=None):
+    def _process_files(self):
         """Process the files using scan_and_process_directory function."""
         # Create the DailyProcessingTracker instance
         self.daily_processing_tracker = DailyProcessingTracker(
-            data_directory=self.config.daily_processing_tracker_logs_path,
-            logging_options=logging_options
+            data_directory=self.config.daily_processing_tracker_logs_path
         )
         
         # Call scan_and_process_directory with our initialized parameters
@@ -316,11 +312,10 @@ class Shuttle:
             daily_processing_tracker=self.daily_processing_tracker,  # Pass the tracker directly
             notifier=self.notifier,
             notify_summary=self.config.notify_summary,
-            skip_stability_check=self.config.skip_stability_check,
-            logging_options=logging_options
+            skip_stability_check=self.config.skip_stability_check
         )
     
-    def run(self, logging_options=None):
+    def run(self):
         """Run the Shuttle application."""
         try:
             self._create_lock_file()
@@ -333,13 +328,13 @@ class Shuttle:
             
             # Log a warning if we're in simulator mode
             if self.using_simulator:
-                logger = get_logger(logging_options=logging_options)
+                logger = get_logger()
                 logger.warning("⚠️  RUNNING WITH SIMULATOR - NO REAL MALWARE SCANNING WILL BE PERFORMED ⚠️")
             
             # Initialize notifier
             self._init_notifier()
             
-            logger = get_logger(logging_options=logging_options)
+            logger = get_logger()
             logger.info(f"Starting Shuttle Linux file transfer and scanning process (PID: {unique_id})")
             
             # Check resources
@@ -361,7 +356,7 @@ class Shuttle:
             
         except Exception as e:
             try:
-                logger = get_logger(logging_options=logging_options)
+                logger = get_logger()
                 logger.error(f"An error occurred: {e}")
             except:
                 print(f"ERROR: {e}")
@@ -371,11 +366,11 @@ class Shuttle:
             # Close the daily processing tracker if it exists
             if hasattr(self, 'daily_processing_tracker') and self.daily_processing_tracker:
                 try:
-                    logger = get_logger(logging_options=logging_options)
+                    logger = get_logger()
                     logger.info("Closing daily processing tracker...")
                 except:
                     pass
-                self.daily_processing_tracker.close(logging_options=logging_options)
+                self.daily_processing_tracker.close()
                 
             # Existing cleanup code
             if hasattr(self.config, 'lock_file') and os.path.exists(self.config.lock_file):
@@ -401,10 +396,10 @@ def _cleanup_lock_file(lock_file):
             print(f"Error removing lock file {lock_file}: {e}")
             
             
-def _shutdown_with_error(message, shuttle_instance, logging_options=None):
+def _shutdown_with_error(message, shuttle_instance):
     """Helper function to log error and shutdown"""
     try:
-        logger = get_logger(logging_options=logging_options)
+        logger = get_logger()
         logger.error(message)
     except:
         print(f"ERROR: {message}")

@@ -42,7 +42,7 @@ shuttle/
 - **scan_utils.py** - Scanning utilities for malware detection
 - **files.py** - File operations and integrity verification
 - **logging_setup.py** - Logging configuration
-- **logger_injection.py** - Decorator and factory for hierarchical logging
+- **logger_injection.py** - Logger factory for hierarchical logging with function-level context
 - **notifier.py** - Email notification system
 - **ledger.py** - Interface for Defender compatibility tracking
 
@@ -88,7 +88,7 @@ The deployment scripts in `scripts/1_deployment/` have specific requirements:
   - `03_sudo_install_clamav.sh` - ClamAV installation
 
 - **Scripts requiring source**:
-  - `05_activate_venv_CALL_BY_SOURCE.sh` - Must be called with `source` to properly activate the environment
+  - `05_source_activate_venv.sh` - Must be called with `source` to properly activate the environment
 
 - **Python scripts**:
   - `07_setup_test_environment_linux.py` - Called with Python interpreter
@@ -285,8 +285,8 @@ When writing new tests, follow these patterns:
    - Implement appropriate cleanup
 
 3. **Logging and Debugging**
-   - Use `@with_logger` decorator for automatic logging in test functions
-   - For functions requiring debugging, use `get_logger()` manually
+   - Use `get_logger(logging_options=logging_options)` for function-level logging
+   - Pass `logging_options` parameter through the call chain for test compatibility
    - Hierarchy logging shows call chains in DEBUG mode
    - Logger names include embedded call hierarchy for context
 
@@ -361,7 +361,7 @@ The installation uses a sequence of numbered scripts:
 
 2. **Python Environment** (04-06)
    - `04_create_venv.sh` - Create Python virtual environment
-   - `05_activate_venv_CALL_BY_SOURCE.sh` - Activate virtual environment (call with `source`)
+   - `05_source_activate_venv.sh` - Activate virtual environment (call with `source`)
    - `06_install_python_dev_dependencies.sh` - Install required Python packages
 
 3. **Test Environment Setup** (07)

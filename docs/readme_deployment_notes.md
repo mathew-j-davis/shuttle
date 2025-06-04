@@ -1,6 +1,6 @@
-# Deployment and Script Management on Ubuntu Server
+# Installation and Setup Guide
 
-This guide provides instructions for deploying and managing the Shuttle project on an Ubuntu server.
+This guide provides instructions for installing and setting up the Shuttle project in different environments: development, user production, and system production.
 
 ## Project Structure
 
@@ -42,33 +42,34 @@ Key points to remember for deployment:
 - The test environment setup (`07_setup_config.py`) includes a default test location
 - For production, update this path to your actual public key location
 
-## Directory Structure for Deployment
+## Directory Structure
 
-### 1. Application Source Code
-- **Location:** `/opt/shuttle/src`
-- **Purpose:** Contains the Python modules for shared library, shuttle app, and defender app.
+The directory structure is dynamic and depends on where the git repository is cloned and which installation mode is used:
 
-### 2. Deployment Scripts
-- **Location:** `/opt/shuttle/scripts/1_deployment`
-- **Purpose:** Contains the numbered installation scripts (01-10) to set up the entire system.
-- **Setup:**
-  - Copy the deployment scripts from `shuttle/scripts/1_deployment` to `/opt/shuttle/scripts/1_deployment` on the server.
+### Source Code Location
+- **Always:** Where you clone the git repository (e.g., `/home/user/shuttle`, `/opt/company/shuttle`)
+- **Contains:** All Python modules, scripts, tests, and documentation
 
-### 3. Temporary Setup Scripts
-- **Location:** `/tmp/shuttle/setup`
-- **Purpose:** For scripts that only need to be run once and don't need to persist.
-- **Setup:**
-  - Copy necessary setup scripts to this temporary location on the server.
+### Dynamic Paths by Installation Mode
 
-### 4. Data Directories
-- **Logs Directory:** (Configured in `log_path`)
-  - Purpose: Stores application logs
-  - Ensure this directory has appropriate write permissions
+| Component               | Development (`-e`)            | User Production (`-u`)             | System Production (default)   |
+|-------------------------|-------------------------------|------------------------------------|-------------------------------|
+| **Config File**         | `PROJECT_ROOT/config.conf`    | `~/.config/shuttle/config.conf`    | `/etc/shuttle/config.conf`    |
+| **Virtual Environment** | `PROJECT_ROOT/.venv`          | `~/.local/share/shuttle/venv`      | `/opt/shuttle/venv`           |
+| **Working Directory**   | `PROJECT_ROOT/work`           | `~/.local/share/shuttle/work`      | `/var/lib/shuttle`            |
+| **Environment Script**  | `PROJECT_ROOT/shuttle_env.sh` | `~/.config/shuttle/shuttle_env.sh` | `/etc/shuttle/shuttle_env.sh` |
 
-- **Tracking Data Directory:** (Default: logs directory)
-  - Purpose: Stores DailyProcessingTracker files
-  - Contains YAML files with processing metrics and file tracking data
-  - Create with appropriate permissions if separate from logs
+### Working Directory Structure
+All modes create this structure within their respective working directory:
+```
+work/
+├── in/           # Source files (input)
+├── out/          # Destination files (output)  
+├── quarantine/   # Temporary quarantine area
+├── hazard/       # Encrypted malware archive
+├── logs/         # Application logs
+└── ledger/       # Defender compatibility tracking
+```
 
 ## Installation Workflow
 
@@ -81,13 +82,13 @@ The installation process follows a sequential workflow using numbered scripts (0
 
 2. **Python Environment** (04-06)
    - `04_create_venv.sh` - Create Python virtual environment
-   - `05_activate_venv_CALL_BY_SOURCE.sh` - Activate virtual environment (call with `source`)
+   - `05_source_activate_venv.sh` - Activate virtual environment (call with `source`)
    - `06_install_python_dependencies.sh` - Install required Python packages
 
 If you have issues with the virtual environment, see the Appendix for additional notes.
 
-3. **Test Environment Setup** (07)
-   - `07_setup_test_environment_linux.py` - Configure the test environment
+3. **Configuration Setup** (07)
+   - `07_setup_config.py` - Create configuration file and directories with customizable options
 
 4. **Module Installation** (08-10)
    - `08_install_shared.sh` - Install shared library module
@@ -135,6 +136,85 @@ The Shuttle application supports the following scanning configurations:
 3. Microsoft Defender can also be configured for real-time protection independent of this application
 
 When both scanners are enabled for on-demand scanning, files must pass both scans to be considered clean. 
+
+## Configuration Script Usage
+
+The `07_setup_config.py` script accepts command-line arguments to customize your Shuttle installation. This allows for flexible deployment scenarios without modifying the script.
+
+### Basic Usage
+
+```bash
+# Use defaults (working directory subdirectories)
+python ./scripts/1_deployment/07_setup_config.py
+
+# Get help on all available options
+python ./scripts/1_deployment/07_setup_config.py --help
+```
+
+### Common Configuration Examples
+
+#### Development Setup
+```bash
+python ./scripts/1_deployment/07_setup_config.py \
+    --log-level DEBUG \
+    --max-scan-threads 1 \
+    --no-notify
+```
+
+#### Production Setup with Custom Paths
+```bash
+python ./scripts/1_deployment/07_setup_config.py \
+    --source-path /srv/data/incoming \
+    --destination-path /srv/data/processed \
+    --quarantine-path /tmp/shuttle/quarantine \
+    --log-path /var/log/shuttle \
+    --hazard-archive-path /secure/malware-archive \
+    --log-level INFO \
+    --max-scan-threads 4 \
+    --throttle-free-space-mb 1000
+```
+
+#### Enterprise Setup with Notifications
+```bash
+python ./scripts/1_deployment/07_setup_config.py \
+    --source-path /mnt/shares/inbound \
+    --destination-path /mnt/shares/processed \
+    --log-path /var/log/shuttle \
+    --log-level INFO \
+    --max-scan-threads 8 \
+    --throttle-free-space-mb 2000 \
+    --notify --notify-summary \
+    --notify-recipient-email-error security@company.com \
+    --notify-recipient-email-summary reports@company.com \
+    --notify-recipient-email-hazard security@company.com \
+    --notify-sender-email shuttle@company.com \
+    --notify-smtp-server smtp.company.com \
+    --notify-smtp-port 587 \
+    --notify-username shuttle-service \
+    --notify-use-tls
+```
+
+### Key Configuration Options
+
+| Category | Options | Description |
+|----------|---------|-------------|
+| **Paths** | `--source-path`, `--destination-path`, `--quarantine-path` | Override default working directory structure |
+| **Scanning** | `--max-scan-threads`, `--on-demand-defender`, `--on-demand-clam-av` | Configure virus scanning behavior |
+| **Throttling** | `--throttle-free-space-mb`, `--no-throttle` | Disk space management |
+| **Logging** | `--log-level`, `--log-path` | Control logging verbosity and location |
+| **Notifications** | `--notify`, `--notify-*-email`, `--notify-smtp-*` | Email notification setup |
+
+### Path Defaults
+
+If not specified, paths default to subdirectories within the working directory:
+
+- **Source**: `WORK_DIR/in`
+- **Destination**: `WORK_DIR/out`  
+- **Quarantine**: `WORK_DIR/quarantine`
+- **Logs**: `WORK_DIR/logs`
+- **Hazard Archive**: `WORK_DIR/hazard`
+- **Ledger**: `WORK_DIR/ledger/ledger.yaml`
+- **Encryption Key**: `CONFIG_DIR/public-key.gpg`
 
 ### Development Mode Installation
 
@@ -306,10 +386,10 @@ This script:
 
 ### Activating the Virtual Environment
 
-The `05_activate_venv_CALL_BY_SOURCE.sh` script must be called using the `source` command to properly activate the environment:
+The `05_source_activate_venv.sh` script must be called using the `source` command to properly activate the environment:
 
 ```bash
-source ./05_activate_venv_CALL_BY_SOURCE.sh
+source ./05_source_activate_venv.sh
 ```
 
 The script checks if a virtual environment is already active and activates it if not:

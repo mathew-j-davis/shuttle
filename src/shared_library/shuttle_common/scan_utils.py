@@ -11,7 +11,6 @@ import types
 import time
 from typing import List, Callable, Any, Optional
 from . import files
-from .logging_setup import setup_logging, LoggingOptions
 from .logger_injection import get_logger
 
 # Define commands for real defender and simulator
@@ -54,7 +53,7 @@ class DefenderScanResult:
         self.scanner_handles_suspect = scanner_handles_suspect  # Is scanner handling it?
 
 
-def process_defender_result(result_code, path, scanner_handles_suspect=False, logging_options=None):
+def process_defender_result(result_code, path, scanner_handles_suspect=False):
     """
     Process defender scan result and determine actions
     
@@ -62,12 +61,11 @@ def process_defender_result(result_code, path, scanner_handles_suspect=False, lo
         result_code: The scan result type from parse_defender_scan_result
         path: Path to the scanned file
         scanner_handles_suspect: Whether defender is configured to handle suspicious files
-        logging_options: Optional logging configuration
         
     Returns:
         DefenderScanResult: Information about the scan result and how to handle it
     """
-    logger = get_logger(logging_options=logging_options)
+    logger = get_logger()
     
     # Threat detection
     if result_code == scan_result_types.FILE_IS_SUSPECT:
@@ -115,18 +113,14 @@ def process_defender_result(result_code, path, scanner_handles_suspect=False, lo
         )
 
 
-def get_mdatp_version(logging_options=None) -> Optional[str]:
+def get_mdatp_version() -> Optional[str]:
     """
     Get the current Microsoft Defender for Endpoint (mdatp) version.
-    
-    Args:
-        logging_options (LoggingOptions, optional): Logging configuration options
-
-         
+             
     Returns:
         str: Version number in format XXX.XXXX.XXXX, or None if version cannot be determined
     """
-    logger = get_logger(logging_options=logging_options)
+    logger = get_logger()
     
 
     try:
@@ -163,7 +157,7 @@ def get_mdatp_version(logging_options=None) -> Optional[str]:
         return None
 
 
-def run_malware_scan(cmd, path, result_handler, logging_options=None):
+def run_malware_scan(cmd, path, result_handler):
     """
     Run a malware scan using the specified command and process the results.
     SECURITY NOTE: This function executes external commands. Only use with trusted,
@@ -173,12 +167,11 @@ def run_malware_scan(cmd, path, result_handler, logging_options=None):
         cmd (list): Command to run as a list of strings (not shell string)
         path (str): Path to file being scanned
         result_handler (callable): Function to process scan results
-        logging_options (LoggingOptions, optional): Logging configuration options
         
     Returns:
         int: scan_result_types value
     """
-    logger = get_logger(logging_options=logging_options)
+    logger = get_logger()
     
     # Security validation
     if not isinstance(cmd, list):
@@ -209,26 +202,25 @@ def run_malware_scan(cmd, path, result_handler, logging_options=None):
         logger.debug(f"Return code: {result.returncode}")
         logger.debug(f"Output: {result.stdout}")
         
-        return result_handler(result.returncode, result.stdout, logging_options)
+        return result_handler(result.returncode, result.stdout)
         
     except Exception as e:
         logger.error(f"Exception during malware scan: {e}")
         return scan_result_types.FILE_SCAN_FAILED
 
 
-def parse_defender_scan_result(returncode, output, logging_options=None):
+def parse_defender_scan_result(returncode, output):
     """
     Process Microsoft Defender scan results.
     
     Args:
         returncode (int): Process return code
         output (str): Process output
-        logging_options (LoggingOptions, optional): Logging configuration options
         
     Returns:
         int: scan_result_types value
     """
-    logger = get_logger(logging_options=logging_options)
+    logger = get_logger()
     
     if returncode == 0:
         # Always check for threat pattern first, otherwise a malicious filename could be used to add clean response text to output
@@ -253,12 +245,11 @@ def parse_defender_scan_result(returncode, output, logging_options=None):
     return scan_result_types.FILE_SCAN_FAILED
 
 
-def scan_for_malware_using_defender(path, logging_options=None):
+def scan_for_malware_using_defender(path):
     """Scan a file using Microsoft Defender.
     
     Args:
         path (str): Path to the file to scan
-        logging_options: Optional logging configuration options
             
     Returns:
         The result from the handler function
@@ -274,21 +265,20 @@ def scan_for_malware_using_defender(path, logging_options=None):
         "--path"
     ]
 
-    return run_malware_scan(cmd, path, parse_defender_scan_result, logging_options)
+    return run_malware_scan(cmd, path, parse_defender_scan_result)
 
-def handle_clamav_scan_result(returncode, output, logging_options=None):
+def handle_clamav_scan_result(returncode, output):
     """
     Process ClamAV scan results.
     
     Args:
         returncode (int): Process return code
         output (str): Process output
-        logging_options (LoggingOptions, optional): Logging configuration options
         
     Returns:
         int: scan_result_types value
     """
-    logger = get_logger(logging_options=logging_options)
+    logger = get_logger()
     
     # RETURN CODES
     #        0 : No virus found.
@@ -311,12 +301,11 @@ def handle_clamav_scan_result(returncode, output, logging_options=None):
     return scan_result_types.FILE_SCAN_FAILED
 
 
-def scan_for_malware_using_clam_av(path, logging_options=None):
+def scan_for_malware_using_clam_av(path):
     """Scan a file using ClamAV.
     
     Args:
         path (str): Path to the file to scan
-        logging_options: Optional logging configuration options
         
     Returns:
         The result from the handler function
@@ -326,4 +315,4 @@ def scan_for_malware_using_clam_av(path, logging_options=None):
         "clamdscan",
         "--fdpass"  # temp until permissions issues resolved
     ]
-    return run_malware_scan(cmd, path, handle_clamav_scan_result, logging_options)
+    return run_malware_scan(cmd, path, handle_clamav_scan_result)

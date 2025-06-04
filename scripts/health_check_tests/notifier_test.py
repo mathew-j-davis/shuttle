@@ -56,8 +56,7 @@ def main():
         smtp_port=args.smtp_port,
         username=args.username,
         password=args.password,
-        use_tls=not args.no_tls,
-        logging_options=None
+        use_tls=not args.no_tls
     )
     
     logger.info(f"Sending test notification with title: {args.title}")

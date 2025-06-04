@@ -121,9 +121,9 @@ Throttling system monitors available disk space in all relevant directories and 
 
 ### Logging and Notifications
 - Comprehensive logging with configurable levels to syslog and file
-- Hierarchy logging shows call chains in DEBUG mode using `@with_logger` decorator
+- Hierarchy logging shows call chains in DEBUG mode using function-level loggers
 - Email notifications for errors, suspect files, and process completion
-- Logger injection pattern provides consistent logging across all modules
+- Logger injection pattern using `logging_options` parameter provides consistent logging across all modules
 
 ### Concurrency and Single Instance
 - Uses `ProcessPoolExecutor` for parallel file processing
@@ -134,7 +134,7 @@ Throttling system monitors available disk space in all relevant directories and 
 ### Activating the Environment
 
 ```bash
-source ./scripts/1_deployment/05_activate_venv_CALL_BY_SOURCE.sh
+source ./scripts/1_deployment/05_source_activate_venv.sh
 ```
 
 ### Execution Methods

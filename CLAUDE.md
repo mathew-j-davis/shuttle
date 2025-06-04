@@ -12,7 +12,7 @@ Shuttle is a secure file transfer system with integrated malware scanning. It us
 ```bash
 # Create and activate virtual environment
 ./scripts/1_deployment/04_create_venv.sh
-source ./scripts/1_deployment/05_activate_venv_CALL_BY_SOURCE.sh
+source ./scripts/1_deployment/05_source_activate_venv.sh
 
 # Install development dependencies
 ./scripts/1_deployment/06_install_python_dev_dependencies.sh
@@ -83,7 +83,6 @@ Source → Quarantine (with hash) → Scan → Clean/Suspect → Destination/Haz
 - `Throttler`: Disk space and limit monitoring
 - `Scanner`: Abstraction for ClamAV/Defender integration
 - `get_logger()`: Logger factory with hierarchy support
-- `@with_logger`: Decorator for automatic logging injection
 
 ### Testing Approach
 - Unit tests for individual components
@@ -111,9 +110,9 @@ Use `-e` flag for editable installs during development to avoid reinstalling aft
 - Logs to syslog and file simultaneously
 - Log levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
 - File logs in tracking directory with rotation
-- Hierarchy logging with decorators (`@with_logger`) shows call chains in DEBUG mode
-- Manual logging available via `get_logger()` for debugging-critical functions
-- Logger injection pattern for cross-cutting concerns
+- Hierarchy logging shows call chains in DEBUG mode using function-level loggers
+- Direct logging via `get_logger(logging_options=logging_options)` for function-level context
+- Logger injection pattern using `logging_options` parameter for cross-cutting concerns
 
 ### Error Handling
 - All exceptions logged with full context
@@ -171,3 +170,31 @@ Created comprehensive documentation for running shuttle via cron/service:
 - Recommended environment file location: `/etc/shuttle/shuttle_env.sh`
 - Three methods for cron jobs: source in command, set in crontab, or wrapper script
 - Phased deployment approach: manual → cron → systemd service
+
+### Logging Architecture Refactoring (January 2025)
+Removed the problematic `@with_logger` decorator pattern and replaced with direct logging injection:
+
+#### Changes Made
+- **Removed `@with_logger` decorator**: The decorator was causing debugging difficulties because it provided class-level context instead of function-level context
+- **Replaced with direct `get_logger()` calls**: Functions now call `logger = get_logger(logging_options=logging_options)` directly
+- **Added `logging_options=None` parameter**: Functions that need logging now accept this parameter as their final argument
+- **Consistent parameter passing**: Functions that call other logging functions also accept and pass through `logging_options`
+
+#### Updated Pattern
+```python
+# Old pattern (removed)
+@with_logger
+def process_files(source_path, destination_path, logger=None):
+    logger.info(f"Processing {source_path}")
+
+# New pattern (current)
+def process_files(source_path, destination_path, logging_options=None):
+    logger = get_logger(logging_options=logging_options)
+    logger.info(f"Processing {source_path}")
+```
+
+#### Benefits
+- **Better debugging**: Function-level logger context makes debugging much easier
+- **Cleaner dependency injection**: `logging_options` parameter provides clear logging configuration path
+- **Improved testability**: Easier to inject different logging configurations for testing
+- **Consistent call chains**: All function calls now properly pass `logging_options` through the call stack

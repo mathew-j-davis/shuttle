@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # to activate this outside of the script you need to call like this:
-# source ./05_activate_venv_CALL_BY_SOURCE.sh
+# source ./05_source_activate_venv.sh
 
 # Check if SHUTTLE_VENV_PATH is set
 if [ -z "$SHUTTLE_VENV_PATH" ]; then

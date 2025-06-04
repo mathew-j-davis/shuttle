@@ -2,7 +2,6 @@ import os
 import time
 from datetime import datetime
 from concurrent.futures import ProcessPoolExecutor
-from shuttle_common.logging_setup import setup_logging
 from shuttle_common.logger_injection import get_logger
 from shuttle_common.files import (
     copy_temp_then_rename,
@@ -16,8 +15,7 @@ def handle_suspect_source_file(
     source_file_path,
     quarantine_hash,
     hazard_archive_path,
-    key_file_path,
-    logging_options=None
+    key_file_path
 ):
     """
     Handle a source file when its quarantine copy is found to be suspect.
@@ -28,17 +26,16 @@ def handle_suspect_source_file(
         hazard_archive_path (str): Path to archive suspicious files
         key_file_path (str): Path to GPG public key file
         delete_source_files (bool): Whether to delete source files
-        logging_options: Optional logging configuration options
     
     Returns:
         bool: True if handled successfully, False otherwise
     """
-    logger = get_logger(logging_options=logging_options)
+    logger = get_logger()
     
     if not os.path.exists(source_file_path):
         return True
         
-    source_hash = get_file_hash(source_file_path, logging_options)
+    source_hash = get_file_hash(source_file_path)
     
     if source_hash == quarantine_hash:
         logger.error(f"Hash match for source file {source_file_path}")
@@ -47,8 +44,7 @@ def handle_suspect_source_file(
         if not handle_suspect_file(
             source_file_path,
             hazard_archive_path,
-            key_file_path,
-            logging_options
+            key_file_path
         ):
             logger.error(f"Failed to archive source file: {source_file_path}")
             return False
@@ -65,8 +61,7 @@ def handle_suspect_scan_result(
     key_file_path,
     delete_source_files,
     scanner_handling_suspect_file,
-    quarantine_hash,
-    logging_options=None
+    quarantine_hash
 ):
     """
     Handle the result of a malware scan that found a suspect file.
@@ -83,7 +78,7 @@ def handle_suspect_scan_result(
     Returns:
         bool: True if handled successfully, False otherwise
     """
-    logger = get_logger(logging_options=logging_options)
+    logger = get_logger()
     scanner_handled_suspect_file = False
 
     if scanner_handling_suspect_file:
@@ -102,8 +97,7 @@ def handle_suspect_scan_result(
             source_file_path,
             quarantine_hash,
             hazard_archive_path,
-            key_file_path,
-            logging_options
+            key_file_path
         )
     else:
         logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
@@ -112,16 +106,14 @@ def handle_suspect_scan_result(
             source_file_path,
             hazard_archive_path,
             key_file_path,
-            delete_source_files,
-            logging_options
+            delete_source_files
         )
 
 def handle_clean_file(
     quarantine_file_path,
     source_file_path,
     destination_file_path,
-    delete_source_files,
-    logging_options=None
+    delete_source_files
 ):
     """
     Handle processing of clean files by moving them to the destination.
@@ -136,10 +128,10 @@ def handle_clean_file(
         bool: True if the file was successfully handled, False
           otherwise
     """
-    logger = get_logger(logging_options=logging_options)
+    logger = get_logger()
     
     try:
-        copy_temp_then_rename(quarantine_file_path, destination_file_path, logging_options)
+        copy_temp_then_rename(quarantine_file_path, destination_file_path)
 
     except Exception as e:
         if logger:
@@ -150,10 +142,10 @@ def handle_clean_file(
         try:
 
             # Verify integrity and delete source if requested
-            verify = verify_file_integrity(source_file_path, destination_file_path, logging_options)
+            verify = verify_file_integrity(source_file_path, destination_file_path)
 
             if verify['success']:
-                remove_file_with_logging(source_file_path, logging_options)
+                remove_file_with_logging(source_file_path)
             else:
                 logger.error(f"Integrity check failed, source file not deleted: {source_file_path}")
                 return False
@@ -181,8 +173,7 @@ def handle_suspect_quarantine_file_and_delete_source(
     source_file_path,
     hazard_archive_path,
     key_file_path,
-    delete_source_files,
-    logging_options=None
+    delete_source_files
 ):
     """
     Handle a file that has been identified as suspicious/infected.
@@ -198,13 +189,13 @@ def handle_suspect_quarantine_file_and_delete_source(
     Returns:
         bool: True if file was handled successfully, False otherwise
     """
-    logger = get_logger(logging_options=logging_options)
+    logger = get_logger()
     
     try:
         # If hazard archive path and encryption key are provided, archive the file
         if hazard_archive_path and key_file_path:
             # Verify file integrity before archiving
-            verify = verify_file_integrity(source_file_path, quarantine_file_path, logging_options)
+            verify = verify_file_integrity(source_file_path, quarantine_file_path)
 
             if not verify['success']:
                 logger.error(f"Integrity check failed before archiving: {quarantine_file_path}")
@@ -216,15 +207,14 @@ def handle_suspect_quarantine_file_and_delete_source(
             if not handle_suspect_file(
                 quarantine_file_path,
                 hazard_archive_path,
-                key_file_path,
-                logging_options
+                key_file_path
             ):
                 logger.error(f"Failed to handle suspect quarantine file: {quarantine_file_path}")
                 return False
 
             # Delete source file if requested
             if delete_source_files:
-                if not remove_file_with_logging(source_file_path, logging_options):
+                if not remove_file_with_logging(source_file_path):
                     logger.error(f"Failed to remove source file after archiving: {source_file_path}")
                     return False
 
@@ -237,13 +227,13 @@ def handle_suspect_quarantine_file_and_delete_source(
             )
 
             # Remove the infected file from quarantine
-            if not remove_file_with_logging(quarantine_file_path, logging_options):
+            if not remove_file_with_logging(quarantine_file_path):
                 logger.error(f"Failed to remove quarantined file: {quarantine_file_path}")
                 return False
             
             # Delete source file if requested
             if delete_source_files:
-                if not remove_file_with_logging(source_file_path, logging_options):
+                if not remove_file_with_logging(source_file_path):
                     logger.error(f"Failed to remove source file: {source_file_path}")
                     return False
         
@@ -257,8 +247,7 @@ def handle_suspect_quarantine_file_and_delete_source(
 def handle_suspect_file(
     suspect_file_path,
     hazard_archive_path,
-    key_file_path,
-    logging_options=None
+    key_file_path
 ):
     """
     Archive a suspect file by encrypting it and then remove the original.
@@ -271,7 +260,7 @@ def handle_suspect_file(
     Returns:
         bool: True if file was archived successfully and removed, False otherwise
     """
-    logger = get_logger(logging_options=logging_options)
+    logger = get_logger()
 
     if not os.path.exists(suspect_file_path):
         logger.error(f"Cannot archive non-existent file: {suspect_file_path}")
@@ -301,17 +290,17 @@ def handle_suspect_file(
     archive_path = os.path.join(hazard_archive_path, archive_name)
 
     # Attempt to encrypt the file
-    if not encrypt_file(suspect_file_path, archive_path, key_file_path, logging_options):
+    if not encrypt_file(suspect_file_path, archive_path, key_file_path):
         logger.error(f"Failed to encrypt file: {suspect_file_path}")
         return False
 
     logger.info(f"Successfully encrypted suspect file to: {archive_path}")
 
-    archive_hash = get_file_hash(archive_path, logging_options)
+    archive_hash = get_file_hash(archive_path)
     logger.info(f"Suspect file archive {archive_path} has hash value : {archive_hash}")
 
     # Remove the original file after successful archiving
-    if not remove_file_with_logging(suspect_file_path, logging_options):
+    if not remove_file_with_logging(suspect_file_path):
         logger.error(f"Failed to remove file after archiving: {suspect_file_path}")
         return False
 

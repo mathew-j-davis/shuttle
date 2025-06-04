@@ -10,7 +10,6 @@ import yaml
 from datetime import datetime
 
 from shuttle.daily_processing_tracker import DailyProcessingTracker
-from shuttle_common.logging_setup import LoggingOptions
 
 
 class TestDailyProcessingTracker(unittest.TestCase):
@@ -18,10 +17,8 @@ class TestDailyProcessingTracker(unittest.TestCase):
     def setUp(self):
         """Set up a test environment with a temporary directory."""
         self.temp_dir = tempfile.mkdtemp()
-        self.logging_options = LoggingOptions(filePath=None, level="DEBUG")
         self.tracker = DailyProcessingTracker(
-            data_directory=self.temp_dir,
-            logging_options=self.logging_options
+            data_directory=self.temp_dir
         )
         
         # Sample file data for testing

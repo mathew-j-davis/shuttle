@@ -1,32 +1,94 @@
 #!python3
 
 import os
+import argparse
 import configparser
 import yaml
-import shutil
-import subprocess
 
-# Define directories
+def get_required_env_var(var_name, description):
+    """Get an environment variable or exit with error if not set"""
+    value = os.environ.get(var_name)
+    if not value:
+        print(f"ERROR: {var_name} environment variable is not set.")
+        print(f"This variable should contain the path to the {description}.")
+        print(f"Please run the environment setup script first:")
+        print(f"  ./scripts/1_deployment/00_set_env.sh -e    # For development")
+        print(f"  ./scripts/1_deployment/00_set_env.sh -u    # For user production")
+        print(f"  ./scripts/1_deployment/00_set_env.sh       # For system production")
+        print(f"Then source the generated environment file before running this script.")
+        exit(1)
+    return value
 
+def parse_arguments():
+    """Parse command line arguments for configuration setup"""
+    parser = argparse.ArgumentParser(description='Setup Shuttle configuration and directories')
+    
+    # Path arguments - use work_dir subdirectories as defaults
+    parser.add_argument('--source-path', help='Path to the source directory (default: WORK_DIR/in)')
+    parser.add_argument('--destination-path', help='Path to the destination directory (default: WORK_DIR/out)')
+    parser.add_argument('--quarantine-path', help='Path to the quarantine directory (default: WORK_DIR/quarantine)')
+    parser.add_argument('--log-path', help='Path to the log directory (default: WORK_DIR/logs)')
+    parser.add_argument('--hazard-archive-path', help='Path to the hazard archive directory (default: WORK_DIR/hazard)')
+    parser.add_argument('--ledger-path', help='Path to the ledger file (default: WORK_DIR/ledger/ledger.yaml)')
+    parser.add_argument('--hazard-encryption-key-path', help='Path to the GPG public key file (default: CONFIG_DIR/public-key.gpg)')
+    
+    # Scanning configuration
+    parser.add_argument('--max-scan-threads', type=int, default=1, help='Maximum number of parallel scans')
+    parser.add_argument('--on-demand-defender', action='store_true', default=True, help='Use on-demand scanning for Microsoft Defender')
+    parser.add_argument('--no-on-demand-defender', action='store_false', dest='on_demand_defender', help='Disable on-demand Microsoft Defender scanning')
+    parser.add_argument('--on-demand-clam-av', action='store_true', default=False, help='Use on-demand scanning for ClamAV')
+    parser.add_argument('--defender-handles-suspect-files', action='store_true', default=True, help='Let Microsoft Defender handle suspect files')
+    parser.add_argument('--no-defender-handles-suspect-files', action='store_false', dest='defender_handles_suspect_files', help='Don\'t let Defender handle suspect files')
+    
+    # File processing options
+    parser.add_argument('--delete-source-files-after-copying', action='store_true', default=True, help='Delete source files after copying')
+    parser.add_argument('--no-delete-source-files-after-copying', action='store_false', dest='delete_source_files_after_copying', help='Keep source files after copying')
+    
+    # Throttling configuration
+    parser.add_argument('--throttle', action='store_true', default=True, help='Enable throttling of file processing')
+    parser.add_argument('--no-throttle', action='store_false', dest='throttle', help='Disable throttling')
+    parser.add_argument('--throttle-free-space-mb', type=int, default=100, help='Minimum free space (in MB) required')
+    
+    # Logging configuration
+    parser.add_argument('--log-level', default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], 
+                        help='Logging level')
+    
+    # Notification configuration
+    parser.add_argument('--notify', action='store_true', default=False, help='Enable email notifications for errors')
+    parser.add_argument('--notify-summary', action='store_true', default=False, help='Enable email notifications for summaries')
+    parser.add_argument('--notify-recipient-email', default='admin@example.com', help='Email address for notifications')
+    parser.add_argument('--notify-recipient-email-error', help='Email address for error notifications (defaults to notify-recipient-email)')
+    parser.add_argument('--notify-recipient-email-summary', help='Email address for summary notifications (defaults to notify-recipient-email)')
+    parser.add_argument('--notify-recipient-email-hazard', help='Email address for hazard notifications (defaults to notify-recipient-email)')
+    parser.add_argument('--notify-sender-email', default='shuttle@yourdomain.com', help='Sender email address')
+    parser.add_argument('--notify-smtp-server', default='smtp.yourdomain.com', help='SMTP server address')
+    parser.add_argument('--notify-smtp-port', type=int, default=587, help='SMTP server port')
+    parser.add_argument('--notify-username', default='shuttle_notifications', help='SMTP username')
+    parser.add_argument('--notify-password', default='your_secure_password_here', help='SMTP password')
+    parser.add_argument('--notify-use-tls', action='store_true', default=True, help='Use TLS for SMTP')
+    
+    return parser.parse_args()
 
-# Get directory paths from environment variables or use defaults
-home_dir = os.path.expanduser("~")
-work_dir = os.environ.get("SHUTTLE_WORK_DIR", os.path.join(home_dir, ".local/share/shuttle/work"))
-config_path = os.environ.get("SHUTTLE_CONFIG_PATH", os.path.join(home_dir, ".config/shuttle/config.conf"))
+# Get required environment variables
+work_dir = get_required_env_var("SHUTTLE_WORK_DIR", "shuttle working directory")
+config_path = get_required_env_var("SHUTTLE_CONFIG_PATH", "shuttle configuration file")
 config_dir = os.path.dirname(config_path)
 
-# Set up working directories
-source_dir = os.path.join(work_dir, "in")
-quarantine_dir = os.path.join(work_dir, "quarantine")
-dest_dir = os.path.join(work_dir, "out")
-log_dir = os.path.join(work_dir, "logs")
-ledger_file_dir = os.path.join(work_dir, "ledger")
-hazard_archive_dir = os.path.join(work_dir, "hazard")
+# Parse command line arguments
+args = parse_arguments()
 
-# Set up config files
+# Set up paths with defaults based on work_dir and config_dir
+source_dir = args.source_path or os.path.join(work_dir, "in")
+dest_dir = args.destination_path or os.path.join(work_dir, "out")
+quarantine_dir = args.quarantine_path or os.path.join(work_dir, "quarantine")
+log_dir = args.log_path or os.path.join(work_dir, "logs")
+hazard_archive_dir = args.hazard_archive_path or os.path.join(work_dir, "hazard")
+ledger_file_path = args.ledger_path or os.path.join(work_dir, "ledger", "ledger.yaml")
+hazard_encryption_key_path = args.hazard_encryption_key_path or os.path.join(config_dir, "public-key.gpg")
+
+# Derived paths
 settings_file = config_path
-hazard_encryption_key_path = os.path.join(config_dir, "public-key.gpg")
-ledger_file_path = os.path.join(ledger_file_dir, "ledger.yaml")
+ledger_file_dir = os.path.dirname(ledger_file_path)
 
 
 # Create working directories if they don't exist
@@ -62,32 +124,32 @@ if not os.path.exists(settings_file):
         }
 
     config['settings'] = {
-            'max_scan_threads': '1',
-            'delete_source_files_after_copying': 'True',
-            'defender_handles_suspect_files': 'True',
-            'on_demand_defender': 'False',
-            'on_demand_clam_av': 'True',
-            'throttle': 'False',
-            'throttle_free_space_mb': '100'
+            'max_scan_threads': str(args.max_scan_threads),
+            'delete_source_files_after_copying': str(args.delete_source_files_after_copying),
+            'defender_handles_suspect_files': str(args.defender_handles_suspect_files),
+            'on_demand_defender': str(args.on_demand_defender),
+            'on_demand_clam_av': str(args.on_demand_clam_av),
+            'throttle': str(args.throttle),
+            'throttle_free_space_mb': str(args.throttle_free_space_mb)
         }
 
     config['logging'] = {
-            'log_level': 'DEBUG'
+            'log_level': args.log_level
         }
 
     config['notification'] = {
-            'notify': 'False',
-            'notify_summary': 'False',
-            'recipient_email': 'admin@example.com',
-            'recipient_email_error': 'admin@example.com',
-            'recipient_email_summary': 'admin@example.com',
-            'recipient_email_hazard': 'admin@example.com',
-            'sender_email': 'shuttle@yourdomain.com',
-            'smtp_server': 'smtp.yourdomain.com', 
-            'smtp_port': '587',
-            'username': 'shuttle_notifications',
-            'password': 'your_secure_password_here',
-            'use_tls': 'True'
+            'notify': str(args.notify),
+            'notify_summary': str(args.notify_summary),
+            'recipient_email': args.notify_recipient_email,
+            'recipient_email_error': args.notify_recipient_email_error or args.notify_recipient_email,
+            'recipient_email_summary': args.notify_recipient_email_summary or args.notify_recipient_email,
+            'recipient_email_hazard': args.notify_recipient_email_hazard or args.notify_recipient_email,
+            'sender_email': args.notify_sender_email,
+            'smtp_server': args.notify_smtp_server, 
+            'smtp_port': str(args.notify_smtp_port),
+            'username': args.notify_username,
+            'password': args.notify_password,
+            'use_tls': str(args.notify_use_tls)
         }
 
     with open(settings_file, 'w') as configfile:
