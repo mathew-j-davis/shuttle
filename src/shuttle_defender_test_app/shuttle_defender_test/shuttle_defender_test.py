@@ -228,7 +228,7 @@ def main():
 
     logger.info(f"Testing Microsoft Defender version: {current_version}")
     
-    if not config.ledger_path:    
+    if not config.ledger_file_path:    
         logger.info("No ledger file specified, will continue testing but won't update ledger")
     
     temp_dir = None
@@ -296,11 +296,11 @@ def main():
             result = 0
             
             # Update ledger if provided
-            if config.ledger_path:
+            if config.ledger_file_path:
 
 
                 #test_details = "tests passed"
-                ledger_updated = update_ledger(config.ledger_path, current_version, "pass", test_details)
+                ledger_updated = update_ledger(config.ledger_file_path, current_version, "pass", test_details)
                 result_text = "successfully" if ledger_updated else "failed to"
                 logger.info(f"Ledger {result_text} updated with test results")
         else:
@@ -328,9 +328,9 @@ def main():
             result = 1
             
             # Optionally record failed tests in ledger too
-            if config.ledger_path and current_version:
+            if config.ledger_file_path and current_version:
                 test_details = "One or more detection tests failed"
-                update_ledger(config.ledger_path, current_version, "fail", test_details)
+                update_ledger(config.ledger_file_path, current_version, "fail", test_details)
     
     except Exception as e:
 

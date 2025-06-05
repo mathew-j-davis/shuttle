@@ -58,7 +58,7 @@ Base configuration class with shared settings:
 - `notify`: Enable/disable notifications
 - `notify_summary`: Send summary notifications after each run
 - `notify_*`: SMTP settings for notifications
-- `ledger_path`: Path to Defender version ledger
+- `ledger_file_path`: Path to Defender version ledger
 - `defender_handles_suspect_files`: Let Defender handle suspect files
 
 ### ShuttleConfig

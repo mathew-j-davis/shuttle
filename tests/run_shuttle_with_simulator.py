@@ -129,8 +129,8 @@ def run_shuttle_with_simulator():
         simulator_ledger = os.path.join(os.path.dirname(__file__), 'simulator_ledger.yaml')
         
         # Add ledger path to arguments if not already specified
-        if '--ledger-path' not in sys.argv:
-            sys.argv.extend(['--ledger-path', simulator_ledger])
+        if '--ledger-file-path' not in sys.argv:
+            sys.argv.extend(['--ledger-file-path', simulator_ledger])
             
         # Add skip-stability-check flag for tests
         if '--skip-stability-check' not in sys.argv:

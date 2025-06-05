@@ -67,7 +67,7 @@ shuttle.shuttle.main
 ┃
 ┣━━ # SCAN CONFIG CHECK
 ┃   ┣━━ if not (defender or clam_av): → exit(1)
-┃   ┗━━ if defender and ledger_path:
+┃   ┗━━ if defender and ledger_file_path:
 ┃       ┣━━ shuttle_common.scan_utils.get_mdatp_version
 ┃       ┣━━ if not defender_version: → exit(1)
 ┃       ┣━━ if not ledger.load(): → exit(1)
@@ -270,7 +270,7 @@ class Shuttle:
         if not self.config.on_demand_defender and not self.config.on_demand_clam_av:
             _shutdown_with_error("No virus scanner or defender specified. Please specify at least one.\nWhile a real time virus scanner may make on-demand scanning redundant, this application is for on-demand scanning.", self)
             
-        if self.config.on_demand_defender and self.config.ledger_path is not None:
+        if self.config.on_demand_defender and self.config.ledger_file_path is not None:
             # Get current version of Microsoft Defender
             defender_version = get_mdatp_version()
             
@@ -280,7 +280,7 @@ class Shuttle:
             # Check status file
             ledger = Ledger()    
             
-            if not ledger.load(self.config.ledger_path):
+            if not ledger.load(self.config.ledger_file_path):
                 _shutdown_with_error("Could not load ledger file", self)
             
             if not ledger.is_version_tested(defender_version):

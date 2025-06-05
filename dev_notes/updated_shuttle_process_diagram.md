@@ -40,7 +40,7 @@ shuttle.shuttle.main
 ┃
 ┣━━ # SCAN CONFIG CHECK
 ┃   ┣━━ if not (defender or clam_av): → exit(1)
-┃   ┗━━ if defender and ledger_path:
+┃   ┗━━ if defender and ledger_file_path:
 ┃       ┣━━ shuttle_common.scan_utils.get_mdatp_version
 ┃       ┣━━ if not defender_version: → exit(1)
 ┃       ┣━━ if not ledger.load(): → exit(1)

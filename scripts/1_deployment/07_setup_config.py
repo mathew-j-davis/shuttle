@@ -29,7 +29,7 @@ def parse_arguments():
     parser.add_argument('--quarantine-path', help='Path to the quarantine directory (default: WORK_DIR/quarantine)')
     parser.add_argument('--log-path', help='Path to the log directory (default: WORK_DIR/logs)')
     parser.add_argument('--hazard-archive-path', help='Path to the hazard archive directory (default: WORK_DIR/hazard)')
-    parser.add_argument('--ledger-path', help='Path to the ledger file (default: WORK_DIR/ledger/ledger.yaml)')
+    parser.add_argument('--ledger-file-path', help='Path to the ledger file (default: WORK_DIR/ledger/ledger.yaml)')
     parser.add_argument('--hazard-encryption-key-path', help='Path to the GPG public key file (default: CONFIG_DIR/public-key.gpg)')
     
     # Scanning configuration
@@ -83,7 +83,7 @@ dest_dir = args.destination_path or os.path.join(work_dir, "out")
 quarantine_dir = args.quarantine_path or os.path.join(work_dir, "quarantine")
 log_dir = args.log_path or os.path.join(work_dir, "logs")
 hazard_archive_dir = args.hazard_archive_path or os.path.join(work_dir, "hazard")
-ledger_file_path = args.ledger_path or os.path.join(work_dir, "ledger", "ledger.yaml")
+ledger_file_path = args.ledger_file_path or os.path.join(work_dir, "ledger", "ledger.yaml")
 hazard_encryption_key_path = args.hazard_encryption_key_path or os.path.join(config_dir, "public-key.gpg")
 
 # Derived paths

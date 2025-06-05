@@ -146,7 +146,7 @@ class CommonConfig:
     defender_handles_suspect_files: bool = True
     
     # Ledger settings
-    ledger_path: Optional[str] = None  # Path to track tested defender versions
+    ledger_file_path: Optional[str] = None  # Path to track tested defender versions
     
  
 
@@ -216,7 +216,7 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
                       help='Let Microsoft Defender handle suspect files (default: True)')
     
     # Add ledger arguments
-    parser.add_argument('--ledger-path',
+    parser.add_argument('--ledger-file-path',
                       help='Path to the ledger file for tracking tested versions',
                       default=None)
 
@@ -313,7 +313,7 @@ def parse_common_config(args=None):
     config.notify_use_tls = get_setting_from_arg_or_file(args, 'notify_use_tls', 'notifications', 'use_tls', True, bool, settings_file_config)
     
     # Parse ledger settings
-    config.ledger_path = get_setting_from_arg_or_file(args, 'ledger_path', 'paths', 'ledger_path', None, None, settings_file_config)
+    config.ledger_file_path = get_setting_from_arg_or_file(args, 'ledger_file_path', 'paths', 'ledger_file_path', None, None, settings_file_config)
     
     # Parse scanning settings
     config.defender_handles_suspect_files = get_setting_from_arg_or_file(args, 'defender_handles_suspect_files', 'scanning', 'defender_handles_suspect_files', True, bool, settings_file_config)
