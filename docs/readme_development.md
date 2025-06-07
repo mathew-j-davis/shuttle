@@ -83,9 +83,9 @@ shuttle/
 The deployment scripts in `scripts/1_deployment/` have specific requirements:
 
 - **Scripts requiring sudo**:
-  - `01_sudo_install_dependencies.sh` - System packages installation
-  - `02_sudo_install_python.sh` - Python installation
-  - `03_sudo_install_clamav.sh` - ClamAV installation
+  - `03_sudo_install_dependencies.sh` - System packages installation
+  - `01_sudo_install_python.sh` - Python installation
+  - `05_sudo_install_clamav.sh` - ClamAV installation
 
 - **Scripts requiring source**:
   - `05_source_activate_venv.sh` - Must be called with `source` to properly activate the environment
@@ -355,9 +355,9 @@ The installation uses a sequence of numbered scripts:
    - `00_set_env.sh` - Set up environment variables, creates `shuttle_env.sh` for future sessions
 
 1. **System Dependencies** (01-03)
-   - `01_sudo_install_dependencies.sh` - Install required system packages
-   - `02_sudo_install_python.sh` - Install Python and development tools
-   - `03_sudo_install_clamav.sh` - Install ClamAV for virus scanning
+   - `03_sudo_install_dependencies.sh` - Install required system packages
+   - `01_sudo_install_python.sh` - Install Python and development tools
+   - `05_sudo_install_clamav.sh` - Install ClamAV for virus scanning
 
 2. **Python Environment** (04-06)
    - `04_create_venv.sh` - Create Python virtual environment

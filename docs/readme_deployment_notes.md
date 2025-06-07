@@ -76,9 +76,9 @@ work/
 The installation process follows a sequential workflow using numbered scripts (01-10):
 
 1. **System Dependencies** (01-03)
-   - `01_sudo_install_dependencies.sh` - Install required system packages
-   - `02_sudo_install_python.sh` - Install Python and development tools
-   - `03_sudo_install_clamav.sh` - Install ClamAV for virus scanning
+   - `03_sudo_install_dependencies.sh` - Install required system packages
+   - `01_sudo_install_python.sh` - Install Python and development tools
+   - `05_sudo_install_clamav.sh` - Install ClamAV for virus scanning
 
 2. **Python Environment** (04-06)
    - `04_create_venv.sh` - Create Python virtual environment

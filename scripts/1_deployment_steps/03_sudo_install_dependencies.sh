@@ -1,5 +1,5 @@
 #!/bin/bash
-# 01_00_sudo_install_dependencies.sh - Install basic system dependencies
+# 03_sudo_install_dependencies.sh - Install basic system dependencies
 
 set -e  # Exit on error
 

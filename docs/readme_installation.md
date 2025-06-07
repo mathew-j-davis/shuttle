@@ -122,9 +122,9 @@ For single-user installations using user's home directory (`~/.config/shuttle/`,
 
 2. **Install system dependencies** (if needed):
    ```bash
-   ./scripts/1_deployment/01_sudo_install_dependencies.sh
-   ./scripts/1_deployment/02_sudo_install_python.sh
-   ./scripts/1_deployment/03_sudo_install_clamav.sh
+   ./scripts/1_deployment/03_sudo_install_dependencies.sh
+   ./scripts/1_deployment/01_sudo_install_python.sh
+   ./scripts/1_deployment/05_sudo_install_clamav.sh
    ```
 
 3. **Create virtual environment**:
@@ -162,9 +162,9 @@ For system-wide installations using service accounts (`/etc/shuttle/`, `/opt/shu
 
 2. **Install system dependencies**:
    ```bash
-   sudo ./scripts/1_deployment/01_sudo_install_dependencies.sh
-   sudo ./scripts/1_deployment/02_sudo_install_python.sh
-   sudo ./scripts/1_deployment/03_sudo_install_clamav.sh
+   sudo ./scripts/1_deployment/03_sudo_install_dependencies.sh
+   sudo ./scripts/1_deployment/01_sudo_install_python.sh
+   sudo ./scripts/1_deployment/05_sudo_install_clamav.sh
    ```
 
 3. **Create virtual environment**:

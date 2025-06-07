@@ -891,7 +891,7 @@ execute_installation() {
     # Install basic system tools if needed
     if [[ "$INSTALL_BASIC_DEPS" == "true" ]]; then
         echo "Installing basic system tools..."
-        "$DEPLOYMENT_DIR/01_00_sudo_install_dependencies.sh"
+        "$DEPLOYMENT_DIR/03_sudo_install_dependencies.sh"
         if [[ $? -ne 0 ]]; then
             echo -e "${RED}❌ Failed to install system dependencies${NC}"
             exit 1
@@ -902,7 +902,7 @@ execute_installation() {
     # Install Python if needed
     if [[ "$INSTALL_PYTHON" == "true" ]]; then
         echo "Installing Python 3 and development tools..."
-        "$DEPLOYMENT_DIR/02_sudo_install_python.sh"
+        "$DEPLOYMENT_DIR/00_sudo_install_python.sh"
         if [[ $? -ne 0 ]]; then
             echo -e "${RED}❌ Failed to install Python${NC}"
             exit 1
@@ -913,7 +913,7 @@ execute_installation() {
     # Install ClamAV if requested
     if [[ "$INSTALL_CLAMAV" == "true" ]]; then
         echo "Installing ClamAV antivirus scanner..."
-        "$DEPLOYMENT_DIR/03_sudo_install_clamav.sh"
+        "$DEPLOYMENT_DIR/05_sudo_install_clamav.sh"
         if [[ $? -ne 0 ]]; then
             echo -e "${RED}❌ Failed to install ClamAV${NC}"
             exit 1
@@ -924,7 +924,7 @@ execute_installation() {
     # Check Microsoft Defender if requested
     if [[ "$CHECK_DEFENDER" == "true" ]]; then
         echo "Checking Microsoft Defender configuration..."
-        "$DEPLOYMENT_DIR/01_01_check_defender_is_installed.sh"
+        "$DEPLOYMENT_DIR/04_check_defender_is_installed.sh"
         if [[ $? -ne 0 ]]; then
             echo -e "${YELLOW}⚠️  Microsoft Defender check completed with warnings${NC}"
         else
@@ -939,7 +939,7 @@ execute_installation() {
     echo "🔧 Phase 2: Setting up environment and virtual environment"
     
     # Build the command with appropriate flags
-    ENV_VENV_CMD="$DEPLOYMENT_DIR/00_env_and_venv.sh $ENV_FLAG"
+    ENV_VENV_CMD="$DEPLOYMENT_DIR/02_env_and_venv.sh $ENV_FLAG"
     
     # Add --do-not-create-venv flag if venv should be handled by IDE
     if [[ "$CREATE_VENV" == "false" ]]; then
