@@ -43,17 +43,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--path", 
         type=str, 
-        help="Path where test files should be created (defaults to SHUTTLE_WORK_DIR/in)"
+        help="Path where test files should be created (defaults to SHUTTLE_TEST_WORK_DIR/in)"
     )
     
     args = parser.parse_args()
     
-    # Use provided path or default to SHUTTLE_WORK_DIR/in
+    # Use provided path or default to SHUTTLE_TEST_WORK_DIR/in
     if args.path:
         target_dir = args.path
     else:
-        # Get SHUTTLE_WORK_DIR from environment or use a default
-        work_dir = os.environ.get("SHUTTLE_WORK_DIR", os.path.expanduser("~/.local/share/shuttle/work"))
+        # Get SHUTTLE_TEST_WORK_DIR from environment or use a default
+        work_dir = os.environ.get("SHUTTLE_TEST_WORK_DIR", os.path.expanduser("~/.local/share/shuttle/work"))
         target_dir = os.path.join(work_dir, "in")
     
     create_test_files(target_dir)

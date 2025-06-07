@@ -18,7 +18,7 @@ Shuttle uses several types of environment configuration files. Understanding the
 - **Location**: 
   - Development mode (`-e`): Project root
   - Production mode: `scripts/1_deployment/`
-- **Purpose**: Sets `SHUTTLE_CONFIG_PATH`, `SHUTTLE_VENV_PATH`, `SHUTTLE_WORK_DIR`
+- **Purpose**: Sets `SHUTTLE_CONFIG_PATH`, `SHUTTLE_VENV_PATH`, `SHUTTLE_TEST_WORK_DIR`
 - **Created by**: `00_set_env.sh`
 - **Used by**: Shell sessions after sourcing
 
@@ -50,7 +50,7 @@ Shuttle uses several types of environment configuration files. Understanding the
    PYTHONPATH=./src/shared_library:./src/shuttle_app:./src/shuttle_defender_test_app:./tests
    SHUTTLE_CONFIG_PATH=/home/user/shuttle/config.conf
    SHUTTLE_VENV_PATH=/home/user/shuttle/.venv
-   SHUTTLE_WORK_DIR=/home/user/shuttle/work
+   SHUTTLE_TEST_WORK_DIR=/home/user/shuttle/work
    ```
 
 ### Production Setup
@@ -135,7 +135,7 @@ PYTHONPATH=./src/shared_library:./src/shuttle_app:./src/shuttle_defender_test_ap
 # Shuttle paths
 SHUTTLE_CONFIG_PATH=/home/user/shuttle/config.conf
 SHUTTLE_VENV_PATH=/home/user/shuttle/.venv
-SHUTTLE_WORK_DIR=/home/user/shuttle/work
+SHUTTLE_TEST_WORK_DIR=/home/user/shuttle/work
 
 # Logging
 SHUTTLE_LOG_LEVEL=DEBUG

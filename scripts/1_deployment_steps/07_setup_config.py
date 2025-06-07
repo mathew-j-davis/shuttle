@@ -70,7 +70,7 @@ def parse_arguments():
     return parser.parse_args()
 
 # Get required environment variables
-work_dir = get_required_env_var("SHUTTLE_WORK_DIR", "shuttle working directory")
+work_dir = get_required_env_var("SHUTTLE_TEST_WORK_DIR", "shuttle working directory")
 config_path = get_required_env_var("SHUTTLE_CONFIG_PATH", "shuttle configuration file")
 config_dir = os.path.dirname(config_path)
 

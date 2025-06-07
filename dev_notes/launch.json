@@ -25,7 +25,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": ["-k", "test_daily_volume_limit"]
         },
@@ -41,7 +41,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": ["-k", "test_throttling_disabled"]
         },
@@ -57,7 +57,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": ["-k", "test_daily_file_count_limit_no_existing_log"]
         },
@@ -73,7 +73,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": ["-k", "test_daily_file_count_limit_with_existing_log"]
         },
@@ -89,7 +89,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": ["-k", "test_space_throttling"]
         },
@@ -105,7 +105,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": [
                 "-k", "test_path_specific_mock_space"
@@ -123,7 +123,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": []
         },
@@ -139,7 +139,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": [
                 "--thread-count", "1",

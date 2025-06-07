@@ -110,7 +110,7 @@ The application uses these environment variables (set by `scripts/1_deployment/0
 
 - `SHUTTLE_CONFIG_PATH` - Path to the configuration file
 - `SHUTTLE_VENV_PATH` - Path to the virtual environment
-- `SHUTTLE_WORK_DIR` - Path to the working directory
+- `SHUTTLE_TEST_WORK_DIR` - Path to the working directory
 
 The script creates a `shuttle_env.sh` file that can be sourced in future sessions:
 

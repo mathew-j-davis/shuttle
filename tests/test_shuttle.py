@@ -557,8 +557,8 @@ class TestShuttle(unittest.TestCase):
     
     def setUp(self):
         """Set up the test environment"""
-        # Create temporary directories in SHUTTLE_WORK_DIR/tmp
-        work_dir = os.environ.get('SHUTTLE_WORK_DIR', os.path.expanduser('~/shuttle/work'))
+        # Create temporary directories in SHUTTLE_TEST_WORK_DIR/tmp
+        work_dir = os.environ.get('SHUTTLE_TEST_WORK_DIR', os.path.expanduser('~/shuttle/work'))
         tmp_base = os.path.join(work_dir, 'tmp')
         os.makedirs(tmp_base, exist_ok=True)
         

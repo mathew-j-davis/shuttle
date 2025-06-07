@@ -279,7 +279,7 @@ All installation modes set these environment variables:
 
 - `SHUTTLE_CONFIG_PATH` - Path to main configuration file
 - `SHUTTLE_VENV_PATH` - Path to Python virtual environment  
-- `SHUTTLE_WORK_DIR` - Path to working directory (quarantine, logs, etc.)
+- `SHUTTLE_TEST_WORK_DIR` - Path to working directory (quarantine, logs, etc.)
 
 Access them via:
 - **Development**: `source shuttle_env.sh`

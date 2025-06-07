@@ -165,7 +165,7 @@ All debug configurations follow this basic template, with different test methods
         "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-        "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+        "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
     },
     "args": ["-k", "test_space_throttling"]
 }
@@ -206,7 +206,7 @@ Instead of trying to run all throttle tests at once (which can be problematic wi
         "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-        "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+        "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
     },
     "args": ["-k", "test_daily_file_count"]
 }
@@ -229,7 +229,7 @@ This runs all daily file count limit tests.
         "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-        "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+        "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
     },
     "args": ["-k", "test_daily_volume"]
 }
@@ -252,7 +252,7 @@ This runs all daily volume limit tests.
         "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-        "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+        "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
     },
     "args": ["-k", "test_space_throttling"]
 }
@@ -275,7 +275,7 @@ This runs space-based throttling tests.
         "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-        "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+        "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
     },
     "args": ["-k", "test_throttling"]
 }
@@ -300,7 +300,7 @@ This runs general throttling-related tests (like `test_throttling_disabled`).
         "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-        "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+        "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
     },
     "args": [
         "-k", "test_daily_file_count_limit_with_existing_log",
@@ -328,7 +328,7 @@ This runs general throttling-related tests (like `test_throttling_disabled`).
         "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-        "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+        "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
     },
     "args": ["-k", "test_daily_file_count_limit_no_existing_log"]
 }
@@ -353,7 +353,7 @@ This runs general throttling-related tests (like `test_throttling_disabled`).
         "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-        "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+        "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
     },
     "args": ["-k", "test_daily_volume_limit_with_existing_log"]
 }
@@ -378,7 +378,7 @@ To create a custom launch configuration for the configurable test with specific 
         "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-        "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+        "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
     },
     "args": [
         "-k", "test_throttling_configurable",
@@ -453,7 +453,7 @@ With these tests you can thoroughly test Shuttle's throttling capabilities in a 
         "PYTHONPATH": "${workspaceFolder}/src:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
         "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
         "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-        "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+        "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
     },
     "args": ["-k", "test_space_throttling",
             "--min-free-space", "1",

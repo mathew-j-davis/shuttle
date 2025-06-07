@@ -8,7 +8,7 @@ This guide covers the progression from manual execution to automated scheduling 
 Shuttle requires these environment variables to be set:
 - `SHUTTLE_CONFIG_PATH` - Path to configuration file
 - `SHUTTLE_VENV_PATH` - Path to Python virtual environment  
-- `SHUTTLE_WORK_DIR` - Working directory for shuttle
+- `SHUTTLE_TEST_WORK_DIR` - Working directory for shuttle
 
 ### Setting Up Environment Variables
 
@@ -23,7 +23,7 @@ sudo nano /etc/shuttle/shuttle_env.sh
 #!/bin/bash
 export SHUTTLE_CONFIG_PATH="/etc/shuttle/config.conf"
 export SHUTTLE_VENV_PATH="/opt/shuttle/.venv"
-export SHUTTLE_WORK_DIR="/var/lib/shuttle/work"
+export SHUTTLE_TEST_WORK_DIR="/var/lib/shuttle/work"
 
 # Make executable
 sudo chmod +x /etc/shuttle/shuttle_env.sh
@@ -78,7 +78,7 @@ sudo -u zzzz crontab -e
 # Add these lines at the top of the crontab:
 SHUTTLE_CONFIG_PATH=/etc/shuttle/config.conf
 SHUTTLE_VENV_PATH=/opt/shuttle/.venv
-SHUTTLE_WORK_DIR=/var/lib/shuttle/work
+SHUTTLE_TEST_WORK_DIR=/var/lib/shuttle/work
 PATH=/usr/local/bin:/usr/bin:/bin
 
 # Then your cron jobs without explicit sourcing:
@@ -229,7 +229,7 @@ CPUQuota=50%
 Environment="PATH=/usr/local/bin:/usr/bin:/bin"
 Environment="SHUTTLE_CONFIG_PATH=/etc/shuttle/config.conf"
 Environment="SHUTTLE_VENV_PATH=/opt/shuttle/.venv"
-Environment="SHUTTLE_WORK_DIR=/var/lib/shuttle/work"
+Environment="SHUTTLE_TEST_WORK_DIR=/var/lib/shuttle/work"
 
 # Alternative: Use environment file (create without .sh extension for systemd)
 # EnvironmentFile=-/etc/shuttle/shuttle.env

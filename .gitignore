@@ -16,3 +16,6 @@ src/shuttle_app/shuttle.egg-info/
 scripts/1_deployment/shuttle_env.sh
 config.conf
 work
+setup_complete.txt
+test_area/
+config/
