@@ -19,9 +19,10 @@ shuttle/
 │       └── shuttle_defender_test/   # The shuttle_defender module
 ├── scripts/                    # All utility scripts
 │   ├── 0_key_generation/       # Key generation script
-│   ├── 1_deployment/           # Installation scripts (numbered 01-10)
+│   ├── 1_deployment_steps/     # Installation scripts (numbered 01-10)
 │   ├── health_check_tests/     # Health check and testing scripts
-│   └── vscode_debugging/      # VS Code debugging configurations
+│   ├── vscode_debugging/       # VS Code debugging configurations
+│   └── install.sh              # Interactive installation script
 ├── example/                    # Example configurations and files
 └── tests/                      # Test suite
 ```
@@ -52,40 +53,65 @@ The directory structure is dynamic and depends on where the git repository is cl
 
 ### Dynamic Paths by Installation Mode
 
-| Component               | Development (`-e`)            | User Production (`-u`)             | System Production (default)   |
-|-------------------------|-------------------------------|------------------------------------|-------------------------------|
-| **Config File**         | `PROJECT_ROOT/config.conf`    | `~/.config/shuttle/config.conf`    | `/etc/shuttle/config.conf`    |
-| **Virtual Environment** | `PROJECT_ROOT/.venv`          | `~/.local/share/shuttle/venv`      | `/opt/shuttle/venv`           |
-| **Working Directory**   | `PROJECT_ROOT/work`           | `~/.local/share/shuttle/work`      | `/var/lib/shuttle`            |
-| **Environment Script**  | `PROJECT_ROOT/shuttle_env.sh` | `~/.config/shuttle/shuttle_env.sh` | `/etc/shuttle/shuttle_env.sh` |
+| Component               | Development (`-e`)                 | User Production (`-u`)             | System Production (default)   |
+|-------------------------|------------------------------------|------------------------------------|-------------------------------|
+| **Config File**         | `PROJECT_ROOT/config/config.conf` | `~/.config/shuttle/config.conf`    | `/etc/shuttle/config.conf`    |
+| **Virtual Environment** | `PROJECT_ROOT/.venv`               | `~/.local/share/shuttle/venv`      | `/opt/shuttle/venv`           |
+| **Working Directory**   | `PROJECT_ROOT/work`                | `~/.local/share/shuttle/work`      | `/var/lib/shuttle`            |
+| **Test Work Directory** | `PROJECT_ROOT/test_area`           | `~/.local/share/shuttle/test_area` | `/var/lib/shuttle/test_area`  |
+| **Environment Script**  | `PROJECT_ROOT/config/shuttle_env.sh` | `~/.config/shuttle/shuttle_env.sh` | `/etc/shuttle/shuttle_env.sh` |
 
 ### Working Directory Structure
 All modes create this structure within their respective working directory:
 ```
 work/
-├── in/           # Source files (input)
-├── out/          # Destination files (output)  
+├── incoming/     # Source files (input)
+├── processed/    # Destination files (output)  
 ├── quarantine/   # Temporary quarantine area
 ├── hazard/       # Encrypted malware archive
 ├── logs/         # Application logs
 └── ledger/       # Defender compatibility tracking
 ```
 
-## Installation Workflow
+## Installation Methods
 
-The installation process follows a sequential workflow using numbered scripts (01-10):
+### Recommended: Interactive Installation Script
 
-1. **System Dependencies** (01-03)
+The easiest way to install Shuttle is using the interactive installation script:
+
+```bash
+cd /path/to/shuttle
+./scripts/install.sh
+```
+
+This script provides:
+- **Guided setup** with clear prompts and explanations
+- **Installation mode selection** (development, user, or system production)
+- **Automatic dependency detection** and installation
+- **Virtual environment management** (create, use existing, or global install)
+- **Configuration generation** with customizable options
+- **Consistent validation** and error handling
+
+The interactive script handles the entire installation process automatically, including:
+1. Virtual environment detection and setup
+2. System dependency installation (Python, ClamAV, etc.)
+3. Configuration file generation
+4. Module installation in the correct order
+5. Environment variable setup
+
+### Manual Installation Workflow
+
+For advanced users or automated deployments, the installation process can be done manually using numbered scripts (01-10):
+
+1. **System Dependencies** (01, 03-05)
+   - `01_sudo_install_python.sh` - Install Python and development tools **FIRST**
    - `03_sudo_install_dependencies.sh` - Install required system packages
-   - `01_sudo_install_python.sh` - Install Python and development tools
    - `05_sudo_install_clamav.sh` - Install ClamAV for virus scanning
+   - `04_check_defender_is_installed.sh` - Check Microsoft Defender configuration
 
-2. **Python Environment** (04-06)
-   - `04_create_venv.sh` - Create Python virtual environment
-   - `05_source_activate_venv.sh` - Activate virtual environment (call with `source`)
-   - `06_install_python_dependencies.sh` - Install required Python packages
-
-If you have issues with the virtual environment, see the Appendix for additional notes.
+2. **Python Environment** (02, 06)
+   - `02_env_and_venv.sh` - Set up environment variables and create virtual environment
+   - `06_install_python_dev_dependencies.sh` - Install required Python packages
 
 3. **Configuration Setup** (07)
    - `07_setup_config.py` - Create configuration file and directories with customizable options
@@ -94,6 +120,8 @@ If you have issues with the virtual environment, see the Appendix for additional
    - `08_install_shared.sh` - Install shared library module
    - `09_install_defender_test.sh` - Install defender test module
    - `10_install_shuttle.sh` - Install shuttle application module
+
+**Important:** Python must be installed before creating the virtual environment, so the sequence is critical.
 
 ### Additional Installation Details
 
@@ -145,17 +173,17 @@ The `07_setup_config.py` script accepts command-line arguments to customize your
 
 ```bash
 # Use defaults (working directory subdirectories)
-python ./scripts/1_deployment/07_setup_config.py
+python ./scripts/1_deployment_steps/07_setup_config.py
 
 # Get help on all available options
-python ./scripts/1_deployment/07_setup_config.py --help
+python ./scripts/1_deployment_steps/07_setup_config.py --help
 ```
 
 ### Common Configuration Examples
 
 #### Development Setup
 ```bash
-python ./scripts/1_deployment/07_setup_config.py \
+python ./scripts/1_deployment_steps/07_setup_config.py \
     --log-level DEBUG \
     --max-scan-threads 1 \
     --no-notify
@@ -163,7 +191,7 @@ python ./scripts/1_deployment/07_setup_config.py \
 
 #### Production Setup with Custom Paths
 ```bash
-python ./scripts/1_deployment/07_setup_config.py \
+python ./scripts/1_deployment_steps/07_setup_config.py \
     --source-path /srv/data/incoming \
     --destination-path /srv/data/processed \
     --quarantine-path /tmp/shuttle/quarantine \
@@ -176,7 +204,7 @@ python ./scripts/1_deployment/07_setup_config.py \
 
 #### Enterprise Setup with Notifications
 ```bash
-python ./scripts/1_deployment/07_setup_config.py \
+python ./scripts/1_deployment_steps/07_setup_config.py \
     --source-path /mnt/shares/inbound \
     --destination-path /mnt/shares/processed \
     --log-path /var/log/shuttle \
@@ -208,23 +236,25 @@ python ./scripts/1_deployment/07_setup_config.py \
 
 If not specified, paths default to subdirectories within the working directory:
 
-- **Source**: `WORK_DIR/in`
-- **Destination**: `WORK_DIR/out`  
+- **Source**: `WORK_DIR/incoming`
+- **Destination**: `WORK_DIR/processed`  
 - **Quarantine**: `WORK_DIR/quarantine`
 - **Logs**: `WORK_DIR/logs`
 - **Hazard Archive**: `WORK_DIR/hazard`
-- **Ledger**: `WORK_DIR/ledger/ledger.yaml`
-- **Encryption Key**: `CONFIG_DIR/public-key.gpg`
+- **Ledger**: `CONFIG_DIR/ledger/ledger.yaml`
+- **Encryption Key**: `CONFIG_DIR/shuttle_public.gpg`
 
 ### Development Mode Installation
 
-By default, modules are installed in standard mode. For development mode (editable installation), add the `-e` or `--editable` flag to these scripts:
+By default, modules are installed in standard mode. For development mode (editable installation), add the `-e` flag to these scripts:
 
 ```bash
-./10_install_shuttle.sh -e
-./08_install_shared.sh -e
-./09_install_defender_test.sh -e
+./scripts/1_deployment_steps/08_install_shared.sh -e
+./scripts/1_deployment_steps/09_install_defender_test.sh -e
+./scripts/1_deployment_steps/10_install_shuttle.sh -e
 ```
+
+**Note:** The interactive `install.sh` script automatically handles development mode installation when you select the development installation mode.
 
 ## Data Directory Setup
 
@@ -353,80 +383,55 @@ Configuration includes parameters:
 By following these guidelines, you can efficiently deploy and manage the Shuttle project on your Ubuntu server.
 
 
-## Appendix: Additional Notes on Virtual Environment Setup and Activation
+## Environment Variables and Configuration
 
-The Shuttle project uses a Python virtual environment to manage dependencies. The installation scripts include dedicated tools for creating and activating this environment.
+### Environment Variables
 
-### Creating the Virtual Environment
+Shuttle uses two main environment variables that are automatically set during installation:
 
-The `04_create_venv.sh` script handles creation of the virtual environment:
+- **`SHUTTLE_CONFIG_PATH`**: Path to the main configuration file
+- **`SHUTTLE_TEST_WORK_DIR`**: Directory used by automated tests (separate from production work directory)
 
-```bash
-#!/bin/bash
+These are automatically configured in the environment script (`shuttle_env.sh`) which is created in the config directory.
 
-# Check if Python3 and pip are installed
-if ! command -v python3 &>/dev/null || ! command -v pip3 &>/dev/null; then
-    echo "Python3 and/or pip3 are not installed. Please run install_python.sh first."
-    exit 1
-fi
+### Activating the Shuttle Environment
 
-# Create a virtual environment
-echo "Creating a virtual environment..."
-python3 -m venv venv
-
-# Set execute permissions on activate
-echo "Set execute permissions on virtual environment activate..."
-chmod +x ./venv/bin/activate
-```
-
-This script:
-1. Verifies Python3 and pip3 are installed
-2. Creates a virtual environment in the `venv` directory
-3. Ensures the activation script has proper execution permissions
-
-### Activating the Virtual Environment
-
-The `05_source_activate_venv.sh` script must be called using the `source` command to properly activate the environment:
+After installation, activate the Shuttle environment with:
 
 ```bash
-source ./05_source_activate_venv.sh
+# Load environment variables
+source /path/to/config/shuttle_env.sh
+
+# Activate virtual environment (if using one)
+source /path/to/config/shuttle_activate_virtual_environment.sh
 ```
 
-The script checks if a virtual environment is already active and activates it if not:
+### Environment Management
 
-```bash
-#!/bin/bash
+The `02_env_and_venv.sh` script handles both environment variable setup and virtual environment creation:
 
-# to activate this outside of the script you need to call like this:
-# source ./activate_venv.sh 
-
-if [[ "$VIRTUAL_ENV" == "" ]]
-then
-    # Activate the virtual environment
-    echo "Activating the virtual environment..."
-    . venv/bin/activate
-fi
-```
+1. **Environment Variables**: Creates `shuttle_env.sh` in the config directory
+2. **Virtual Environment**: Creates a Python virtual environment if requested
+3. **IDE Integration**: In development mode, creates a `.env` file for IDE support
+4. **Activation Helper**: Creates `shuttle_activate_virtual_environment.sh` for easy venv activation
 
 ### Virtual Environment Troubleshooting
 
-If you encounter issues with the virtual environment on Ubuntu:
+If you encounter issues with the virtual environment:
 
-- **Verify Activation**: Check if the environment is active by examining the prompt (should show "(venv)") or by checking:
+- **Check if active**: Look for `(venv)` in your prompt or run:
   ```bash
   echo $VIRTUAL_ENV
   which python
-  which pip
   ```
 
-- **Activation Failures**: If activation doesn't work, ensure the activate script has execute permissions:
+- **Manual activation**: If the helper script doesn't work:
   ```bash
-  chmod +x ./venv/bin/activate
+  source /path/to/.venv/bin/activate
   ```
 
-- **Using Full Paths**: If all else fails, use full paths to the Python executables:
+- **Verify Python version**: Ensure you're using the correct Python:
   ```bash
-  ./venv/bin/python -m pip install -r requirements.txt
+  python --version
+  which python
   ```
-
-These steps should help resolve common issues related to virtual environment activation and usage on Ubuntu.
