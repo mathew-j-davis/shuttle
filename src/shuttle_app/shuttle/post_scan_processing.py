@@ -11,6 +11,17 @@ from shuttle_common.files import (
     encrypt_file
 )
 
+class ProcessingResult:
+    """Result of file processing with outcome type information."""
+    
+    def __init__(self, success, is_suspect=False):
+        self.success = success
+        self.is_suspect = is_suspect
+    
+    def __bool__(self):
+        """Allow the result to be used as a boolean for backward compatibility."""
+        return self.success
+
 def handle_suspect_source_file(
     source_file_path,
     quarantine_hash,
@@ -76,7 +87,7 @@ def handle_suspect_scan_result(
         quarantine_hash (str): Hash of the quarantine file for comparison
     
     Returns:
-        bool: True if handled successfully, False otherwise
+        ProcessingResult: Result with success status and suspect flag set to True
     """
     logger = get_logger()
     scanner_handled_suspect_file = False
@@ -93,21 +104,23 @@ def handle_suspect_scan_result(
             logger.warning(f"Scanner did not remove the suspect file: {quarantine_file_path}, handling internally")
 
     if scanner_handled_suspect_file:
-        return handle_suspect_source_file(
+        success = handle_suspect_source_file(
             source_file_path,
             quarantine_hash,
             hazard_archive_path,
             key_file_path
         )
+        return ProcessingResult(success, is_suspect=True)
     else:
         logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
-        return handle_suspect_quarantine_file_and_delete_source(
+        success = handle_suspect_quarantine_file_and_delete_source(
             quarantine_file_path,
             source_file_path,
             hazard_archive_path,
             key_file_path,
             delete_source_files
         )
+        return ProcessingResult(success, is_suspect=True)
 
 def handle_clean_file(
     quarantine_file_path,
@@ -125,8 +138,7 @@ def handle_clean_file(
         delete_source_files (bool): Whether to delete source files after processing
 
     Returns:
-        bool: True if the file was successfully handled, False
-          otherwise
+        ProcessingResult: Result with success status and suspect flag set to False
     """
     logger = get_logger()
     
@@ -136,7 +148,7 @@ def handle_clean_file(
     except Exception as e:
         if logger:
             logger.error(f"Failed to copy clean file from {quarantine_file_path} to {destination_file_path}: {e}")
-        return False
+        return ProcessingResult(False, is_suspect=False)
     
     if delete_source_files:
         try:
@@ -148,24 +160,24 @@ def handle_clean_file(
                 remove_file_with_logging(source_file_path)
             else:
                 logger.error(f"Integrity check failed, source file not deleted: {source_file_path}")
-                return False
+                return ProcessingResult(False, is_suspect=False)
   
         except FileNotFoundError as e:
             if logger:
                 logger.error(f"File not found during handling of clean file: {e}")
-            return False
+            return ProcessingResult(False, is_suspect=False)
         
         except PermissionError as e:
             if logger:
                 logger.error(f"Permission denied during handling of clean file: {e}")
-            return False
+            return ProcessingResult(False, is_suspect=False)
         
         except Exception as e:
             if logger:
                 logger.error(f"Failed to handle clean file {quarantine_file_path}: {e}")
-            return False
+            return ProcessingResult(False, is_suspect=False)
         
-    return True
+    return ProcessingResult(True, is_suspect=False)
 
 
 def handle_suspect_quarantine_file_and_delete_source(

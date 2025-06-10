@@ -26,6 +26,7 @@ class TestDailyProcessingTracker(unittest.TestCase):
         self.source_path = "/path/to/source/file.txt"
         self.file_size_mb = 1.5
         self.file_hash = "sample_hash_123456"
+        self.relative_file_path = "file.txt"
         
     def tearDown(self):
         """Clean up the test environment."""
@@ -52,26 +53,28 @@ class TestDailyProcessingTracker(unittest.TestCase):
     def test_add_pending_file(self):
         """Test adding a pending file with hash and path."""
         # Add a pending file
-        returned_hash = self.tracker.add_pending_file(
+        returned_relative_path = self.tracker.add_pending_file(
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         
-        # Assert the hash is returned correctly
-        self.assertEqual(returned_hash, self.file_hash)
+        # Assert the relative file path is returned correctly
+        self.assertEqual(returned_relative_path, self.relative_file_path)
         
         # Assert counters are updated
         self.assertEqual(self.tracker.pending_files, 1)
         self.assertEqual(self.tracker.pending_volume_mb, self.file_size_mb)
         
         # Assert the file record is stored correctly
-        self.assertIn(self.file_hash, self.tracker.file_records)
-        record = self.tracker.file_records[self.file_hash]
+        self.assertIn(self.relative_file_path, self.tracker.file_records)
+        record = self.tracker.file_records[self.relative_file_path]
         self.assertEqual(record['file_path'], self.file_path)
         self.assertEqual(record['file_size_mb'], self.file_size_mb)
         self.assertEqual(record['status'], 'pending')
+        self.assertEqual(record['file_hash'], self.file_hash)
         self.assertIsNotNone(record['quarantine_time'])
         
     def test_complete_pending_file_success(self):
@@ -81,12 +84,13 @@ class TestDailyProcessingTracker(unittest.TestCase):
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         
         # Complete the file with success outcome
         result = self.tracker.complete_pending_file(
-            file_hash=self.file_hash,
+            relative_file_path=self.relative_file_path,
             outcome='success'
         )
         
@@ -102,7 +106,7 @@ class TestDailyProcessingTracker(unittest.TestCase):
         self.assertEqual(self.tracker.failed_volume_mb, 0.0)
         
         # Assert the file record is updated correctly
-        record = self.tracker.file_records[self.file_hash]
+        record = self.tracker.file_records[self.relative_file_path]
         self.assertEqual(record['status'], 'completed')
         self.assertEqual(record['outcome'], 'success')
         self.assertIsNotNone(record['process_time'])
@@ -114,13 +118,14 @@ class TestDailyProcessingTracker(unittest.TestCase):
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         
         # Complete the file with failed outcome
         error_message = "Test error message"
         result = self.tracker.complete_pending_file(
-            file_hash=self.file_hash,
+            relative_file_path=self.relative_file_path,
             outcome='failed',
             error=error_message
         )
@@ -137,7 +142,7 @@ class TestDailyProcessingTracker(unittest.TestCase):
         self.assertEqual(self.tracker.failed_volume_mb, self.file_size_mb)
         
         # Assert the file record is updated correctly
-        record = self.tracker.file_records[self.file_hash]
+        record = self.tracker.file_records[self.relative_file_path]
         self.assertEqual(record['status'], 'completed')
         self.assertEqual(record['outcome'], 'failed')
         self.assertEqual(record['error'], error_message)
@@ -149,12 +154,13 @@ class TestDailyProcessingTracker(unittest.TestCase):
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         
         # Complete the file with suspect outcome
         result = self.tracker.complete_pending_file(
-            file_hash=self.file_hash,
+            relative_file_path=self.relative_file_path,
             outcome='suspect'
         )
         
@@ -172,15 +178,15 @@ class TestDailyProcessingTracker(unittest.TestCase):
         self.assertEqual(self.tracker.suspect_volume_mb, self.file_size_mb)
         
         # Assert the file record is updated correctly
-        record = self.tracker.file_records[self.file_hash]
+        record = self.tracker.file_records[self.relative_file_path]
         self.assertEqual(record['status'], 'completed')
         self.assertEqual(record['outcome'], 'suspect')
         
-    def test_missing_file_hash(self):
-        """Test completing a file with non-existent hash."""
+    def test_missing_file_path(self):
+        """Test completing a file with non-existent relative file path."""
         # Try to complete a non-existent file
         result = self.tracker.complete_pending_file(
-            file_hash="non_existent_hash",
+            relative_file_path="non_existent_path.txt",
             outcome='success'
         )
         
@@ -200,20 +206,22 @@ class TestDailyProcessingTracker(unittest.TestCase):
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         
-        second_hash = "second_hash_789012"
+        second_relative_path = "second.txt"
         self.tracker.add_pending_file(
             file_path="/path/to/second/file.txt",
             file_size_mb=2.0,
-            file_hash=second_hash,
-            source_path="/path/to/source/second.txt"
+            file_hash="second_hash_789012",
+            source_path="/path/to/source/second.txt",
+            relative_file_path=second_relative_path
         )
         
         # Complete one file
         self.tracker.complete_pending_file(
-            file_hash=self.file_hash,
+            relative_file_path=self.relative_file_path,
             outcome='success'
         )
         
@@ -233,20 +241,22 @@ class TestDailyProcessingTracker(unittest.TestCase):
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         
-        second_hash = "second_hash_789012"
+        second_relative_path = "second.txt"
         self.tracker.add_pending_file(
             file_path="/path/to/second/file.txt",
             file_size_mb=2.0,
-            file_hash=second_hash,
-            source_path="/path/to/source/second.txt"
+            file_hash="second_hash_789012",
+            source_path="/path/to/source/second.txt",
+            relative_file_path=second_relative_path
         )
         
         # Complete one file
         self.tracker.complete_pending_file(
-            file_hash=self.file_hash,
+            relative_file_path=self.relative_file_path,
             outcome='success'
         )
         
@@ -266,10 +276,11 @@ class TestDailyProcessingTracker(unittest.TestCase):
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         self.tracker.complete_pending_file(
-            file_hash=self.file_hash,
+            relative_file_path=self.relative_file_path,
             outcome='success'
         )
         
@@ -297,15 +308,17 @@ class TestDailyProcessingTracker(unittest.TestCase):
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         
-        second_hash = "another_hash_789012"
+        second_relative_path = "another.txt"
         self.tracker.add_pending_file(
             file_path="/path/to/another/file.txt",
             file_size_mb=2.5,
-            file_hash=second_hash,
-            source_path="/path/to/source/another.txt"
+            file_hash="another_hash_789012",
+            source_path="/path/to/source/another.txt",
+            relative_file_path=second_relative_path
         )
         
         # Verify we have two pending files
@@ -320,8 +333,8 @@ class TestDailyProcessingTracker(unittest.TestCase):
         self.assertEqual(self.tracker.pending_volume_mb, 0.0)
         
         # Check that both records are marked as completed with 'unknown' outcome
-        for file_hash in [self.file_hash, second_hash]:
-            record = self.tracker.file_records[file_hash]
+        for relative_path in [self.relative_file_path, second_relative_path]:
+            record = self.tracker.file_records[relative_path]
             self.assertEqual(record['status'], 'completed')
             self.assertEqual(record['outcome'], 'unknown')
             self.assertIsNotNone(record['process_time'])
@@ -334,34 +347,37 @@ class TestDailyProcessingTracker(unittest.TestCase):
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         self.tracker.complete_pending_file(
-            file_hash=self.file_hash,
+            relative_file_path=self.relative_file_path,
             outcome='success'
         )
         
         # Add and complete a failed file
-        failed_hash = "failed_hash_654321"
+        failed_relative_path = "failed.txt"
         self.tracker.add_pending_file(
             file_path="/path/to/failed/file.txt",
             file_size_mb=1.0,
-            file_hash=failed_hash,
-            source_path="/path/to/source/failed.txt"
+            file_hash="failed_hash_654321",
+            source_path="/path/to/source/failed.txt",
+            relative_file_path=failed_relative_path
         )
         self.tracker.complete_pending_file(
-            file_hash=failed_hash,
+            relative_file_path=failed_relative_path,
             outcome='failed',
             error="Test failure"
         )
         
         # Add a pending file
-        pending_hash = "pending_hash_111222"
+        pending_relative_path = "pending.txt"
         self.tracker.add_pending_file(
             file_path="/path/to/pending/file.txt",
             file_size_mb=0.5,
-            file_hash=pending_hash,
-            source_path="/path/to/source/pending.txt"
+            file_hash="pending_hash_111222",
+            source_path="/path/to/source/pending.txt",
+            relative_file_path=pending_relative_path
         )
         
         # Generate a summary
@@ -390,23 +406,25 @@ class TestDailyProcessingTracker(unittest.TestCase):
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         self.tracker.complete_pending_file(
-            file_hash=self.file_hash,
+            relative_file_path=self.relative_file_path,
             outcome='success'
         )
         
         # Add and complete a suspect file
-        suspect_hash = "suspect_hash_789012"
+        suspect_relative_path = "suspect.txt"
         self.tracker.add_pending_file(
             file_path="/path/to/suspect/file.txt",
             file_size_mb=2.0,
-            file_hash=suspect_hash,
-            source_path="/path/to/source/suspect.txt"
+            file_hash="suspect_hash_789012",
+            source_path="/path/to/source/suspect.txt",
+            relative_file_path=suspect_relative_path
         )
         self.tracker.complete_pending_file(
-            file_hash=suspect_hash,
+            relative_file_path=suspect_relative_path,
             outcome='suspect'
         )
         
@@ -428,10 +446,11 @@ class TestDailyProcessingTracker(unittest.TestCase):
             file_path=self.file_path,
             file_size_mb=self.file_size_mb,
             file_hash=self.file_hash,
-            source_path=self.source_path
+            source_path=self.source_path,
+            relative_file_path=self.relative_file_path
         )
         self.tracker.complete_pending_file(
-            file_hash=self.file_hash,
+            relative_file_path=self.relative_file_path,
             outcome='success'
         )
         
@@ -451,12 +470,13 @@ class TestDailyProcessingTracker(unittest.TestCase):
         self.assertIn('export_time', export_data)
         self.assertIn('run_start_time', export_data)
         self.assertIn('files', export_data)
-        self.assertIn(self.file_hash, export_data['files'])
+        self.assertIn(self.relative_file_path, export_data['files'])
         
         # Check the file record
-        file_record = export_data['files'][self.file_hash]
+        file_record = export_data['files'][self.relative_file_path]
         self.assertEqual(file_record['file_path'], self.file_path)
         self.assertEqual(file_record['outcome'], 'success')
+        self.assertEqual(file_record['file_hash'], self.file_hash)
 
 
 if __name__ == '__main__':

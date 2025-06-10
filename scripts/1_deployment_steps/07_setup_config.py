@@ -187,6 +187,80 @@ with open(ledger_file_path, 'w') as yaml_file:
 
 print(f"Created ledger file at {ledger_file_path}")
 
+# Create test configuration file
+test_config_path = os.environ.get('SHUTTLE_TEST_CONFIG_PATH')
+if test_config_path:
+    test_config_dir = os.path.dirname(test_config_path)
+    os.makedirs(test_config_dir, exist_ok=True)
+    
+    print("Creating test configuration file...")
+    
+    # Generate test keys for encryption
+    test_area_dir = os.path.dirname(test_config_path)  # Should be test_area
+    test_key_public_path = os.path.join(test_area_dir, 'shuttle_test_key_public.gpg')
+    
+    print("Generating test encryption keys...")
+    import subprocess
+    key_generation_script = os.path.join(os.path.dirname(os.path.dirname(__file__)), '0_key_generation', '00_generate_shuttle_keys.sh')
+    
+    # Call key generation script with test parameters
+    result = subprocess.run([
+        key_generation_script,
+        '--key-name', 'shuttle_test_hazard_encryption_key',
+        '--key-comment', 'Shuttle Test Hazard Archive Encryption Key',
+        '--output-dir', test_area_dir,
+        '--public-filename', 'shuttle_test_key_public.gpg',
+        '--private-filename', 'shuttle_test_key_private.gpg'
+    ], capture_output=True, text=True)
+    
+    if result.returncode == 0:
+        print(f"Test encryption keys generated successfully")
+        print(f"Public key: {test_key_public_path}")
+    else:
+        print(f"Warning: Failed to generate test keys: {result.stderr}")
+        # Fall back to pointing to main config key if test key generation fails
+        test_key_public_path = os.path.join(config_dir, 'shuttle_public.gpg')
+    
+    # Create test config with all booleans false
+    # NOTE: Minimal paths section - only encryption key needed
+    test_config = configparser.ConfigParser()
+    
+    # Settings with all booleans false
+    test_config['settings'] = {
+        'max_scan_threads': '1',
+        'delete_source_files_after_copying': 'false',
+        'defender_handles_suspect_files': 'false', 
+        'on_demand_defender': 'false',
+        'on_demand_clam_av': 'false',
+        'throttle': 'false',
+        'throttle_free_space_mb': '0'
+    }
+    
+    # Logging settings
+    test_config['logging'] = {
+        'log_level': 'INFO'
+    }
+    
+    # Notifications disabled
+    test_config['notifications'] = {
+        'notify': 'false',
+        'notify_summary': 'false',
+        'use_tls': 'false'
+    }
+    
+    # Minimal paths - only encryption key
+    test_config['paths'] = {
+        'hazard_encryption_key_path': test_key_public_path
+    }
+    
+    # Write test config file
+    with open(test_config_path, 'w') as configfile:
+        test_config.write(configfile)
+    
+    print(f"Created test config file at {test_config_path}")
+else:
+    print("SHUTTLE_TEST_CONFIG_PATH not set, skipping test config creation")
+
 
 # Setup complete
 print("\nSetup complete!")

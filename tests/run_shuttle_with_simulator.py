@@ -3,7 +3,7 @@
 Simple script to run Shuttle with MDATP simulator and optional throttling
 
 This script:
-1. Optionally patches the DEFAULT_DEFENDER_COMMAND to use the simulator
+1. Optionally patches the DEFENDER_COMMAND to use the simulator
 2. Optionally patches Throttler methods for disk space simulation
 3. Passes any arguments to shuttle.main()
 
@@ -68,6 +68,20 @@ def run_shuttle_with_simulator():
     # Parse arguments once at the top level
     args = parse_args()
     use_real_defender = args.no_defender_simulator
+    
+    # Check for test config and add to command line if needed
+    test_config_path = os.environ.get('SHUTTLE_TEST_CONFIG_PATH')
+    if test_config_path and os.path.exists(test_config_path):
+        # Ensure test config is used by adding it to command line if not already specified
+        if '--settings-path' not in sys.argv:
+            print(f"\n>>> USING TEST CONFIG: {test_config_path} <<<\n")
+            sys.argv.extend(['--settings-path', test_config_path])
+        else:
+            print(f"\n>>> SETTINGS PATH ALREADY SPECIFIED IN COMMAND LINE, IGNORING TEST CONFIG <<<\n")
+    elif test_config_path:
+        print(f"\n>>> TEST CONFIG PATH SET BUT FILE NOT FOUND: {test_config_path} <<<\n")
+    else:
+        print(f"\n>>> NO TEST CONFIG PATH SET <<<\n")
     
     # We'll access paths at runtime from Shuttle's configuration
     # instead of parsing them from command line arguments
@@ -253,6 +267,14 @@ def run_shuttle_with_simulator():
         try:
             # Run using our single Shuttle instance
             exit_code = shuttle_instance.run()
+            
+            # Output tracking data for tests (after run completes but before exit)
+            if hasattr(shuttle_instance, 'daily_processing_tracker') and shuttle_instance.daily_processing_tracker:
+                import json
+                tracking_summary = shuttle_instance.daily_processing_tracker.generate_task_summary()
+                print(f"\n__SHUTTLE_TRACKING_DATA__")
+                print(json.dumps(tracking_summary))
+                print("__END_TRACKING_DATA__")
             
             # Exit with the returned code
             sys.exit(exit_code)

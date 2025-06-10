@@ -43,7 +43,7 @@ class DailyProcessingTracker:
         self.pending_volume_mb = 0.0
         
         # Initialize outcome-specific counters and file records dictionary
-        self.file_records = {}  # Dictionary of file records by file_hash
+        self.file_records = {}  # Dictionary of file records by relative file path
         self.successful_files = 0
         self.successful_volume_mb = 0.0
         self.failed_files = 0
@@ -107,18 +107,19 @@ class DailyProcessingTracker:
         pending_volume = self.pending_volume_mb if include_pending else 0.0
         return base_volume + pending_volume + include_additional_mb
         
-    def add_pending_file(self, file_path, file_size_mb, file_hash, source_path):
+    def add_pending_file(self, file_path, file_size_mb, file_hash, source_path, relative_file_path):
         """
         Track a file that has been approved for processing.
         
         Args:
             file_path: Path to the file in quarantine
             file_size_mb: Size of the file in MB
-            file_hash: Unique hash identifier for the file
+            file_hash: Hash identifier for the file
             source_path: Original path of the file before quarantine
+            relative_file_path: Relative path from source root (rel_dir + source_file)
             
         Returns:
-            str: The file hash for later reference
+            str: The relative file path for later reference
         """
 
         logger = get_logger()
@@ -128,13 +129,12 @@ class DailyProcessingTracker:
         self.pending_files += 1
         self.pending_volume_mb += file_size_mb
         
-        # Get relative source path for better readability
-        rel_source_path = os.path.relpath(source_path, os.path.dirname(source_path))
-        
-        # Track the specific file using hash as identifier
-        self.file_records[file_hash] = {
+        # Track the specific file using relative file path as identifier
+        self.file_records[relative_file_path] = {
+            'file_hash': file_hash,
             'file_path': file_path,
-            'source_path': rel_source_path,
+            'source_path': source_path,
+            'relative_file_path': relative_file_path,
             'file_size_mb': file_size_mb,
             'status': 'pending',
             'quarantine_time': timestamp,
@@ -143,15 +143,15 @@ class DailyProcessingTracker:
             'error': None
         }
         
-        logger.debug(f"Added pending file: {file_path} ({file_size_mb:.2f} MB), hash: {file_hash}")
-        return file_hash  # Return hash for later reference
+        logger.debug(f"Added pending file: {file_path} ({file_size_mb:.2f} MB), hash: {file_hash}, key: {relative_file_path}")
+        return relative_file_path  # Return relative file path for later reference
         
-    def complete_pending_file(self, file_hash, outcome='success', error=None):
+    def complete_pending_file(self, relative_file_path, outcome='success', error=None):
         """
         Move a file from pending to processed status.
         
         Args:
-            file_hash: Unique hash identifier of the file to complete
+            relative_file_path: Relative file path identifier of the file to complete
             outcome: Processing outcome ('success', 'failed', or 'suspect')
             error: Error message if outcome is 'failed'
             
@@ -160,11 +160,11 @@ class DailyProcessingTracker:
         """
         logger = get_logger()
 
-        if file_hash not in self.file_records:
-            logger.warning(f"File hash {file_hash} not found in tracking records")
+        if relative_file_path not in self.file_records:
+            logger.warning(f"File path {relative_file_path} not found in tracking records")
             return False
             
-        record = self.file_records[file_hash]
+        record = self.file_records[relative_file_path]
         
         # Update file record
         record['status'] = 'completed'
@@ -392,7 +392,7 @@ class DailyProcessingTracker:
         if file_path is None:
             file_path = os.path.join(
                 self.data_directory,
-                f"export_{self.today.isoformat()}_{datetime.now().strftime('%H%M%S')}.yaml"
+                f"shuttle_transfer_{self.today.isoformat()}_{datetime.now().strftime('%H%M%S')}.yaml"
             )
         
         try:
@@ -404,8 +404,8 @@ class DailyProcessingTracker:
             }
             
             # Add each file record
-            for file_hash, record in self.file_records.items():
-                export_data['files'][file_hash] = record.copy()
+            for relative_path, record in self.file_records.items():
+                export_data['files'][relative_path] = record.copy()
                 
             # Write to file
             with open(file_path, 'w') as f:
@@ -427,16 +427,21 @@ class DailyProcessingTracker:
         logger = get_logger()
 
         # Handle any remaining pending files
-        pending_hashes = [hash for hash, record in self.file_records.items()
+        pending_paths = [path for path, record in self.file_records.items()
                         if record['status'] == 'pending']
         
-        if pending_hashes:
-            logger.warning(f"Found {len(pending_hashes)} pending files during shutdown")
-            for file_hash in pending_hashes:
-                self.complete_pending_file(file_hash, 'unknown', 'Process terminated before completion')
+        if pending_paths:
+            logger.warning(f"Found {len(pending_paths)} pending files during shutdown")
+            for file_path in pending_paths:
+                self.complete_pending_file(file_path, 'unknown', 'Process terminated before completion')
         
         # Save summary data for this run
         self._save_run_summary()
+        
+        # Export file records to YAML
+        export_path = self.export_to_yaml()
+        if export_path:
+            logger.info(f"Exported file records to {export_path}")
         
         # Save final totals
         self._save_daily_totals()

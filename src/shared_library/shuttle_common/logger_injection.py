@@ -110,16 +110,16 @@ def get_logger():
     # Resolve logging options
     resolved_logging_options = _resolve_logging_options()
     
-    # # Add call hierarchy to logger name if enabled
-    # if enable_hierarchy:
-    #     try:
-    #         call_chain, current = _get_call_hierarchy()
-    #         if call_chain and current:
-    #             chain_str = " → ".join(call_chain[-3:] + [current])
-    #             logger_name = f"{logger_name}[{chain_str}]"
-    #     except Exception:
-    #         # If hierarchy logging fails, don't break the main functionality
-    #         pass
+    # Add call hierarchy to logger name if log level is DEBUG
+    if resolved_logging_options.level == logging.DEBUG:
+        try:
+            call_chain, current = _get_call_hierarchy()
+            if call_chain and current:
+                chain_str = " → ".join(call_chain[-3:] + [current])
+                logger_name = f"{logger_name}[CALL STACK: {chain_str}]"
+        except Exception:
+            # If hierarchy logging fails, don't break the main functionality
+            pass
     
     # Create logger with hierarchy-enhanced name
     logger = setup_logging(logger_name, resolved_logging_options)

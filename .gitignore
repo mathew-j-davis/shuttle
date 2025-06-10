@@ -19,3 +19,6 @@ work
 setup_complete.txt
 test_area/
 config/
+.env
+config/
+

@@ -61,6 +61,7 @@ import datetime
 import random
 import string
 import argparse
+import json
 from unittest.mock import patch, MagicMock
 
 from tempfile import mkdtemp
@@ -113,6 +114,9 @@ class TestParameters:
         self.expected_throttled = kwargs.get('expected_throttled')
         self.expected_files_processed = kwargs.get('expected_files_processed')
         self.expected_throttle_reason = kwargs.get('expected_throttle_reason')
+        self.expected_successful_files = kwargs.get('expected_successful_files')
+        self.expected_failed_files = kwargs.get('expected_failed_files')
+        self.expected_suspect_files = kwargs.get('expected_suspect_files')
         self.description = kwargs.get('description')
         
         # Simulator settings
@@ -284,6 +288,9 @@ class TestParameters:
             'expected_throttled': False,
             'expected_files_processed': None,
             'expected_throttle_reason': None,
+            'expected_successful_files': None,
+            'expected_failed_files': None,
+            'expected_suspect_files': None,
             
             # Simulator settings
             'use_simulator': True,  # Default to using simulator
@@ -351,7 +358,8 @@ class TestParameters:
         This method automatically determines:
         1. Whether throttling is expected to occur
         2. How many files should be processed
-        3. What throttle reason message to expect
+        3. How many files of each type should be processed
+        4. What throttle reason message to expect
         
         You can call this after setting up parameters to have expectations calculated
         rather than explicitly specified.
@@ -369,6 +377,9 @@ class TestParameters:
                 # Set neutral expected outcomes
                 self.expected_throttled = None
                 self.expected_files_processed = None
+                self.expected_successful_files = None
+                self.expected_failed_files = None
+                self.expected_suspect_files = None
                 self.expected_throttle_reason = None
                 return self
         
@@ -379,6 +390,9 @@ class TestParameters:
         # Default to no throttling with all files processed
         self.expected_throttled = False
         self.expected_files_processed = total_file_count
+        self.expected_successful_files = self.clean_file_count  # All clean files should succeed
+        self.expected_failed_files = 0  # No files should fail in normal operation
+        self.expected_suspect_files = self.malware_file_count  # All malware should be caught
         self.expected_throttle_reason = None
         
         # No throttling checks if throttling is disabled
@@ -401,6 +415,14 @@ class TestParameters:
         if throttled:
             self.expected_throttled = True
             self.expected_files_processed = files_processed
+            # Calculate how many of each type will be processed (assuming clean files processed first)
+            if files_processed <= self.clean_file_count:
+                self.expected_successful_files = files_processed
+                self.expected_suspect_files = 0
+            else:
+                self.expected_successful_files = self.clean_file_count
+                self.expected_suspect_files = files_processed - self.clean_file_count
+            self.expected_failed_files = 0  # Files don't fail due to space throttling
             self.expected_throttle_reason = reason
             return self
         
@@ -412,6 +434,13 @@ class TestParameters:
         if throttled:
             self.expected_throttled = True
             self.expected_files_processed = files_processed
+            if files_processed <= self.clean_file_count:
+                self.expected_successful_files = files_processed
+                self.expected_suspect_files = 0
+            else:
+                self.expected_successful_files = self.clean_file_count
+                self.expected_suspect_files = files_processed - self.clean_file_count
+            self.expected_failed_files = 0  # Files don't fail due to space throttling
             self.expected_throttle_reason = reason
             return self
         
@@ -425,6 +454,13 @@ class TestParameters:
             if throttled:
                 self.expected_throttled = True
                 self.expected_files_processed = files_processed
+                if files_processed <= self.clean_file_count:
+                    self.expected_successful_files = files_processed
+                    self.expected_suspect_files = 0
+                else:
+                    self.expected_successful_files = self.clean_file_count
+                    self.expected_suspect_files = files_processed - self.clean_file_count
+                self.expected_failed_files = 0  # Files don't fail due to space throttling
                 self.expected_throttle_reason = reason
                 return self
             
@@ -432,6 +468,13 @@ class TestParameters:
         if self.max_files_per_day > 0 and remaining_files < total_file_count:
             self.expected_throttled = True
             self.expected_files_processed = min(remaining_files, total_file_count)
+            if self.expected_files_processed <= self.clean_file_count:
+                self.expected_successful_files = self.expected_files_processed
+                self.expected_suspect_files = 0
+            else:
+                self.expected_successful_files = self.clean_file_count
+                self.expected_suspect_files = self.expected_files_processed - self.clean_file_count
+            self.expected_failed_files = 0  # Files don't fail due to daily limit throttling
             self.expected_throttle_reason = "THROTTLE REASON: Daily Limit Reached"
             return self
             
@@ -441,6 +484,13 @@ class TestParameters:
             files_before_limit = int(remaining_volume / file_size_mb)
             self.expected_throttled = True
             self.expected_files_processed = min(files_before_limit, total_file_count)
+            if self.expected_files_processed <= self.clean_file_count:
+                self.expected_successful_files = self.expected_files_processed
+                self.expected_suspect_files = 0
+            else:
+                self.expected_successful_files = self.clean_file_count
+                self.expected_suspect_files = self.expected_files_processed - self.clean_file_count
+            self.expected_failed_files = 0  # Files don't fail due to volume throttling
             self.expected_throttle_reason = "THROTTLE REASON: Daily Limit Reached"
             return self
         
@@ -943,12 +993,63 @@ class TestShuttle(unittest.TestCase):
             'return_code': return_code,
             'elapsed_time': elapsed_time
         }
+    
+    def _parse_tracking_data(self, output):
+        """Parse tracking data from shuttle output"""
+        try:
+            start_marker = "__SHUTTLE_TRACKING_DATA__"
+            end_marker = "__END_TRACKING_DATA__"
+            
+            if start_marker not in output:
+                return None
+                
+            start_idx = output.find(start_marker) + len(start_marker)
+            end_idx = output.find(end_marker, start_idx)
+            
+            if end_idx == -1:
+                return None
+                
+            json_data = output[start_idx:end_idx].strip()
+            return json.loads(json_data)
+            
+        except Exception as e:
+            print(f"Error parsing tracking data: {e}")
+            return None
+    
     def _verify_test_results(self, params, result):
         """Verify the results of a throttling test"""
-        # Count files actually processed
-        files_processed = len([f for f in os.listdir(self.destination_dir) if f.startswith('clean_file_')])
+        # Get tracking data from shuttle output
+        tracking_data = self._parse_tracking_data(result['output'])
         
-        print(f"Files processed: {files_processed}")
+        if tracking_data:
+            # Use tracking data for accurate verification
+            successful_files = tracking_data.get('successful_files', 0)
+            failed_files = tracking_data.get('failed_files', 0)
+            suspect_files = tracking_data.get('suspect_files', 0)
+            pending_files = tracking_data.get('pending_files', 0)
+            total_files = tracking_data.get('total_files', 0)
+            total_volume_mb = tracking_data.get('total_volume_mb', 0)
+            
+            print(f"\nShuttle Processing Summary:")
+            print(f"  Successful files: {successful_files}")
+            print(f"  Failed files: {failed_files}")
+            print(f"  Suspect files: {suspect_files}")
+            print(f"  Pending files: {pending_files}")
+            print(f"  Total files: {total_files}")
+            print(f"  Total volume: {total_volume_mb:.2f} MB")
+            
+            # Also verify file locations for cross-validation
+            dest_clean_files = len([f for f in os.listdir(self.destination_dir) if f.startswith('clean_file_')])
+            hazard_files = len(os.listdir(self.hazard_dir)) if os.path.exists(self.hazard_dir) else 0
+            
+            print(f"\nFile Location Cross-Check:")
+            print(f"  Files in destination: {dest_clean_files}")
+            print(f"  Files in hazard archive: {hazard_files}")
+            
+            files_processed = total_files
+        else:
+            # No tracking data available - test fails
+            self.fail("No tracking data available from shuttle run. Cannot verify results accurately.")
         
         # Check if throttling occurred
         # Look for any of the common throttling messages
@@ -975,17 +1076,32 @@ class TestShuttle(unittest.TestCase):
         self.assertEqual(files_processed, params.expected_files_processed, 
                          f"Expected {params.expected_files_processed} files to be processed, but got {files_processed}")
         
-        # Verify throttling behavior
-        if params.expected_throttled:
-            self.assertTrue(throttled, "Expected throttling to occur, but it did not")
+        # Verify file type outcomes if tracking data available and expected values set
+        if tracking_data:
+            if hasattr(params, 'expected_successful_files') and params.expected_successful_files is not None:
+                self.assertEqual(successful_files, params.expected_successful_files,
+                                f"Expected {params.expected_successful_files} successful files, but got {successful_files}")
             
-            # Check for specific throttle reason if provided
-            if params.expected_throttle_reason:
-                # Simply check for the exact string specified in the test
-                self.assertIn(params.expected_throttle_reason, result['output'], 
-                             f"Expected throttle reason '{params.expected_throttle_reason}' not found in output")
-        else:
-            self.assertFalse(throttled, "Expected no throttling, but throttling occurred")
+            if hasattr(params, 'expected_suspect_files') and params.expected_suspect_files is not None:
+                self.assertEqual(suspect_files, params.expected_suspect_files,
+                                f"Expected {params.expected_suspect_files} suspect files, but got {suspect_files}")
+            
+            if hasattr(params, 'expected_failed_files') and params.expected_failed_files is not None:
+                self.assertEqual(failed_files, params.expected_failed_files,
+                                f"Expected {params.expected_failed_files} failed files, but got {failed_files}")
+        
+        # Verify throttling behavior
+        if params.expected_throttled is not None:
+            if params.expected_throttled:
+                self.assertTrue(throttled, "Expected throttling to occur, but it did not")
+                
+                # Check for specific throttle reason if provided
+                if params.expected_throttle_reason:
+                    # Simply check for the exact string specified in the test
+                    self.assertIn(params.expected_throttle_reason, result['output'], 
+                                 f"Expected throttle reason '{params.expected_throttle_reason}' not found in output")
+            else:
+                self.assertFalse(throttled, "Expected no throttling, but throttling occurred")
     
     def test_space_throttling(self):
         """Test throttling based on available disk space"""

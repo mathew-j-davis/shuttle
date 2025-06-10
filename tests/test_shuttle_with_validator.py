@@ -145,9 +145,9 @@ def validate_log_contains_patterns(test_instance: TestShuttleWithValidator, para
     """Validate that logs contain expected patterns"""
     
     required_patterns = [
-        "Starting Shuttle",
-        "Processing directory",
-        "files successfully processed"
+        "\"successful_files\": 5",
+        "\"failed_files\": 0",
+        "\"total_files\": 5"
     ]
     
     missing_patterns = []
@@ -208,9 +208,9 @@ def validate_daily_tracker_state(test_instance: TestShuttleWithValidator, params
                                result: Dict[str, Any], context: Dict[str, Any]) -> ValidationResult:
     """Validate the daily processing tracker state after test"""
     
-    # Find the tracker log file
+    # Find the tracker summary file
     tracker_files = [f for f in os.listdir(context['logs_dir']) 
-                     if f.startswith('daily_processing_')]
+                     if f.startswith('summary_') and f.endswith('.yaml')]
     
     if not tracker_files:
         return ValidationResult(False, "No daily processing tracker log found")
@@ -226,21 +226,29 @@ def validate_daily_tracker_state(test_instance: TestShuttleWithValidator, params
     if not tracker_data:
         return ValidationResult(False, "Tracker file is empty")
     
+    # Check totals section exists
+    if 'totals' not in tracker_data:
+        return ValidationResult(False, "Tracker file missing totals section")
+    
+    totals = tracker_data['totals']
+    
     # Check that pending files are cleared
-    pending_count = len(tracker_data.get('pending_files', {}))
+    pending_count = totals.get('pending_files', 0)
     if pending_count > 0:
         return ValidationResult(
             False,
             f"Tracker still has {pending_count} pending files",
-            {'pending_files': list(tracker_data['pending_files'].keys())}
+            {'pending_files': pending_count}
         )
     
     # Check file counts match expectations
-    success_count = tracker_data.get('successful_file_count', 0)
+    success_count = totals.get('successful_files', 0)
+    failed_count = totals.get('failed_files', 0)
+    suspect_count = totals.get('suspect_files', 0)
     
     return ValidationResult(
         True,
-        f"Tracker shows {success_count} successful files, 0 pending",
+        f"Tracker shows {success_count} successful, {failed_count} failed, {suspect_count} suspect files, 0 pending",
         {'tracker_data': tracker_data}
     )
 
@@ -285,6 +293,8 @@ class TestCustomValidation(unittest.TestCase):
                 validate_daily_tracker_state
             ]
             
+            #                
+
             # Run test with validators
             result = test_instance.run_test_scenario_with_validation(params, validators)
             

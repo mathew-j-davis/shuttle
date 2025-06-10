@@ -25,7 +25,7 @@ def is_using_simulator():
     due to patching.
     
     Returns:
-        bool: True if DEFAULT_DEFENDER_COMMAND has been patched, False otherwise
+        bool: True if DEFENDER_COMMAND has been patched, False otherwise
     """
     return DEFENDER_COMMAND != REAL_DEFENDER_COMMAND
 

@@ -85,7 +85,8 @@ def scan_and_process_file(
         quarantine_file_path,
         source_file_path,
         destination_file_path,
-        file_hash  # Hash is now passed in from quarantine_files_for_scanning
+        file_hash,           # Hash for other checks
+        relative_file_path   # relative_file_path for daily processing tracker
     ) = paths
 
     logger = get_logger()
@@ -224,8 +225,8 @@ def process_task_result(task_result, file_data, results, processed_count, failed
 
     logger = get_logger()
 
-    # Unpack file_data (which now includes the file_hash)
-    file_path, source_path, destination_path, file_hash = file_data
+    # Unpack file_data (now includes 5 elements)
+    file_path, source_path, destination_path, file_hash, relative_file_path = file_data
     
     processed_count += 1
     
@@ -239,11 +240,11 @@ def process_task_result(task_result, file_data, results, processed_count, failed
         if daily_processing_tracker is not None:
             try:
                 daily_processing_tracker.complete_pending_file(
-                    file_hash=file_hash,
+                    relative_file_path=relative_file_path,
                     outcome='failed',
                     error=str(task_result)
                 )
-                logger.debug(f"Marked file as failed in daily processing tracker: {file_path}, hash: {file_hash}")
+                logger.debug(f"Marked file as failed in daily processing tracker: {file_path}, key: {relative_file_path}")
             except Exception as e:
                 logger.warning(f"Failed to mark file as failed in tracker: {e}")
     else:
@@ -258,8 +259,8 @@ def process_task_result(task_result, file_data, results, processed_count, failed
         # Mark file as completed in the daily processing tracker
         if daily_processing_tracker is not None:
             try:
-                daily_processing_tracker.complete_pending_file(file_hash, outcome=outcome)
-                logger.debug(f"Marked file as {outcome} in daily processing tracker: {file_path}, hash: {file_hash}")
+                daily_processing_tracker.complete_pending_file(relative_file_path, outcome=outcome)
+                logger.debug(f"Marked file as {outcome} in daily processing tracker: {file_path}, key: {relative_file_path}")
             except Exception as e:
                 logger.warning(f"Failed to mark file as completed in tracker: {e}")
     
@@ -350,6 +351,9 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
                     file_hash = get_file_hash(quarantine_file_path)
                     logger.debug(f"Calculated hash for file: {quarantine_file_path}, hash: {file_hash}")
                     
+                    # Create unique relative path using existing variables
+                    relative_file_path = os.path.join(rel_dir, source_file)
+                    
                     # Track the file as pending now that it's been copied and hashed
                     if daily_processing_tracker:
                         file_size_mb = os.path.getsize(quarantine_file_path) / (1024 * 1024)
@@ -357,18 +361,20 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
                             file_path=quarantine_file_path,
                             file_size_mb=file_size_mb,
                             file_hash=file_hash,
-                            source_path=source_file_path
+                            source_path=source_file_path,
+                            relative_file_path=relative_file_path
                         )
-                        logger.debug(f"Added file to pending tracking: {quarantine_file_path} ({file_size_mb:.2f} MB), hash: {file_hash}")
+                        logger.debug(f"Added file to pending tracking: {quarantine_file_path} ({file_size_mb:.2f} MB), hash: {file_hash}, key: {relative_file_path}")
 
                     logger.info(f"Copied file {source_file_path} to quarantine: {quarantine_file_path}")
 
-                    # Add to processing queue with full paths and file hash
+                    # Add to processing queue with full paths, file hash, and relative file path
                     quarantine_files.append((
                         quarantine_file_path,       # Full path to the quarantined file
                         source_file_path,           # Full path to the original source file
                         destination_file_path,      # Full path to the destination file
-                        file_hash                   # File hash for tracking
+                        file_hash,                  # File hash for tracking
+                        relative_file_path          # Relative file path for complete_pending_file()
                     ))
                     
                 except Exception as e:

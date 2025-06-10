@@ -52,18 +52,21 @@ if [[ "$DEV_MODE" == true ]]; then
     DEFAULT_CONFIG_PATH="$PROJECT_ROOT/config/config.conf"
     DEFAULT_VENV_PATH="$PROJECT_ROOT/.venv"
     DEFAULT_TEST_WORK_DIR="$PROJECT_ROOT/test_area"
+    DEFAULT_TEST_CONFIG_PATH="$PROJECT_ROOT/test_area/test_config.conf"
     echo "Using development mode defaults..."
 elif [[ "$USER_MODE" == true ]]; then
     # User production defaults - under user's home directory
     DEFAULT_CONFIG_PATH="$HOME_DIR/.config/shuttle/config.conf"
     DEFAULT_VENV_PATH="$HOME_DIR/.local/share/shuttle/venv"
     DEFAULT_TEST_WORK_DIR="$HOME_DIR/.local/share/shuttle/test_area"
+    DEFAULT_TEST_CONFIG_PATH="$HOME_DIR/.local/share/shuttle/test_area/test_config.conf"
     echo "Using user production mode defaults..."
 else
     # System production defaults - shared paths for service accounts
     DEFAULT_CONFIG_PATH="/etc/shuttle/config.conf"
     DEFAULT_VENV_PATH="/opt/shuttle/venv"
     DEFAULT_TEST_WORK_DIR="/var/lib/shuttle"
+    DEFAULT_TEST_CONFIG_PATH="/var/lib/shuttle/test_config.conf"
     echo "Using system production mode defaults..."
 fi
 
@@ -71,6 +74,7 @@ fi
 CONFIG_PATH=${1:-$DEFAULT_CONFIG_PATH}
 VENV_PATH=${2:-$DEFAULT_VENV_PATH}
 TEST_WORK_DIR=${3:-$DEFAULT_TEST_WORK_DIR}
+TEST_CONFIG_PATH=${4:-$DEFAULT_TEST_CONFIG_PATH}
 
 # Create directories (but not venv yet)
 mkdir -p $(dirname "$CONFIG_PATH")
@@ -80,6 +84,7 @@ mkdir -p "$TEST_WORK_DIR"
 # Set environment variables for this session
 export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
 export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
+export SHUTTLE_TEST_CONFIG_PATH="$TEST_CONFIG_PATH"
 
 # Determine where to save shuttle_env.sh
 # Save the environment file in the same directory as the config file
@@ -95,11 +100,13 @@ cat > "$ENV_FILE_PATH" << EOF
 
 export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
 export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
+export SHUTTLE_TEST_CONFIG_PATH="$TEST_CONFIG_PATH"
 
 # Display current settings
 echo "Shuttle environment loaded:"
 echo "  SHUTTLE_CONFIG_PATH=\$SHUTTLE_CONFIG_PATH"
 echo "  SHUTTLE_TEST_WORK_DIR=\$SHUTTLE_TEST_WORK_DIR"
+echo "  SHUTTLE_TEST_CONFIG_PATH=\$SHUTTLE_TEST_CONFIG_PATH"
 EOF
 
 # Make the env file executable
@@ -115,6 +122,7 @@ PYTHONPATH=./src/shared_library:./src/shuttle_app:./src/shuttle_defender_test_ap
 # Shuttle environment variables
 SHUTTLE_CONFIG_PATH=$CONFIG_PATH
 SHUTTLE_TEST_WORK_DIR=$TEST_WORK_DIR
+SHUTTLE_TEST_CONFIG_PATH=$TEST_CONFIG_PATH
 
 # Development logging
 SHUTTLE_LOG_LEVEL=DEBUG
@@ -178,6 +186,7 @@ echo ""
 echo "Environment variables set:"
 echo "  SHUTTLE_CONFIG_PATH=$SHUTTLE_CONFIG_PATH"
 echo "  SHUTTLE_TEST_WORK_DIR=$SHUTTLE_TEST_WORK_DIR"
+echo "  SHUTTLE_TEST_CONFIG_PATH=$SHUTTLE_TEST_CONFIG_PATH"
 echo ""
 echo "Environment file created at: $ENV_FILE_PATH"
 
