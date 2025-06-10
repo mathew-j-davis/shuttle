@@ -45,31 +45,31 @@ For local development with project root as the base directory.
 
 1. **Set up environment**:
    ```bash
-   ./scripts/1_deployment/00_set_env.sh -e
+   ./scripts/1_deployment_steps/00_set_env.sh -e
    source shuttle_env.sh
    ```
 
 2. **Create virtual environment**:
    ```bash
-   ./scripts/1_deployment/04_create_venv.sh
+   ./scripts/1_deployment_steps/04_create_venv.sh
    source .venv/bin/activate
    ```
 
 3. **Install Python dependencies**:
    ```bash
-   ./scripts/1_deployment/06_install_python_dev_dependencies.sh
+   ./scripts/1_deployment_steps/06_install_python_dev_dependencies.sh
    ```
 
 4. **Set up configuration**:
    ```bash
-   python ./scripts/1_deployment/07_setup_config.py
+   python ./scripts/1_deployment_steps/07_setup_config.py
    ```
 
 5. **Install modules in development mode**:
    ```bash
-   ./scripts/1_deployment/08_install_shared.sh -e
-   ./scripts/1_deployment/09_install_defender_test.sh -e
-   ./scripts/1_deployment/10_install_shuttle.sh -e
+   ./scripts/1_deployment_steps/08_install_shared.sh -e
+   ./scripts/1_deployment_steps/09_install_defender_test.sh -e
+   ./scripts/1_deployment_steps/10_install_shuttle.sh -e
    ```
 
 #### VSCode Development Setup
@@ -78,7 +78,7 @@ For VSCode users, use the IDE's built-in Python environment management instead o
 
 1. **Set up environment**:
    ```bash
-   ./scripts/1_deployment/00_set_env.sh -e
+   ./scripts/1_deployment_steps/00_set_env.sh -e
    source shuttle_env.sh
    ```
 
@@ -91,19 +91,19 @@ For VSCode users, use the IDE's built-in Python environment management instead o
 3. **Install dependencies** (using VSCode terminal):
    ```bash
    # VSCode automatically activates the environment in its terminals
-   pip install -r scripts/1_deployment/requirements.txt
+   pip install -r scripts/1_deployment_steps/requirements.txt
    ```
 
 4. **Set up configuration**:
    ```bash
-   python ./scripts/1_deployment/07_setup_config.py
+   python ./scripts/1_deployment_steps/07_setup_config.py
    ```
 
 5. **Install modules in development mode**:
    ```bash
-   ./scripts/1_deployment/08_install_shared.sh -e
-   ./scripts/1_deployment/09_install_defender_test.sh -e
-   ./scripts/1_deployment/10_install_shuttle.sh -e
+   ./scripts/1_deployment_steps/08_install_shared.sh -e
+   ./scripts/1_deployment_steps/09_install_defender_test.sh -e
+   ./scripts/1_deployment_steps/10_install_shuttle.sh -e
    ```
 
 6. **Configure VSCode**:
@@ -116,38 +116,38 @@ For single-user installations using user's home directory (`~/.config/shuttle/`,
 
 1. **Set up environment**:
    ```bash
-   ./scripts/1_deployment/00_set_env.sh -u
+   ./scripts/1_deployment_steps/00_set_env.sh -u
    source ~/.config/shuttle/shuttle_env.sh
    ```
 
 2. **Install system dependencies** (if needed):
    ```bash
-   ./scripts/1_deployment/03_sudo_install_dependencies.sh
-   ./scripts/1_deployment/01_sudo_install_python.sh
-   ./scripts/1_deployment/05_sudo_install_clamav.sh
+   ./scripts/1_deployment_steps/03_sudo_install_dependencies.sh
+   ./scripts/1_deployment_steps/01_sudo_install_python.sh
+   ./scripts/1_deployment_steps/05_sudo_install_clamav.sh
    ```
 
 3. **Create virtual environment**:
    ```bash
-   ./scripts/1_deployment/04_create_venv.sh
+   ./scripts/1_deployment_steps/04_create_venv.sh
    source ~/.local/share/shuttle/venv/bin/activate
    ```
 
 4. **Install Python dependencies**:
    ```bash
-   ./scripts/1_deployment/06_install_python_dev_dependencies.sh
+   ./scripts/1_deployment_steps/06_install_python_dev_dependencies.sh
    ```
 
 5. **Set up configuration**:
    ```bash
-   python ./scripts/1_deployment/07_setup_config.py
+   python ./scripts/1_deployment_steps/07_setup_config.py
    ```
 
 6. **Install modules**:
    ```bash
-   ./scripts/1_deployment/08_install_shared.sh
-   ./scripts/1_deployment/09_install_defender_test.sh
-   ./scripts/1_deployment/10_install_shuttle.sh
+   ./scripts/1_deployment_steps/08_install_shared.sh
+   ./scripts/1_deployment_steps/09_install_defender_test.sh
+   ./scripts/1_deployment_steps/10_install_shuttle.sh
    ```
 
 ### 🏢 System Production Installation
@@ -156,38 +156,38 @@ For system-wide installations using service accounts (`/etc/shuttle/`, `/opt/shu
 
 1. **Set up environment**:
    ```bash
-   ./scripts/1_deployment/00_set_env.sh
+   ./scripts/1_deployment_steps/00_set_env.sh
    source /etc/shuttle/shuttle_env.sh
    ```
 
 2. **Install system dependencies**:
    ```bash
-   sudo ./scripts/1_deployment/03_sudo_install_dependencies.sh
-   sudo ./scripts/1_deployment/01_sudo_install_python.sh
-   sudo ./scripts/1_deployment/05_sudo_install_clamav.sh
+   sudo ./scripts/1_deployment_steps/03_sudo_install_dependencies.sh
+   sudo ./scripts/1_deployment_steps/01_sudo_install_python.sh
+   sudo ./scripts/1_deployment_steps/05_sudo_install_clamav.sh
    ```
 
 3. **Create virtual environment**:
    ```bash
-   ./scripts/1_deployment/04_create_venv.sh
+   ./scripts/1_deployment_steps/04_create_venv.sh
    source /opt/shuttle/venv/bin/activate
    ```
 
 4. **Install Python dependencies**:
    ```bash
-   ./scripts/1_deployment/06_install_python_dev_dependencies.sh
+   ./scripts/1_deployment_steps/06_install_python_dev_dependencies.sh
    ```
 
 5. **Set up configuration**:
    ```bash
-   python ./scripts/1_deployment/07_setup_config.py
+   python ./scripts/1_deployment_steps/07_setup_config.py
    ```
 
 6. **Install modules**:
    ```bash
-   ./scripts/1_deployment/08_install_shared.sh
-   ./scripts/1_deployment/09_install_defender_test.sh
-   ./scripts/1_deployment/10_install_shuttle.sh
+   ./scripts/1_deployment_steps/08_install_shared.sh
+   ./scripts/1_deployment_steps/09_install_defender_test.sh
+   ./scripts/1_deployment_steps/10_install_shuttle.sh
    ```
 
 7. **Create systemd service** (optional):

@@ -4,16 +4,20 @@ This guide explains how to run the shuttle test suite in various ways.
 
 ## Prerequisites
 
-1. Activate the virtual environment:
+1. Activate the shuttle environment:
    ```bash
-   source ./scripts/1_deployment/05_source_activate_venv.sh
+   # Load environment variables
+   source /path/to/config/shuttle_env.sh
+   # Activate virtual environment
+   source /path/to/config/shuttle_activate_virtual_environment.sh
    ```
 
 2. Ensure all modules are installed in development mode:
    ```bash
-   ./scripts/1_deployment/08_install_shared.sh -e
-   ./scripts/1_deployment/09_install_defender_test.sh -e
-   ./scripts/1_deployment/10_install_shuttle.sh -e
+   # Note: These scripts are automatically called by install.sh
+   ./scripts/1_deployment_steps/08_install_shared.sh -e
+   ./scripts/1_deployment_steps/09_install_defender_test.sh -e
+   ./scripts/1_deployment_steps/10_install_shuttle.sh -e
    ```
 
 ## Running All Tests

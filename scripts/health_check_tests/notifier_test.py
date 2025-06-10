@@ -15,7 +15,7 @@ parent_dir = str(Path(__file__).resolve().parent.parent)
 sys.path.append(parent_dir)
 
 # Import the Notifier class
-sys.path.append(os.path.join(parent_dir, "1_deployment"))
+sys.path.append(os.path.join(parent_dir, "1_deployment_steps"))
 from common.notifier import Notifier
 
 def setup_logging():

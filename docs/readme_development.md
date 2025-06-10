@@ -25,7 +25,7 @@ shuttle/
 │           └── read_write_ledger.py      # Version tracking
 ├── scripts/                    # All utility scripts
 │   ├── 0_key_generation/       # Key generation script
-│   ├── 1_deployment/           # Installation scripts (numbered 01-10)
+│   ├── 1_deployment_steps/           # Installation scripts (numbered 01-10)
 │   ├── health_check_tests/     # Health check and testing scripts
 │   └── vscode_debugging/      # VS Code debugging configurations
 ├── example/                    # Example configurations and files
@@ -80,7 +80,7 @@ shuttle/
 
 #### Setup Scripts
 
-The deployment scripts in `scripts/1_deployment/` have specific requirements:
+The deployment scripts in `scripts/1_deployment_steps/` have specific requirements:
 
 - **Scripts requiring sudo**:
   - `03_sudo_install_dependencies.sh` - System packages installation
@@ -106,7 +106,7 @@ The deployment scripts in `scripts/1_deployment/` have specific requirements:
 
 #### Environment Variables
 
-The application uses these environment variables (set by `scripts/1_deployment/00_set_env.sh`):
+The application uses these environment variables (set by `scripts/1_deployment_steps/00_set_env.sh`):
 
 - `SHUTTLE_CONFIG_PATH` - Path to the configuration file
 - `SHUTTLE_VENV_PATH` - Path to the virtual environment
@@ -144,23 +144,87 @@ Shuttle uses GPG encryption to securely handle potential malware:
 The `scripts/0_key_generation/00_generate_shuttle_keys.sh` script generates a GPG key pair:
 
 ```bash
+# Basic usage (production keys)
+scripts/0_key_generation/00_generate_shuttle_keys.sh
+
 # Generates:
-# - shuttle_public.gpg - Public key to deploy on the target machine
+# - shuttle_public.gpg - Public key to deploy on the target machine  
 # - shuttle_private.gpg - Private key to keep secure elsewhere
+```
+
+#### Generating Test Keys
+
+For development and testing, generate test-specific keys:
+
+```bash
+# Generate test keys (safe for development)
+scripts/0_key_generation/00_generate_shuttle_keys.sh \
+    --key-name "Test Key <test@shuttle.local>" \
+    --key-comment "Shuttle Test Key - DO NOT USE IN PRODUCTION" \
+    --output-dir test_area \
+    --public-filename test_shuttle_public.gpg \
+    --private-filename test_shuttle_private.gpg
+```
+
+**Key Differences: Production vs Test Keys**
+
+| Aspect | Production Keys | Test Keys |
+|--------|----------------|-----------|
+| **Name** | "Shuttle Linux Hazard Archive Encryption Key" | "Test Key <test@shuttle.local>" |
+| **Comment** | "Shuttle Linux Hazard Archive Encryption Key" | "Shuttle Test Key - DO NOT USE IN PRODUCTION" |
+| **Location** | System config directory | `test_area/` or temp directory |
+| **Passphrase** | None (automated systems) | None (automated testing) |
+| **Security** | Production security required | Development use only |
+
+#### Key Generation Script Options
+
+```bash
+scripts/0_key_generation/00_generate_shuttle_keys.sh [options]
+
+Options:
+  --key-name NAME           Key name/email (default: production name)
+  --key-comment COMMENT     Key comment (default: production comment)  
+  --output-dir DIR          Output directory (default: current directory)
+  --public-filename FILE    Public key filename (default: shuttle_public.gpg)
+  --private-filename FILE   Private key filename (default: shuttle_private.gpg)
+  --help                   Show help message
+
+Examples:
+  # Production keys
+  scripts/0_key_generation/00_generate_shuttle_keys.sh
+  
+  # Test keys for development
+  scripts/0_key_generation/00_generate_shuttle_keys.sh \
+      --key-name "Test Key <test@shuttle.local>" \
+      --output-dir test_area
+      
+  # Custom location and name
+  scripts/0_key_generation/00_generate_shuttle_keys.sh \
+      --key-name "Custom <custom@company.com>" \
+      --output-dir /secure/location \
+      --public-filename company_public.gpg
 ```
 
 **Important security notes:**
 - The private key should NEVER be deployed on the target machine
 - Only the public key is needed on the machine running Shuttle
+- Test keys should NEVER be used in production environments
+- Production keys should be generated on a secure machine and the private key stored securely
 
 #### Configuring the Public Key Path
 
 In the settings file, add the path to your public key:
 
+**Production Configuration:**
 ```conf
 [paths]
-...
-hazard_encryption_key_path = /path/to/shuttle_public.gpg
+hazard_encryption_key_path = /etc/shuttle/shuttle_public.gpg
+```
+
+**Test Configuration:**
+```conf
+[paths]
+hazard_encryption_key_path = /path/to/test_area/test_shuttle_public.gpg
 ```
 
 #### How Encryption Works
@@ -169,6 +233,31 @@ When Shuttle identifies a potential malware file:
 1. The malware detection tool first attempts to handle it
 2. If automatic handling isn't possible, Shuttle encrypts the file using the public GPG key
 3. The encrypted file can only be decrypted using the private key
+
+#### Managing GPG Keys
+
+**List keys in your keyring:**
+```bash
+gpg --list-keys
+```
+
+**Import a public key:**
+```bash
+gpg --import shuttle_public.gpg
+```
+
+**Verify key fingerprint:**
+```bash
+gpg --fingerprint "Shuttle Linux"
+# or for test keys:
+gpg --fingerprint "Test Key"
+```
+
+**Remove test keys (cleanup):**
+```bash
+# Remove from keyring after testing
+gpg --delete-keys "Test Key <test@shuttle.local>"
+```
 
 ## Key Workflows
 
@@ -336,7 +425,7 @@ The tracker unit tests demonstrate:
    - **Purpose:** Contains all Python modules
 
 2. **Deployment Scripts**
-   - **Location:** `/opt/shuttle/scripts/1_deployment`
+   - **Location:** `/opt/shuttle/scripts/1_deployment_steps`
    - **Purpose:** Installation scripts (01-10)
 
 3. **Temporary Setup Scripts**

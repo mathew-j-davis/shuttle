@@ -36,7 +36,8 @@ This document outlines a structured approach for AI assistants to understand and
 3. **Testing Components**
    - Understand `tests/test_shuttle_multithreaded.py` for throttling test structure
    - Examine `tests/run_shuttle_with_simulator.py` for the MDATP simulator integration
-   - Review `tests/README_multithreaded_tests.md` for test documentation
+   - Review `tests/README.md` for comprehensive test environment setup and GPG key generation
+   - Review `tests/run.md` for detailed test execution guide
    - Study `tests/test_daily_processing_tracker.py` for file tracking test implementation
    - Check `tests/run_configurable_throttling_test.py` for configurable test runner
 

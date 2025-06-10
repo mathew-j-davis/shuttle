@@ -134,7 +134,10 @@ Throttling system monitors available disk space in all relevant directories and 
 ### Activating the Environment
 
 ```bash
-source ./scripts/1_deployment/05_source_activate_venv.sh
+# For virtual environment activation, use the generated activation script:
+source /path/to/config/shuttle_activate_virtual_environment.sh
+# or use the environment script first:
+source /path/to/config/shuttle_env.sh
 ```
 
 ### Execution Methods
@@ -158,13 +161,23 @@ You don't need to provide parameters if they're configured in the settings file.
 
 ## Documentation Index
 
+### Core Documentation
 - [Architecture](docs/readme_architecture.md) - System design and component interactions
 - [Modules](docs/readme_modules.md) - Detailed description of key modules
 - [Configuration](docs/readme_configuration.md) - Configuration options and settings
-- [Development](docs/readme_development.md) - Guide for developers
 - [Command Reference](docs/readme_command_reference.md) - Command-line arguments and settings
+
+### Setup and Deployment
+- [Development](docs/readme_development.md) - Guide for developers including GPG key generation
 - [Deployment Notes](docs/readme_deployment_notes.md) - Instructions for deployment
+- [Environment Files](docs/environment_files.md) - Environment variable configuration
 - [Cron Notes](docs/readme_cron_notes.md) - Setting up scheduled tasks
+
+### Testing and Development
+- [Testing Framework](tests/README.md) - Test suite overview, environment setup, and GPG key generation for tests
+- [Test Execution Guide](tests/run.md) - Detailed guide for running tests
 - [VSCode Debugging](docs/readme_vscode_remote_python_debugging.md) - Remote debugging guide
+
+### Additional Resources
 - [Samba Configuration](docs/samba-config.md) - Setting up Windows file shares
 - [Process Diagram](dev_notes/updated_shuttle_process_diagram.md) - Detailed process flow diagram

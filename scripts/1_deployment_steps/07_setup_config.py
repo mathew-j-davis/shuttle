@@ -12,9 +12,9 @@ def get_required_env_var(var_name, description):
         print(f"ERROR: {var_name} environment variable is not set.")
         print(f"This variable should contain the path to the {description}.")
         print(f"Please run the environment setup script first:")
-        print(f"  ./scripts/1_deployment/00_set_env.sh -e    # For development")
-        print(f"  ./scripts/1_deployment/00_set_env.sh -u    # For user production")
-        print(f"  ./scripts/1_deployment/00_set_env.sh       # For system production")
+        print(f"  ./scripts/1_deployment_steps/00_set_env.sh -e    # For development")
+        print(f"  ./scripts/1_deployment_steps/00_set_env.sh -u    # For user production")
+        print(f"  ./scripts/1_deployment_steps/00_set_env.sh       # For system production")
         print(f"Then source the generated environment file before running this script.")
         exit(1)
     return value

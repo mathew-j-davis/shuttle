@@ -127,6 +127,123 @@ To add new tests:
 4. Add test methods with names starting with `test_`
 5. The test runner will automatically discover and run these tests
 
+## Test Environment Setup
+
+Before running tests, you need to set up the test environment with proper configuration and GPG keys.
+
+### Quick Setup
+
+For development/testing, run the setup script:
+
+```bash
+# Set up test environment (from project root)
+python scripts/1_deployment_steps/07_setup_config.py --output-dir test_area
+
+# Generate test GPG keys
+scripts/0_key_generation/00_generate_shuttle_keys.sh \
+    --key-name "Test Key <test@shuttle.local>" \
+    --key-comment "Shuttle Test Key - DO NOT USE IN PRODUCTION" \
+    --output-dir test_area \
+    --public-filename test_shuttle_public.gpg \
+    --private-filename test_shuttle_private.gpg
+```
+
+### Environment Variables for Testing
+
+The test suite uses these environment variables:
+
+- `SHUTTLE_TEST_WORK_DIR`: Directory for test files and logs (default: `./test_area/`)
+- `SHUTTLE_TEST_CONFIG_PATH`: Path to test configuration file (default: `./test_area/test_config.conf`)
+- `SHUTTLE_CONFIG_PATH`: Path to main config file (may be different from test config)
+- `PYTHONPATH`: Must include project source directories
+
+### Test Configuration File
+
+Tests require a configuration file with test-specific paths. The `07_setup_config.py` script can generate one:
+
+```bash
+# Create test configuration
+python scripts/1_deployment_steps/07_setup_config.py \
+    --output-dir test_area \
+    --source-path test_area/source \
+    --destination-path test_area/destination \
+    --quarantine-path test_area/quarantine \
+    --hazard-archive-path test_area/hazard \
+    --hazard-encryption-key-path test_area/test_shuttle_public.gpg \
+    --log-path test_area/logs \
+    --log-level DEBUG \
+    --max-scan-threads 1 \
+    --no-notify
+```
+
+### GPG Keys for Testing
+
+Tests that involve malware detection require GPG keys for encrypting suspect files:
+
+#### Generate Test Keys
+
+```bash
+# Generate test-specific GPG keys (safe for testing)
+scripts/0_key_generation/00_generate_shuttle_keys.sh \
+    --key-name "Test Key <test@shuttle.local>" \
+    --key-comment "Shuttle Test Key - DO NOT USE IN PRODUCTION" \
+    --output-dir test_area \
+    --public-filename test_shuttle_public.gpg \
+    --private-filename test_shuttle_private.gpg
+```
+
+**Important**: Test keys are generated without a passphrase (`%no-protection`) for automated testing. Never use test keys in production.
+
+#### Test Key Characteristics
+
+- **Name**: "Test Key <test@shuttle.local>"
+- **Comment**: "Shuttle Test Key - DO NOT USE IN PRODUCTION"
+- **Type**: RSA 4096-bit
+- **Expiration**: Never expires
+- **Passphrase**: None (for automated testing)
+
+### Environment Setup Script
+
+For convenience, create a test environment setup script:
+
+```bash
+#!/bin/bash
+# setup_test_env.sh
+
+# Set up test directories
+mkdir -p test_area/{source,destination,quarantine,hazard,logs}
+
+# Generate test config
+python scripts/1_deployment_steps/07_setup_config.py \
+    --output-dir test_area \
+    --source-path test_area/source \
+    --destination-path test_area/destination \
+    --quarantine-path test_area/quarantine \
+    --hazard-archive-path test_area/hazard \
+    --hazard-encryption-key-path test_area/test_shuttle_public.gpg \
+    --log-path test_area/logs \
+    --log-level DEBUG \
+    --max-scan-threads 1 \
+    --no-notify
+
+# Generate test GPG keys
+scripts/0_key_generation/00_generate_shuttle_keys.sh \
+    --key-name "Test Key <test@shuttle.local>" \
+    --key-comment "Shuttle Test Key - DO NOT USE IN PRODUCTION" \
+    --output-dir test_area \
+    --public-filename test_shuttle_public.gpg \
+    --private-filename test_shuttle_private.gpg
+
+# Set environment variables
+export SHUTTLE_TEST_WORK_DIR="$(pwd)/test_area"
+export SHUTTLE_TEST_CONFIG_PATH="$(pwd)/test_area/test_config.conf"
+export PYTHONPATH="$(pwd)/src/shared_library:$(pwd)/src/shuttle_app:$(pwd)/src/shuttle_defender_test_app:$(pwd)/tests"
+
+echo "Test environment set up successfully!"
+echo "SHUTTLE_TEST_WORK_DIR: $SHUTTLE_TEST_WORK_DIR"
+echo "SHUTTLE_TEST_CONFIG_PATH: $SHUTTLE_TEST_CONFIG_PATH"
+```
+
 ## Test Dependencies
 
 Tests use the standard library `unittest` framework and make extensive use of the `unittest.mock` module for mocking external dependencies.
