@@ -156,7 +156,7 @@ check_venv_status() {
     echo "   - Recommended for isolated installation"
     echo "   - Script will create and activate .venv"
     echo ""
-    echo "3) I'll set up my own virtual environment"
+    echo "X) I'll set up my own virtual environment"
     echo "   - Exit now to create and activate your venv"
     echo "   - Then run this script again"
     echo ""
@@ -194,7 +194,7 @@ check_venv_status() {
             IN_VENV=false
             echo -e "${GREEN}Selected: Script will create virtual environment${NC}"
             ;;
-        3)
+        3|[Xx])
             echo ""
             echo "Please set up your virtual environment:"
             echo ""
@@ -578,7 +578,7 @@ collect_environment_variables() {
     echo ""
     
     echo "Virtual environment path:"
-    echo "Location where Python virtual environment will be created."
+    echo "Location of Python virtual environment."
     echo ""
     read -p "[$DEFAULT_VENV]: " VENV_PATH
     VENV_PATH=${VENV_PATH:-$DEFAULT_VENV}
