@@ -881,6 +881,7 @@ execute_installation() {
     # Set environment variables for script duration
     export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
     export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
+    export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
     
     echo "Setting up environment variables..."
     
@@ -956,6 +957,7 @@ execute_installation() {
     # Re-export the environment variables in this script's context
     export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
     export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
+    export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
     
     # Activate venv for our use if it was created
     if [[ "$CREATE_VENV" == "true" ]] && [[ -f "$VENV_PATH/bin/activate" ]]; then
@@ -1214,6 +1216,7 @@ Virtual Environment Type: $VENV_TYPE
 Environment Variables:
   SHUTTLE_CONFIG_PATH=$CONFIG_PATH
   SHUTTLE_TEST_WORK_DIR=$TEST_WORK_DIR
+  SHUTTLE_TEST_CONFIG_PATH=$TEST_WORK_DIR/test_config.conf
 
 Configuration:
   Source: $SOURCE_PATH
