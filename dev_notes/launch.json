@@ -10,6 +10,7 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
+            "justMyCode": true,
             "args": "${command:pickArgs}"
         },
         
@@ -25,7 +26,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": ["-k", "test_daily_volume_limit"]
         },
@@ -41,7 +42,25 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/test_area",
+                "SHUTTLE_TEST_CONFIG_PATH": "${workspaceFolder}/test_area/test_config.conf"
+            },
+            "args": ["-k", "test_throttling_disabled"]
+        },
+        {
+            "name": "Debug test_throttling_disabled ALT",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/test_area",
+                "SHUTTLE_TEST_CONFIG_PATH": "${workspaceFolder}/test_area/test_config.conf"
             },
             "args": ["-k", "test_throttling_disabled"]
         },
@@ -57,7 +76,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": ["-k", "test_daily_file_count_limit_no_existing_log"]
         },
@@ -73,7 +92,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": ["-k", "test_daily_file_count_limit_with_existing_log"]
         },
@@ -83,13 +102,13 @@
             "request": "launch",
             "program": "${workspaceFolder}/tests/test_shuttle.py",
             "console": "integratedTerminal",
-            "justMyCode": false,
+            "justMyCode": true,
             "cwd": "${workspaceFolder}",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": ["-k", "test_space_throttling"]
         },
@@ -105,7 +124,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": [
                 "-k", "test_path_specific_mock_space"
@@ -123,7 +142,7 @@
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
                 "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
             },
             "args": []
         },
@@ -137,14 +156,15 @@
             "cwd": "${workspaceFolder}",
             "env": {
                 "PYTHONPATH": "${workspaceFolder}:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
-                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config/config.conf",
                 "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
-                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/work"
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/test_area/",
+                "SHUTTLE_TEST_CONFIG_PATH": "${workspaceFolder}/test_area/test_config.conf"
             },
             "args": [
                 "--thread-count", "1",
                 "--clean-file-count", "5",
-                "--malware-file-count", "0",
+                "--malware-file-count", "2",
                 "--file-size-kb", "1024",
                 "--max-files-per-day", "0",
                 "--max-volume-per-day-mb", "0",
@@ -152,10 +172,205 @@
                 "--initial-files", "0",
                 "--initial-volume-mb", "0.0",
                 "--mock-free-space-quarantine-mb", "5000",
-                "--mock-free-space-destination-mb", "103",
+                "--mock-free-space-destination-mb", "200",
                 "--mock-free-space-hazard-mb", "5000"
             ]
-        }
+        },
+        {
+            "name": "Debug Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/run_tests.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/test_area/",
+                "SHUTTLE_TEST_CONFIG_PATH": "${workspaceFolder}/test_area/test_config.conf"
+            },
+            "args": []
+        },
+        {
+            "name": "Debug Hierarchy Logging - Specific Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_hierarchy_logging.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["-k", "test_call_stack_in_debug_mode"]
+        },
+        {
+            "name": "Debug Shuttle Hierarchy Integration Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle_hierarchy_integration.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": []
+        },
+        {
+            "name": "Debug Enhanced Test with Validators",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle_with_validator.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": []
+        },
+        {
+            "name": "Debug Enhanced Test - Custom Validation",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_shuttle_with_validator.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["-k", "test_with_custom_validators"]
+        },
+        {
+            "name": "Debug Hierarchy Integration - Module Style",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "unittest",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["tests.test_hierarchy_logging_integration", "-v"]
+        },
+        {
+            "name": "Debug Hierarchy Integration - Program Style",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_hierarchy_logging_integration.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": []
+        },
+        {
+            "name": "Debug Hierarchy Integration - DEBUG Mode Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_hierarchy_logging_integration.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["-k", "test_hierarchy_logging_in_debug_mode"]
+        },
+        {
+            "name": "Debug Hierarchy Integration - INFO Mode Test",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_hierarchy_logging_integration.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["-k", "test_hierarchy_logging_not_in_info_mode"]
+        },
+        {
+            "name": "Debug test_with_custom_validators",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "unittest",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/test_area/",
+                "SHUTTLE_TEST_CONFIG_PATH": "${workspaceFolder}/test_area/test_config.conf"
+            },
+            "args": ["tests.test_shuttle_with_validator.TestCustomValidation.test_with_custom_validators", "-v"]
+        },
+        {
+            "name": "Add Hierarchy Logging to shuttle_common",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/add_hierarchy_logging.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": []
+        },
+        {
+            "name": "Test Hierarchy Logging - DEBUG Mode",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/tests/test_hierarchy_logging_integration.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/tests",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_WORK_DIR": "${workspaceFolder}/work"
+            },
+            "args": ["-k", "test_hierarchy_logging_in_debug_mode"]
+        },
+
     ]
 }
 
