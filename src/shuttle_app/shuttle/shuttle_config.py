@@ -161,7 +161,7 @@ def parse_shuttle_config() -> ShuttleConfig:
     # Parse throttle settings
     config.throttle = get_setting_from_arg_or_file(args, 'throttle', 'settings', 'throttle', False, bool, settings_file_config)
     config.throttle_free_space_mb = get_setting_from_arg_or_file(args, 'throttle_free_space_mb', 'settings', 'throttle_free_space_mb', 10000, int, settings_file_config)
-    config.daily_processing_tracker_logs_path = get_setting_from_arg_or_file(args, 'daily_processing_tracker_logs_path', 'settings', 'daily_processing_tracker_logs_path', None, None, settings_file_config)
+    config.daily_processing_tracker_logs_path = get_setting_from_arg_or_file(args, 'daily_processing_tracker_logs_path', 'paths', 'daily_processing_tracker_logs_path', None, None, settings_file_config)
     
     # Throttle settings specific to Shuttle
     config.throttle_max_file_volume_per_day_mb = get_setting_from_arg_or_file(args, 'throttle_max_file_volume_per_day_mb', 'settings', 'throttle_max_file_volume_per_day_mb', 0, int, settings_file_config)

@@ -288,7 +288,7 @@ def parse_common_config(args=None):
     # to get settings based on priority
     
     # Parse logging settings
-    config.log_path = get_setting_from_arg_or_file(args, 'log_path', 'logging', 'log_path', None, None, settings_file_config)
+    config.log_path = get_setting_from_arg_or_file(args, 'log_path', 'paths', 'log_path', None, None, settings_file_config)
     
     # Get log level as a string and convert to logging constant
     log_level_str = get_setting_from_arg_or_file(args, 'log_level', 'logging', 'log_level', 'INFO', None, settings_file_config)
