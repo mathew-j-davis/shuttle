@@ -103,10 +103,6 @@ os.makedirs(hazard_archive_dir, exist_ok=True)
 # Create config directory if it doesn't exist
 os.makedirs(config_dir, exist_ok=True)
 
-# Create subdirectory in source for organization
-inner_dir = os.path.join(source_dir, 'inner/') 
-os.makedirs(inner_dir, exist_ok=True)
-
 # Create config file if it doesn't exist
 if not os.path.exists(settings_file):
     # Create new config file

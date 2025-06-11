@@ -75,7 +75,7 @@ def parse_shuttle_config() -> ShuttleConfig:
     parser.add_argument('--destination-path', help='Path to the destination directory')
     parser.add_argument('--quarantine-path', help='Path to the quarantine directory')
 
-    parser.add_argument('--test-source-write-access', action='store_true', help='Test write access to the source directory')
+    parser.add_argument('--test-source-write-access', action='store_true', help='Test write access to the source directory',default=None)
     
     # Mock space settings for testing
     parser.add_argument('--mock-free-space-mb', type=int, help='Mock free space in MB for all directories')
@@ -84,7 +84,8 @@ def parse_shuttle_config() -> ShuttleConfig:
     parser.add_argument('--mock-free-space-hazard-mb', type=int, help='Mock free space in MB for hazard directory')
     parser.add_argument('--delete-source-files-after-copying', 
                         action='store_true',
-                        help='Delete the source files after copying them to the destination')
+                        help='Delete the source files after copying them to the destination',
+                        default=None)
     parser.add_argument('--max-scan-threads', type=int, help='Maximum number of parallel scans')
     parser.add_argument('--lock-file', help='Optional: Path to lock file to prevent multiple instances')
     parser.add_argument('--hazard-archive-path', help='Path to the hazard archive directory')
