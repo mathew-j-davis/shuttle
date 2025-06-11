@@ -370,6 +370,45 @@
             },
             "args": ["-k", "test_hierarchy_logging_in_debug_mode"]
         },
+        {
+            "name": "Debug run-shuttle (shuttle.shuttle:main)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "shuttle.shuttle",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/test_area/",
+                "SHUTTLE_TEST_CONFIG_PATH": "${workspaceFolder}/test_area/test_config.conf"
+            },
+            "args": []
+        },
+        {
+            "name": "Debug run-shuttle with args",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "shuttle.shuttle",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}",
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}/src/shared_library:${workspaceFolder}/src/shuttle_app:${workspaceFolder}/tests/mdatp_simulator_app:${env:PYTHONPATH}",
+                "SHUTTLE_CONFIG_PATH": "${workspaceFolder}/config/config.conf",
+                "SHUTTLE_VENV_PATH": "${workspaceFolder}/.venv",
+                "SHUTTLE_TEST_WORK_DIR": "${workspaceFolder}/test_area/",
+                "SHUTTLE_TEST_CONFIG_PATH": "${workspaceFolder}/test_area/test_config.conf"
+            },
+            "args": [
+                "--source-path", "${workspaceFolder}/work/incoming",
+                "--destination-path", "${workspaceFolder}/work/processed",
+                "--quarantine-path", "${workspaceFolder}/work/quarantine",
+                "--log-level", "DEBUG"
+            ]
+        }
 
     ]
 }
