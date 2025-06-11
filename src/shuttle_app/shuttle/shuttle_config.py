@@ -179,7 +179,7 @@ def parse_shuttle_config() -> ShuttleConfig:
     # If daily_processing_tracker_logs_path is not explicitly set, use log_path from common config
     # or fall back to default
     if not config.daily_processing_tracker_logs_path:
-        config.daily_processing_tracker_logs_path = getattr(config, 'log_path', '/var/log/shuttle')
+        config.daily_processing_tracker_logs_path = config.log_path
     
     # Validate required settings
     if not config.source_path:
@@ -188,5 +188,6 @@ def parse_shuttle_config() -> ShuttleConfig:
         raise ValueError("Destination path is required")
     if not config.quarantine_path:
         raise ValueError("Quarantine path is required")
-    
+    if not config.daily_processing_tracker_logs_path:
+        raise ValueError("Output path for daily processing tracker is required")
     return config
