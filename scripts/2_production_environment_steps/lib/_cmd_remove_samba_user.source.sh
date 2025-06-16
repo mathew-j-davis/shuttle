@@ -107,11 +107,8 @@ remove_samba_user_core() {
     fi
     
     # Remove user from Samba
-    if sudo smbpasswd -x "$username" >/dev/null 2>&1; then
-        log INFO "Successfully removed Samba user '$username'"
-    else
-        error_exit "Failed to remove Samba user '$username'"
-    fi
+    local cmd="sudo smbpasswd -x \"$username\" >/dev/null 2>&1"
+    execute_or_dryrun "$cmd" "Successfully removed Samba user '$username'" "Failed to remove Samba user '$username'" || error_exit "Failed to remove Samba user '$username'"
     
     # Verify user was removed
     if sudo pdbedit -L 2>/dev/null | grep -q "^$username:"; then

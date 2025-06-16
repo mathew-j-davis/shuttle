@@ -65,17 +65,13 @@ start_samba_core() {
     
     # Start smbd service
     log INFO "Starting smbd service..."
-    if sudo systemctl start smbd; then
-        log INFO "smbd service started successfully"
-    else
-        error_exit "Failed to start smbd service"
-    fi
+    local cmd="sudo systemctl start smbd"
+    execute_or_dryrun "$cmd" "smbd service started successfully" "Failed to start smbd service" || error_exit "Failed to start smbd service"
     
     # Start nmbd service
     log INFO "Starting nmbd service..."
-    if sudo systemctl start nmbd; then
-        log INFO "nmbd service started successfully"
-    else
+    local cmd="sudo systemctl start nmbd"
+    if ! execute_or_dryrun "$cmd" "nmbd service started successfully" "Failed to start nmbd service"; then
         log WARN "Failed to start nmbd service (may not be critical)"
     fi
     

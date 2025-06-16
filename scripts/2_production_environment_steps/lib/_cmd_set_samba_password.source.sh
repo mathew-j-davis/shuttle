@@ -108,19 +108,13 @@ set_samba_password_core() {
     if [[ -n "$password" ]]; then
         # Use provided password
         log INFO "Setting Samba password for user '$username' from parameter"
-        if printf '%s\n%s\n' "$password" "$password" | sudo smbpasswd -s "$username" >/dev/null 2>&1; then
-            log INFO "Successfully updated Samba password for '$username'"
-        else
-            error_exit "Failed to update Samba password for '$username'"
-        fi
+        local cmd="printf '%s\\n%s\\n' \"$password\" \"$password\" | sudo smbpasswd -s \"$username\" >/dev/null 2>&1"
+        execute_or_dryrun "$cmd" "Successfully updated Samba password for '$username'" "Failed to update Samba password for '$username'" || error_exit "Failed to update Samba password for '$username'"
     else
         # Interactive password prompt
         log INFO "Setting Samba password for user '$username' (interactive prompt)"
-        if sudo smbpasswd "$username"; then
-            log INFO "Successfully updated Samba password for '$username'"
-        else
-            error_exit "Failed to update Samba password for '$username'"
-        fi
+        local cmd="sudo smbpasswd \"$username\""
+        execute_or_dryrun "$cmd" "Successfully updated Samba password for '$username'" "Failed to update Samba password for '$username'" || error_exit "Failed to update Samba password for '$username'"
     fi
     
     return 0

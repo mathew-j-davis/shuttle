@@ -109,9 +109,8 @@ stop_samba_core() {
     # Stop smbd service
     if [[ "$smbd_running" == "true" ]]; then
         log INFO "Stopping smbd service..."
-        if sudo systemctl stop smbd; then
-            log INFO "smbd service stopped successfully"
-        else
+        local cmd="sudo systemctl stop smbd"
+        if ! execute_or_dryrun "$cmd" "smbd service stopped successfully" "Failed to stop smbd service"; then
             log ERROR "Failed to stop smbd service"
         fi
     fi
@@ -119,9 +118,8 @@ stop_samba_core() {
     # Stop nmbd service
     if [[ "$nmbd_running" == "true" ]]; then
         log INFO "Stopping nmbd service..."
-        if sudo systemctl stop nmbd; then
-            log INFO "nmbd service stopped successfully"
-        else
+        local cmd="sudo systemctl stop nmbd"
+        if ! execute_or_dryrun "$cmd" "nmbd service stopped successfully" "Failed to stop nmbd service"; then
             log ERROR "Failed to stop nmbd service"
         fi
     fi

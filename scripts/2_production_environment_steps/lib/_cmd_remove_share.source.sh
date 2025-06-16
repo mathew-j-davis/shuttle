@@ -116,29 +116,24 @@ remove_share_core() {
     
     # Backup smb.conf
     local backup_file="/etc/samba/smb.conf.backup.$(date +%Y%m%d_%H%M%S)"
-    if ! sudo cp /etc/samba/smb.conf "$backup_file"; then
+    if ! execute_or_dryrun "sudo cp /etc/samba/smb.conf '$backup_file'" "Backed up smb.conf to $backup_file" "Failed to backup smb.conf"; then
         error_exit "Failed to backup smb.conf"
     fi
-    log INFO "Backed up smb.conf to $backup_file"
     
     # Remove share section from smb.conf
     # Create temporary file with share section removed
     local temp_file="/tmp/smb.conf.temp.$$"
-    if sudo awk "
-        /^\[$sharename\]/ { skip=1; next }
-        /^\[/ && skip { skip=0 }
-        !skip { print }
-    " /etc/samba/smb.conf > "$temp_file"; then
+    if execute_or_dryrun "sudo awk '/^\\[$sharename\\]/ { skip=1; next } /^\\[/ && skip { skip=0 } !skip { print }' /etc/samba/smb.conf > '$temp_file'" "Created temporary file with share removed" "Failed to process smb.conf"; then
         # Replace original file
-        if sudo cp "$temp_file" /etc/samba/smb.conf; then
-            sudo rm -f "$temp_file"
+        if execute_or_dryrun "sudo cp '$temp_file' /etc/samba/smb.conf" "Updated smb.conf with share removed" "Failed to update smb.conf"; then
+            execute_or_dryrun "sudo rm -f '$temp_file'" "Cleaned up temporary file" "Failed to clean up temporary file"
             log INFO "Removed share configuration from smb.conf"
         else
-            sudo rm -f "$temp_file"
+            execute_or_dryrun "sudo rm -f '$temp_file'" "Cleaned up temporary file" "Failed to clean up temporary file"
             error_exit "Failed to update smb.conf"
         fi
     else
-        sudo rm -f "$temp_file"
+        execute_or_dryrun "sudo rm -f '$temp_file'" "Cleaned up temporary file" "Failed to clean up temporary file"
         error_exit "Failed to process smb.conf"
     fi
     
@@ -147,7 +142,7 @@ remove_share_core() {
         log INFO "Samba configuration test passed"
     else
         log ERROR "Samba configuration test failed, restoring backup"
-        sudo cp "$backup_file" /etc/samba/smb.conf
+        execute_or_dryrun "sudo cp '$backup_file' /etc/samba/smb.conf" "Restored backup configuration" "Failed to restore backup"
         error_exit "Invalid Samba configuration, backup restored"
     fi
     

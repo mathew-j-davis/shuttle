@@ -126,10 +126,9 @@ enable_share_core() {
     
     # Backup smb.conf
     local backup_file="/etc/samba/smb.conf.backup.$(date +%Y%m%d_%H%M%S)"
-    if ! sudo cp /etc/samba/smb.conf "$backup_file"; then
+    if ! execute_or_dryrun "sudo cp /etc/samba/smb.conf '$backup_file'" "Backed up smb.conf to $backup_file" "Failed to backup smb.conf"; then
         error_exit "Failed to backup smb.conf"
     fi
-    log INFO "Backed up smb.conf to $backup_file"
     
     # Create temporary file with share enabled
     local temp_file="/tmp/smb.conf.temp.$$"
@@ -160,9 +159,8 @@ enable_share_core() {
     done < /etc/samba/smb.conf
     
     # Replace original file
-    if sudo cp "$temp_file" /etc/samba/smb.conf; then
+    if execute_or_dryrun "sudo cp '$temp_file' /etc/samba/smb.conf" "Enabled share '$sharename' in smb.conf" "Failed to update smb.conf"; then
         rm -f "$temp_file"
-        log INFO "Enabled share '$sharename' in smb.conf"
     else
         rm -f "$temp_file"
         error_exit "Failed to update smb.conf"
@@ -173,7 +171,7 @@ enable_share_core() {
         log INFO "Samba configuration test passed"
     else
         log ERROR "Samba configuration test failed, restoring backup"
-        sudo cp "$backup_file" /etc/samba/smb.conf
+        execute_or_dryrun "sudo cp '$backup_file' /etc/samba/smb.conf" "Restored backup configuration" "Failed to restore backup"
         error_exit "Invalid Samba configuration, backup restored"
     fi
     

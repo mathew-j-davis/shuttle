@@ -75,17 +75,13 @@ restart_samba_core() {
     
     # Restart smbd service
     log INFO "Restarting smbd service..."
-    if sudo systemctl restart smbd; then
-        log INFO "smbd service restarted successfully"
-    else
-        error_exit "Failed to restart smbd service"
-    fi
+    local cmd="sudo systemctl restart smbd"
+    execute_or_dryrun "$cmd" "smbd service restarted successfully" "Failed to restart smbd service" || error_exit "Failed to restart smbd service"
     
     # Restart nmbd service
     log INFO "Restarting nmbd service..."
-    if sudo systemctl restart nmbd; then
-        log INFO "nmbd service restarted successfully"
-    else
+    local cmd="sudo systemctl restart nmbd"
+    if ! execute_or_dryrun "$cmd" "nmbd service restarted successfully" "Failed to restart nmbd service"; then
         log WARN "Failed to restart nmbd service (may not be critical)"
     fi
     

@@ -331,17 +331,10 @@ set_separate_file_dir_permissions() {
     log INFO "Setting directory permissions..."
     while IFS= read -r -d '' dir; do
         local chmod_cmd="${sudo_prefix}chmod '$dir_mode' '$dir'"
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log INFO "[DRY RUN] Would execute: $chmod_cmd"
+        if execute_or_dryrun "$chmod_cmd" "Set directory permissions: $dir -> $dir_mode" "Failed to set permissions on directory: $dir"; then
             ((dirs_changed++))
         else
-            if eval "$chmod_cmd" 2>/dev/null; then
-                log DEBUG "Set directory permissions: $dir -> $dir_mode"
-                ((dirs_changed++))
-            else
-                log WARN "Failed to set permissions on directory: $dir"
-                ((errors++))
-            fi
+            ((errors++))
         fi
     done < <(find "$path" -type d -print0 2>/dev/null)
     
@@ -349,17 +342,10 @@ set_separate_file_dir_permissions() {
     log INFO "Setting file permissions..."
     while IFS= read -r -d '' file; do
         local chmod_cmd="${sudo_prefix}chmod '$file_mode' '$file'"
-        if [[ "$DRY_RUN" == "true" ]]; then
-            log INFO "[DRY RUN] Would execute: $chmod_cmd"
+        if execute_or_dryrun "$chmod_cmd" "Set file permissions: $file -> $file_mode" "Failed to set permissions on file: $file"; then
             ((files_changed++))
         else
-            if eval "$chmod_cmd" 2>/dev/null; then
-                log DEBUG "Set file permissions: $file -> $file_mode"
-                ((files_changed++))
-            else
-                log WARN "Failed to set permissions on file: $file"
-                ((errors++))
-            fi
+            ((errors++))
         fi
     done < <(find "$path" -type f -print0 2>/dev/null)
     

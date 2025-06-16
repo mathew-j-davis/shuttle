@@ -132,11 +132,8 @@ disable_samba_user_core() {
     fi
     
     # Disable user
-    if sudo smbpasswd -d "$username" >/dev/null 2>&1; then
-        log INFO "Successfully disabled Samba user '$username'"
-    else
-        error_exit "Failed to disable Samba user '$username'"
-    fi
+    local cmd="sudo smbpasswd -d \"$username\" >/dev/null 2>&1"
+    execute_or_dryrun "$cmd" "Successfully disabled Samba user '$username'" "Failed to disable Samba user '$username'" || error_exit "Failed to disable Samba user '$username'"
     
     # Verify user is now disabled
     local new_status=""

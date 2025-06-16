@@ -110,11 +110,8 @@ enable_samba_user_core() {
     fi
     
     # Enable user
-    if sudo smbpasswd -e "$username" >/dev/null 2>&1; then
-        log INFO "Successfully enabled Samba user '$username'"
-    else
-        error_exit "Failed to enable Samba user '$username'"
-    fi
+    local cmd="sudo smbpasswd -e \"$username\" >/dev/null 2>&1"
+    execute_or_dryrun "$cmd" "Successfully enabled Samba user '$username'" "Failed to enable Samba user '$username'" || error_exit "Failed to enable Samba user '$username'"
     
     # Verify user is now enabled
     local new_status=""

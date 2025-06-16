@@ -94,14 +94,12 @@ reload_samba_core() {
     # Reload smbd service
     if [[ "$smbd_running" == "true" ]]; then
         log INFO "Reloading smbd configuration..."
-        if sudo systemctl reload smbd 2>/dev/null || sudo systemctl reload-or-restart smbd; then
-            log INFO "smbd configuration reloaded successfully"
-        else
+        local cmd="sudo systemctl reload smbd 2>/dev/null || sudo systemctl reload-or-restart smbd"
+        if ! execute_or_dryrun "$cmd" "smbd configuration reloaded successfully" "Failed to reload smbd via systemctl"; then
             # Fallback to sending SIGHUP signal
             log INFO "Attempting to reload smbd via SIGHUP signal..."
-            if sudo pkill -HUP smbd 2>/dev/null; then
-                log INFO "smbd configuration reloaded via signal"
-            else
+            local fallback_cmd="sudo pkill -HUP smbd 2>/dev/null"
+            if ! execute_or_dryrun "$fallback_cmd" "smbd configuration reloaded via signal" "Failed to reload smbd via signal"; then
                 log WARN "Failed to reload smbd configuration"
             fi
         fi
@@ -110,14 +108,12 @@ reload_samba_core() {
     # Reload nmbd service
     if [[ "$nmbd_running" == "true" ]]; then
         log INFO "Reloading nmbd configuration..."
-        if sudo systemctl reload nmbd 2>/dev/null || sudo systemctl reload-or-restart nmbd; then
-            log INFO "nmbd configuration reloaded successfully"
-        else
+        local cmd="sudo systemctl reload nmbd 2>/dev/null || sudo systemctl reload-or-restart nmbd"
+        if ! execute_or_dryrun "$cmd" "nmbd configuration reloaded successfully" "Failed to reload nmbd via systemctl"; then
             # Fallback to sending SIGHUP signal
             log INFO "Attempting to reload nmbd via SIGHUP signal..."
-            if sudo pkill -HUP nmbd 2>/dev/null; then
-                log INFO "nmbd configuration reloaded via signal"
-            else
+            local fallback_cmd="sudo pkill -HUP nmbd 2>/dev/null"
+            if ! execute_or_dryrun "$fallback_cmd" "nmbd configuration reloaded via signal" "Failed to reload nmbd via signal"; then
                 log WARN "Failed to reload nmbd configuration"
             fi
         fi

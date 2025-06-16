@@ -227,15 +227,12 @@ add_share_core() {
     else
         # Backup smb.conf
         local backup_file="/etc/samba/smb.conf.backup.$(date +%Y%m%d_%H%M%S)"
-        if ! sudo cp /etc/samba/smb.conf "$backup_file"; then
+        if ! execute_or_dryrun "sudo cp /etc/samba/smb.conf '$backup_file'" "Backed up smb.conf to $backup_file" "Failed to backup smb.conf"; then
             error_exit "Failed to backup smb.conf"
         fi
-        log INFO "Backed up smb.conf to $backup_file"
         
         # Add share configuration
-        if echo -e "\n$share_config" | sudo tee -a /etc/samba/smb.conf >/dev/null; then
-            log INFO "Added share configuration to smb.conf"
-        else
+        if ! execute_or_dryrun "echo -e '\\n$share_config' | sudo tee -a /etc/samba/smb.conf >/dev/null" "Added share configuration to smb.conf" "Failed to add share configuration to smb.conf"; then
             error_exit "Failed to add share configuration to smb.conf"
         fi
         
@@ -244,7 +241,7 @@ add_share_core() {
             log INFO "Samba configuration test passed"
         else
             log ERROR "Samba configuration test failed, restoring backup"
-            sudo cp "$backup_file" /etc/samba/smb.conf
+            execute_or_dryrun "sudo cp '$backup_file' /etc/samba/smb.conf" "Restored backup configuration" "Failed to restore backup"
             error_exit "Invalid Samba configuration, backup restored"
         fi
         
