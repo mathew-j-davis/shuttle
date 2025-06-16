@@ -30,105 +30,118 @@ from shuttle.daily_processing_tracker import DailyProcessingTracker
 
 
 """
-PROCESS OVERVIEW:
+CLASS INITIALISATION:
 
 shuttle.shuttle.main
-┣━━ shuttle.shuttle_config.parse_shuttle_config
-┃   ┣━━ shuttle.shuttle_config.parse_args
-┃   ┗━━ shuttle.shuttle_config.load_config_file
-┃
+┗━━ shuttle.shuttle.Shuttle.__init__
+    ┗━━ shuttle.shuttle_config.parse_shuttle_config
+        ┣━━ shuttle.shuttle_config.parse_args
+        ┗━━ shuttle.shuttle_config.load_config_file
+
+PROCESS RUN:
+
+shuttle.shuttle.Shuttle.run
 ┣━━ # LOCK FILE HANDLING
-┃   ┣━━ if os.path.exists(config.lock_file): → exit(1)
-┃   ┗━━ write PID to lock file
+┃   ┗━━ shuttle.shuttle.Shuttle._create_lock_file
+┃       ┣━━ if os.path.exists(config.lock_file): → exit(1)
+┃       ┗━━ write PID to lock file
 ┃
-┣━━ # SET UP LOGGING
-┃   ┣━━ if config.log_path: → create directory & set log path
-┃   ┗━━ shuttle_common.logging_setup.setup_logging
+┣━━ # SET UP LOGGING  
+┃   ┗━━ shuttle.shuttle.Shuttle._setup_logging
+┃       ┣━━ if config.log_path: → create directory & set log path
+┃       ┗━━ shuttle_common.logger_injection.configure_logging
 ┃
 ┣━━ # SIMULATOR CHECK
 ┃   ┣━━ shuttle_common.scan_utils.is_using_simulator
 ┃   ┗━━ if using_simulator: → log warning
 ┃
 ┣━━ # NOTIFIER INITIALIZATION
-┃   ┗━━ if config.notify: → shuttle_common.notifier.Notifier.__init__
+┃   ┗━━ shuttle.shuttle.Shuttle._init_notifier
+┃       ┗━━ if config.notify: → shuttle_common.notifier.Notifier.__init__
 ┃
 ┣━━ # RESOURCE CHECK
-┃   ┣━━ if not using_simulator: → check for mdatp
-┃   ┣━━ if config.on_demand_clam_av: → check for clamdscan
-┃   ┗━━ if missing_commands: → log error & exit(1)
+┃   ┗━━ shuttle.shuttle.Shuttle._check_resources
+┃       ┣━━ if not using_simulator: → check for mdatp
+┃       ┣━━ if config.on_demand_clam_av: → check for clamdscan
+┃       ┗━━ if missing_commands: → _shutdown_with_error → exit(1)
 ┃
 ┣━━ # HAZARD PATH CHECK
-┃   ┗━━ if config.hazard_archive_path:
-┃       ┣━━ if not config.hazard_encryption_key_file_path: → exit(1)
-┃       ┗━━ if not os.path.isfile(key_file_path): → exit(1)
+┃   ┗━━ shuttle.shuttle.Shuttle._check_hazard_path
+┃       ┗━━ if config.hazard_archive_path:
+┃           ┣━━ if not config.hazard_encryption_key_file_path: → _shutdown_with_error → exit(1)
+┃           ┗━━ if not os.path.isfile(key_file_path): → _shutdown_with_error → exit(1)
 ┃
 ┣━━ # PATH VALIDATION
-┃   ┗━━ if not (source & destination & quarantine paths): → exit(1)
+┃   ┗━━ shuttle.shuttle.Shuttle._validate_paths
+┃       ┗━━ if not (source & destination & quarantine paths): → _shutdown_with_error → exit(1)
 ┃
 ┣━━ # SCAN CONFIG CHECK
-┃   ┣━━ if not (defender or clam_av): → exit(1)
-┃   ┗━━ if defender and ledger_file_path:
-┃       ┣━━ shuttle_common.scan_utils.get_mdatp_version
-┃       ┣━━ if not defender_version: → exit(1)
-┃       ┣━━ if not ledger.load(): → exit(1)
-┃       ┗━━ if not ledger.is_version_tested(): → exit(1)
+┃   ┗━━ shuttle.shuttle.Shuttle._check_scan_config
+┃       ┣━━ if not (defender or clam_av): → _shutdown_with_error → exit(1)
+┃       ┗━━ if defender and ledger_file_path:
+┃           ┣━━ shuttle_common.scan_utils.get_mdatp_version
+┃           ┣━━ if not defender_version: → _shutdown_with_error → exit(1)
+┃           ┣━━ shuttle_common.ledger.Ledger.load()
+┃           ┣━━ if not ledger.load(): → _shutdown_with_error → exit(1)
+┃           ┗━━ if not ledger.is_version_tested(): → _shutdown_with_error → exit(1)
 ┃
 ┣━━ # MAIN PROCESSING
-┃   ┣━━ shuttle.daily_processing_tracker.DailyProcessingTracker.__init__  
-┃   ┗━━ shuttle.scanning.scan_and_process_directory
-┃       ┣━━ shuttle.scanning.quarantine_files_for_scanning
-┃       ┃   ┣━━ shuttle.scanning.is_file_safe_for_processing
-┃       ┃   ┣━━ shuttle_common.file_utils.normalize_path
-┃       ┃   ┣━━ shuttle.throttle_utils.handle_throttle_check
-┃       ┃   ┃   ┗━━ shuttle.throttler.Throttler.can_process_file
-┃       ┃   ┣━━ shuttle_common.files.get_file_hash 
-┃       ┃   ┣━━ daily_processing_tracker.add_pending_file 
-┃       ┃   ┗━━ shuttle_common.file_utils.copy_temp_then_rename
-┃       ┃
-┃       ┣━━ shuttle.scanning.process_scan_tasks
-┃       ┃   ┃
-┃       ┃   ┣━━ PARALLEL MODE
-┃       ┃   ┃   concurrent.futures.ProcessPoolExecutor
-┃       ┃   ┃   loop
-┃       ┃   ┃   ┣━ call_scan_and_process_file ━━━━━┓
-┃       ┃   ┃   ┗━ process_task_result             ┃
-┃       ┃   ┃                                      ┃
-┃       ┃   ┃                                      ┃
-┃       ┃   ┣━━ SINGLE THREAD MODE                 ┃
-┃       ┃   ┃    loop                              ┃
-┃       ┃   ┃    ┣━━ call_scan_and_process_file ━━━┫
-┃       ┃   ┃    ┗━━ process_task_result           ┃
-┃       ┃   ┃                                      ┃
-┃       ┃   ┃                                      ┃
-┃       ┃   ┃                                      ┗━━ scan_and_process_file  
-┃       ┃   ┃                                          ┣━━ shuttle.scanning.check_file_safety
-┃       ┃   ┃                                          ┣━━ shuttle.scanning.scan_file
-┃       ┃   ┃                                          ┃   ┣━━ shuttle_common.scan_utils.scan_with_defender
-┃       ┃   ┃                                          ┃   ┗━━ shuttle_common.scan_utils.scan_with_clam_av
-┃       ┃   ┃                                          ┗━━ shuttle.scanning.handle_scan_result
-┃       ┃   ┃                                              ┣━━ shuttle.post_scan_processing.move_clean_file_to_destination
-┃       ┃   ┃                                              ┃   ┗━━ shuttle_common.file_utils.copy_temp_then_rename
-┃       ┃   ┃                                              ┗━━ shuttle.post_scan_processing.handle_suspect_file
-┃       ┃   ┃                                                  ┣━━ shuttle.post_scan_processing.encrypt_file
-┃       ┃   ┃                                                  ┗━━ shuttle.post_scan_processing.archive_file
-┃       ┃   ┃  
-┃       ┃   ┣━━ daily_processing_tracker.generate_task_summary  [NEW]
-┃       ┃   ┗━━ log_final_status
-┃       ┃
-┃       ┣━━ shuttle.scanning.clean_up_source_files
-┃       ┃   ┃
-┃       ┃   ┗━━ shuttle_common.file_utils.remove_empty_directories
-┃       ┃
-┃       ┣━━ shuttle.scanning.send_summary_notification
-┃       ┃
-┃       ┗━━ shuttle_common.file_utils.remove_directory_contents
+┃   ┗━━ shuttle.shuttle.Shuttle._process_files
+┃       ┣━━ shuttle.daily_processing_tracker.DailyProcessingTracker.__init__  
+┃       ┗━━ shuttle.scanning.scan_and_process_directory
+┃           ┣━━ shuttle.scanning.quarantine_files_for_scanning
+┃           ┃   ┣━━ shuttle.scanning.is_file_safe_for_processing
+┃           ┃   ┣━━ shuttle_common.file_utils.normalize_path
+┃           ┃   ┣━━ shuttle.throttle_utils.handle_throttle_check
+┃           ┃   ┃   ┗━━ shuttle.throttler.Throttler.can_process_file
+┃           ┃   ┣━━ shuttle_common.files.get_file_hash 
+┃           ┃   ┣━━ daily_processing_tracker.add_pending_file 
+┃           ┃   ┗━━ shuttle_common.file_utils.copy_temp_then_rename
+┃           ┃
+┃           ┣━━ shuttle.scanning.process_scan_tasks
+┃           ┃   ┃
+┃           ┃   ┣━━ PARALLEL MODE
+┃           ┃   ┃   concurrent.futures.ProcessPoolExecutor
+┃           ┃   ┃   loop
+┃           ┃   ┃   ┣━ call_scan_and_process_file ━━━━━┓
+┃           ┃   ┃   ┗━ process_task_result             ┃
+┃           ┃   ┃                                      ┃
+┃           ┃   ┃                                      ┃
+┃           ┃   ┣━━ SINGLE THREAD MODE                 ┃
+┃           ┃   ┃    loop                              ┃
+┃           ┃   ┃    ┣━━ call_scan_and_process_file ━━━┫
+┃           ┃   ┃    ┗━━ process_task_result           ┃
+┃           ┃   ┃                                      ┃
+┃           ┃   ┃                                      ┃
+┃           ┃   ┃                                      ┗━━ scan_and_process_file  
+┃           ┃   ┃                                          ┣━━ shuttle.scanning.check_file_safety
+┃           ┃   ┃                                          ┣━━ shuttle.scanning.scan_file
+┃           ┃   ┃                                          ┃   ┣━━ shuttle_common.scan_utils.scan_with_defender
+┃           ┃   ┃                                          ┃   ┗━━ shuttle_common.scan_utils.scan_with_clam_av
+┃           ┃   ┃                                          ┗━━ shuttle.scanning.handle_scan_result
+┃           ┃   ┃                                              ┣━━ shuttle.post_scan_processing.move_clean_file_to_destination
+┃           ┃   ┃                                              ┃   ┗━━ shuttle_common.file_utils.copy_temp_then_rename
+┃           ┃   ┃                                              ┗━━ shuttle.post_scan_processing.handle_suspect_file
+┃           ┃   ┃                                                  ┣━━ shuttle.post_scan_processing.encrypt_file
+┃           ┃   ┃                                                  ┗━━ shuttle.post_scan_processing.archive_file
+┃           ┃   ┃  
+┃           ┃   ┣━━ daily_processing_tracker.generate_task_summary
+┃           ┃   ┗━━ log_final_status
+┃           ┃
+┃           ┣━━ shuttle.scanning.clean_up_source_files
+┃           ┃   ┃
+┃           ┃   ┗━━ shuttle_common.file_utils.remove_empty_directories
+┃           ┃
+┃           ┣━━ shuttle.scanning.send_summary_notification
+┃           ┃
+┃           ┗━━ shuttle_common.file_utils.remove_directory_contents
 ┃
 ┣━━ # EXCEPTION HANDLING
-┃   ┗━━ if exception: → log error & exit(1)
+┃   ┗━━ try/except: → log error & return 1
 ┃
 ┗━━ # FINALLY BLOCK
     ┣━━ daily_processing_tracker.close() 
-    ┗━━ if os.path.exists(lock_file): → remove lock file
+    ┗━━ _cleanup_lock_file(config.lock_file)
 """
 
 class Shuttle:

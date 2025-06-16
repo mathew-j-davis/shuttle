@@ -315,7 +315,7 @@ check_and_install_system_deps() {
     echo "=== System Dependencies Check ==="
     echo ""
     echo "Shuttle requires several system packages to function properly:"
-    echo "• System tools (lsof, gnupg, git, curl, wget)"
+    echo "• System tools (lsof, gnupg)"
     echo "• Python 3 and development tools"
     echo "• Antivirus scanners (ClamAV recommended)"
     echo ""
@@ -332,11 +332,11 @@ check_and_install_system_deps() {
             echo "To check and install dependencies manually:"
             echo ""
             echo "Check what's installed:"
-            echo -e "  ${BLUE}command -v lsof gnupg git curl wget python3 pip3 clamscan${NC}"
+            echo -e "  ${BLUE}command -v lsof gnupg python3 pip3 clamscan${NC}"  
             echo ""
             echo "Install missing packages (Ubuntu/Debian):"
             echo -e "  ${BLUE}sudo apt-get update${NC}"
-            echo -e "  ${BLUE}sudo apt-get install lsof gnupg git curl wget${NC}"
+            echo -e "  ${BLUE}sudo apt-get install lsof gnupg ${NC}"  
             echo -e "  ${BLUE}sudo apt-get install python3 python3-pip python3-venv python3-dev${NC}"
             echo -e "  ${BLUE}sudo apt-get install clamav clamav-daemon${NC}"
             echo ""
@@ -361,9 +361,7 @@ check_and_install_system_deps() {
     # Check for basic system tools
     command -v lsof >/dev/null 2>&1 || MISSING_BASIC_DEPS+=("lsof")
     command -v gpg >/dev/null 2>&1 || MISSING_BASIC_DEPS+=("gnupg")
-    command -v git >/dev/null 2>&1 || MISSING_BASIC_DEPS+=("git")
-    command -v curl >/dev/null 2>&1 || MISSING_BASIC_DEPS+=("curl")
-    command -v wget >/dev/null 2>&1 || MISSING_BASIC_DEPS+=("wget")
+
     
     # Check for Python
     if ! command -v python3 >/dev/null 2>&1 || ! command -v pip3 >/dev/null 2>&1; then
@@ -409,9 +407,7 @@ check_and_install_system_deps() {
             case $dep in
                 "lsof") echo "   • lsof - used to check if applications have files open" ;;
                 "gnupg") echo "   • gnupg - used to encrypt suspected malware files" ;;
-                "git") echo "   • git - version control system for development" ;;
-                "curl") echo "   • curl - used for downloading files and updates" ;;
-                "wget") echo "   • wget - alternative file download utility" ;;
+
             esac
         done
         echo ""

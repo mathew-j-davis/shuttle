@@ -12,9 +12,7 @@ if ! command -v apt-get >/dev/null 2>&1; then
     echo "For other distributions, please install these packages manually:"
     echo "  - lsof"
     echo "  - gnupg"
-    echo "  - git"
-    echo "  - curl"
-    echo "  - wget"
+
     exit 1
 fi
 
@@ -27,9 +25,6 @@ is_installed() {
 PACKAGES=(
     "lsof"      # For checking open files
     "gnupg"     # For GPG encryption
-    "git"       # Version control
-    "curl"      # HTTP client
-    "wget"      # File downloader
 )
 
 # Check which packages need installation
