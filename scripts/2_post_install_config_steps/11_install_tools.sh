@@ -11,8 +11,8 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 SCRIPT_NAME="$(basename "$0")"
 
 # Source common functions if available
-if [[ -f "$SCRIPT_DIR/_common_.source.sh" ]]; then
-    source "$SCRIPT_DIR/_common_.source.sh"
+if [[ -f "$SCRIPT_DIR/lib/_common_.source.sh" ]]; then
+    source "$SCRIPT_DIR/lib/_common_.source.sh"
 fi
 
 # Global variables
@@ -60,11 +60,20 @@ EOF
 
 # Function to detect package manager
 detect_package_manager() {
-    if command -v apt-get >/dev/null 2>&1; then
+    if execute "command -v apt-get >/dev/null 2>&1" \
+              "APT package manager found" \
+              "APT package manager not found" \
+              "Check if APT package manager is available for Debian/Ubuntu systems"; then
         echo "apt"
-    elif command -v dnf >/dev/null 2>&1; then
+    elif execute "command -v dnf >/dev/null 2>&1" \
+                "DNF package manager found" \
+                "DNF package manager not found" \
+                "Check if DNF package manager is available for modern RPM systems"; then
         echo "dnf"
-    elif command -v yum >/dev/null 2>&1; then
+    elif execute "command -v yum >/dev/null 2>&1" \
+                "YUM package manager found" \
+                "YUM package manager not found" \
+                "Check if YUM package manager is available for older RPM systems"; then
         echo "yum"
     else
         echo "unknown"
@@ -130,10 +139,16 @@ install_packages() {
     esac
     
     if [[ "$VERBOSE" == "true" ]]; then
-        execute_or_dryrun "$install_cmd" "Installed packages: $package_list" "Failed to install packages: $package_list"
+        execute_or_dryrun "$install_cmd" \
+                         "Installed packages: $package_list" \
+                         "Failed to install packages: $package_list" \
+                         "Installing system packages for Shuttle file sharing and permissions management"
     else
         # Only redirect stdout, keep stderr visible for sudo password prompts
-        execute_or_dryrun "$install_cmd >/dev/null" "Installed packages: $package_list" "Failed to install packages: $package_list"
+        execute_or_dryrun "$install_cmd >/dev/null" \
+                         "Installed packages: $package_list" \
+                         "Failed to install packages: $package_list" \
+                         "Installing system packages for Shuttle file sharing and permissions management"
     fi
 }
 
@@ -178,10 +193,16 @@ check_package_installed() {
     
     case "$pkg_manager" in
         "apt")
-            dpkg -l "$package" >/dev/null 2>&1
+            execute "dpkg -l \"$package\" >/dev/null 2>&1" \
+                   "Package $package is installed" \
+                   "Package $package is not installed" \
+                   "Check if package is installed on Debian/Ubuntu system using dpkg"
             ;;
         "dnf"|"yum")
-            rpm -q "$package" >/dev/null 2>&1
+            execute "rpm -q \"$package\" >/dev/null 2>&1" \
+                   "Package $package is installed" \
+                   "Package $package is not installed" \
+                   "Check if package is installed on RPM-based system using rpm"
             ;;
         *)
             return 1

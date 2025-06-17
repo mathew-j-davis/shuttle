@@ -257,7 +257,8 @@ set_path_owner_core() {
     fi
     
     # Execute chown command
-    execute_or_dryrun "$chown_cmd" "Changed ownership of '$path' to '$ownership_string'" "Failed to change ownership of '$path'" || return 1
+    execute_or_dryrun "$chown_cmd" "Changed ownership of '$path' to '$ownership_string'" "Failed to change ownership of '$path'" \
+                     "Change file or directory ownership to control which user and group can access the resource" || return 1
     
     # Show summary of changes if not dry run
     if [[ "$DRY_RUN" != "true" ]]; then

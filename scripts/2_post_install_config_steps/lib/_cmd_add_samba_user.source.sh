@@ -133,17 +133,20 @@ add_samba_user_core() {
         # Use provided password
         log INFO "Setting Samba password for user '$username' from parameter"
         local smbpasswd_cmd="printf '%s\n%s\n' \"$password\" \"$password\" | sudo smbpasswd -a -s \"$username\" >/dev/null 2>&1"
-        execute_or_dryrun "$smbpasswd_cmd" "Successfully set Samba password for '$username'" "Failed to set Samba password for '$username'" || error_exit "Failed to set Samba password for '$username'"
+        execute_or_dryrun "$smbpasswd_cmd" "Successfully set Samba password for '$username'" "Failed to set Samba password for '$username'" \
+                         "Add user to Samba database with provided password using non-interactive mode" || error_exit "Failed to set Samba password for '$username'"
     else
         # Interactive password prompt
         log INFO "Setting Samba password for user '$username' (interactive prompt)"
         local smbpasswd_interactive_cmd="sudo smbpasswd -a \"$username\""
-        execute_or_dryrun "$smbpasswd_interactive_cmd" "Successfully set Samba password for '$username'" "Failed to set Samba password for '$username'" || error_exit "Failed to set Samba password for '$username'"
+        execute_or_dryrun "$smbpasswd_interactive_cmd" "Successfully set Samba password for '$username'" "Failed to set Samba password for '$username'" \
+                         "Add user to Samba database with interactive password prompt for administrator input" || error_exit "Failed to set Samba password for '$username'"
     fi
     
     # Ensure user is enabled
     local enable_cmd="sudo smbpasswd -e \"$username\" >/dev/null 2>&1"
-    if ! execute_or_dryrun "$enable_cmd" "Enabled Samba user '$username'" "Failed to enable Samba user '$username'"; then
+    if ! execute_or_dryrun "$enable_cmd" "Enabled Samba user '$username'" "Failed to enable Samba user '$username'" \
+                           "Enable Samba user account to allow authentication and file sharing access"; then
         log WARN "Failed to enable Samba user '$username' (may already be enabled)"
     fi
     

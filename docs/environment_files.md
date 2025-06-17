@@ -17,7 +17,7 @@ Shuttle uses several types of environment configuration files. Understanding the
 - **What it is**: Bash script that exports environment variables
 - **Location**: 
   - Development mode (`-e`): Project root
-  - Production mode: `scripts/1_deployment_steps/`
+  - Production mode: `scripts/1_installation_steps/`
 - **Purpose**: Sets `SHUTTLE_CONFIG_PATH`, `SHUTTLE_VENV_PATH`, `SHUTTLE_TEST_WORK_DIR`
 - **Created by**: `00_set_env.sh`
 - **Used by**: Shell sessions after sourcing
@@ -36,7 +36,7 @@ Shuttle uses several types of environment configuration files. Understanding the
 1. **Initial setup**:
    ```bash
    cd ~/shuttle
-   ./scripts/1_deployment_steps/00_set_env.sh -e
+   ./scripts/1_installation_steps/00_set_env.sh -e
    source shuttle_env.sh
    ```
 
@@ -57,8 +57,8 @@ Shuttle uses several types of environment configuration files. Understanding the
 
 1. **Initial setup**:
    ```bash
-   ./scripts/1_deployment_steps/00_set_env.sh
-   source scripts/1_deployment_steps/shuttle_env.sh
+   ./scripts/1_installation_steps/00_set_env.sh
+   source scripts/1_installation_steps/shuttle_env.sh
    ```
 
 2. **Activate Python environment**:
@@ -145,6 +145,6 @@ SHUTTLE_LOG_LEVEL=DEBUG
 ```bash
 #!/bin/bash
 source /home/user/.local/share/shuttle/venv/bin/activate
-source /opt/shuttle/scripts/1_deployment_steps/shuttle_env.sh
+source /opt/shuttle/scripts/1_installation_steps/shuttle_env.sh
 /home/user/.local/share/shuttle/venv/bin/python -m shuttle.shuttle
 ```

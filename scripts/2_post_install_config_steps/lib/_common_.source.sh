@@ -19,10 +19,10 @@ log() {
     
     case "$level" in
         ERROR)   echo -e "${RED}[ERROR]${NC} $message" >&2 ;;
-        WARN)    echo -e "${YELLOW}[WARN]${NC} $message" ;;
-        INFO)    echo -e "${GREEN}[INFO]${NC} $message" ;;
-        DEBUG)   echo -e "${BLUE}[DEBUG]${NC} $message" ;;
-        *)       echo "[$level] $message" ;;
+        WARN)    echo -e "${YELLOW}[WARN]${NC} $message" >&2 ;;
+        INFO)    echo -e "${GREEN}[INFO]${NC} $message" >&2 ;;
+        DEBUG)   echo -e "${BLUE}[DEBUG]${NC} $message" >&2 ;;
+        *)       echo "[$level] $message" >&2 ;;
     esac
     
     # Also log to syslog if available
@@ -66,7 +66,8 @@ validate_parameter_value() {
 # Function to execute command or show what would be done in dry-run mode
 # Note: Command should already include sudo prefix if needed
 # History file for command logging
-COMMAND_HISTORY_FILE="${COMMAND_HISTORY_FILE:-/tmp/shuttle_command_history_$(date +%Y%m%d_%H%M%S).log}"
+# Main process should set this, otherwise use generic name
+COMMAND_HISTORY_FILE="${COMMAND_HISTORY_FILE:-/tmp/shuttle_generic_command_history_$(date +%Y%m%d_%H%M%S).log}"
 
 # Initialize history file
 init_command_history() {
@@ -158,6 +159,42 @@ execute() {
     else
         log ERROR "$error_msg"
         log_command_history "$timestamp" "$cmd" "$explanation" "FAILED (READ)" "false"
+        return 1
+    fi
+}
+
+# Function for executing our own scripts with dry-run support
+# When in dry-run mode, this actually executes the script but passes --dry-run
+# When not in dry-run mode, executes the script normally
+execute_or_execute_dryrun() {
+    local cmd="$1"
+    local success_msg="$2"
+    local error_msg="$3"
+    local explanation="${4:-}"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Show explanation if provided
+    if [[ -n "$explanation" ]]; then
+        log INFO "Explanation: $explanation"
+    fi
+    
+    # Modify command based on dry-run mode
+    local actual_cmd="$cmd"
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        # Append --dry-run to our own scripts
+        actual_cmd="$cmd --dry-run"
+        log DEBUG "Executing (dry-run): $actual_cmd"
+    else
+        log DEBUG "Executing: $actual_cmd"
+    fi
+    
+    if eval "$actual_cmd"; then
+        log INFO "$success_msg"
+        log_command_history "$timestamp" "$actual_cmd" "$explanation" "SUCCESS" "${DRY_RUN:-false}"
+        return 0
+    else
+        log ERROR "$error_msg"
+        log_command_history "$timestamp" "$actual_cmd" "$explanation" "FAILED" "${DRY_RUN:-false}"
         return 1
     fi
 }

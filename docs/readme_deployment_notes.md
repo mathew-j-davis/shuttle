@@ -19,7 +19,7 @@ shuttle/
 │       └── shuttle_defender_test/   # The shuttle_defender module
 ├── scripts/                    # All utility scripts
 │   ├── 0_key_generation/       # Key generation script
-│   ├── 1_deployment_steps/     # Installation scripts (numbered 01-10)
+│   ├── 1_installation_steps/     # Installation scripts (numbered 01-10)
 │   ├── health_check_tests/     # Health check and testing scripts
 │   ├── vscode_debugging/       # VS Code debugging configurations
 │   └── 1_install.sh              # Interactive installation script
@@ -173,17 +173,17 @@ The `07_setup_config.py` script accepts command-line arguments to customize your
 
 ```bash
 # Use defaults (working directory subdirectories)
-python ./scripts/1_deployment_steps/07_setup_config.py
+python ./scripts/1_installation_steps/07_setup_config.py
 
 # Get help on all available options
-python ./scripts/1_deployment_steps/07_setup_config.py --help
+python ./scripts/1_installation_steps/07_setup_config.py --help
 ```
 
 ### Common Configuration Examples
 
 #### Development Setup
 ```bash
-python ./scripts/1_deployment_steps/07_setup_config.py \
+python ./scripts/1_installation_steps/07_setup_config.py \
     --log-level DEBUG \
     --max-scan-threads 1 \
     --no-notify
@@ -191,7 +191,7 @@ python ./scripts/1_deployment_steps/07_setup_config.py \
 
 #### Production Setup with Custom Paths
 ```bash
-python ./scripts/1_deployment_steps/07_setup_config.py \
+python ./scripts/1_installation_steps/07_setup_config.py \
     --source-path /srv/data/incoming \
     --destination-path /srv/data/processed \
     --quarantine-path /tmp/shuttle/quarantine \
@@ -204,7 +204,7 @@ python ./scripts/1_deployment_steps/07_setup_config.py \
 
 #### Enterprise Setup with Notifications
 ```bash
-python ./scripts/1_deployment_steps/07_setup_config.py \
+python ./scripts/1_installation_steps/07_setup_config.py \
     --source-path /mnt/shares/inbound \
     --destination-path /mnt/shares/processed \
     --log-path /var/log/shuttle \
@@ -249,9 +249,9 @@ If not specified, paths default to subdirectories within the working directory:
 By default, modules are installed in standard mode. For development mode (editable installation), add the `-e` flag to these scripts:
 
 ```bash
-./scripts/1_deployment_steps/08_install_shared.sh -e
-./scripts/1_deployment_steps/09_install_defender_test.sh -e
-./scripts/1_deployment_steps/10_install_shuttle.sh -e
+./scripts/1_installation_steps/08_install_shared.sh -e
+./scripts/1_installation_steps/09_install_defender_test.sh -e
+./scripts/1_installation_steps/10_install_shuttle.sh -e
 ```
 
 **Note:** The interactive `1_install.sh` script automatically handles development mode installation when you select the development installation mode.

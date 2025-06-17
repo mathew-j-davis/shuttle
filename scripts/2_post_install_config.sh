@@ -1,5 +1,5 @@
 #!/bin/bash
-# 2_configure_production.sh - Production environment configuration orchestrator
+# 2_post_install_config.sh - Production environment configuration orchestrator
 # Reads YAML configuration and calls existing scripts with appropriate parameters
 #
 # This script follows the pattern of 1_install.sh but focuses on production
@@ -17,16 +17,44 @@ NC='\033[0m' # No Color
 # Get script directory and project root
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-PRODUCTION_DIR="$SCRIPT_DIR/2_production_environment_steps"
+PRODUCTION_DIR="$SCRIPT_DIR/2_post_install_config_steps"
 SETUP_LIB_DIR="$SCRIPT_DIR/__setup_lib"
 LIB_DIR="$PRODUCTION_DIR/lib"
 
 # Add setup lib to Python path
 export PYTHONPATH="${SETUP_LIB_DIR}:${PYTHONPATH}"
 
+# Set command history file for this configuration session
+export COMMAND_HISTORY_FILE="/tmp/shuttle_post_install_configuration_command_history_$(date +%Y%m%d_%H%M%S).log"
+
 # Source helper functions for sudo detection and logging
 source "$LIB_DIR/_common_.source.sh"
 source "$LIB_DIR/_check_active_user.source.sh"
+
+# Output functions for main script
+print_info() {
+    echo -e "${GREEN}$*${NC}" >&2
+}
+
+print_error() {
+    echo -e "${RED}$*${NC}" >&2
+}
+
+print_warn() {
+    echo -e "${YELLOW}$*${NC}" >&2
+}
+
+print_header() {
+    echo -e "${BLUE}$*${NC}" >&2
+}
+
+print_success() {
+    echo -e "${GREEN}✅ $*${NC}" >&2
+}
+
+print_fail() {
+    echo -e "${RED}❌ $*${NC}" >&2
+}
 
 # Default configuration file location
 DEFAULT_CONFIG="$PROJECT_ROOT/config/shuttle_user_setup.yaml"
@@ -35,17 +63,17 @@ INTERACTIVE_MODE=true
 DRY_RUN=false
 RUN_WIZARD=false
 
-echo "========================================="
-echo "  Production Environment Configuration  "
-echo "========================================="
-echo ""
-echo "This script configures the production environment for Shuttle:"
-echo "• System tools installation"
-echo "• User and group management"
-echo "• File permissions and ownership"
-echo "• Samba configuration"
-echo "• Firewall configuration"
-echo ""
+echo "=========================================" >&2
+echo "  Shuttle Post-Install Environment Configuration  " >&2
+echo "=========================================" >&2
+echo "" >&2
+echo "This script configures the production environment for Shuttle:" >&2
+echo "• System tools installation" >&2
+echo "• User and group management" >&2
+echo "• File permissions and ownership" >&2
+echo "• Samba configuration" >&2
+echo "• Firewall configuration" >&2
+echo "" >&2
 
 # Function to show usage
 show_usage() {
@@ -98,7 +126,7 @@ parse_arguments() {
                 exit 0
                 ;;
             *)
-                echo -e "${RED}❌ Unknown option: $1${NC}"
+                print_fail "Unknown option: $1"
                 show_usage
                 exit 1
                 ;;
@@ -111,52 +139,58 @@ parse_arguments() {
 
 # Validate configuration file
 validate_config() {
-    echo "=== Configuration Validation ==="
-    echo ""
+    echo "=== Configuration Validation ===" >&2
+    echo "" >&2
     
     if [[ ! -f "$CONFIG_FILE" ]]; then
-        echo -e "${RED}❌ Configuration file not found: $CONFIG_FILE${NC}"
-        echo ""
-        echo "Create a YAML configuration file defining users and groups."
-        echo "See yaml_user_setup_design.md for examples and documentation."
+        print_fail "Configuration file not found: $CONFIG_FILE"
+        echo "" >&2
+        echo "Create a YAML configuration file defining users and groups." >&2
+        echo "See yaml_user_setup_design.md for examples and documentation." >&2
         exit 1
     fi
     
     # Basic YAML validation using Python
     echo "Validating YAML syntax..."
     if ! python3 -c "import yaml; list(yaml.safe_load_all(open('$CONFIG_FILE')))" 2>/dev/null; then
-        echo -e "${RED}❌ Invalid YAML configuration file${NC}"
-        echo ""
-        echo "Please check your YAML syntax and try again."
+        print_fail "Invalid YAML configuration file"
+        echo "" >&2
+        echo "Please check your YAML syntax and try again." >&2
         exit 1
     fi
     
-    echo -e "${GREEN}✅ Configuration file validated: $CONFIG_FILE${NC}"
+    print_success "Configuration file validated: $CONFIG_FILE"
     echo ""
 }
 
 # Check prerequisites
 check_prerequisites() {
-    echo "=== Prerequisites Check ==="
-    echo ""
+    echo "=== Prerequisites Check ===" >&2
+    echo "" >&2
     
     # Check if Python 3 is available
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo -e "${RED}❌ Python 3 is required but not found${NC}"
-        echo "Please install Python 3 and try again."
+    if ! execute "command -v python3 >/dev/null 2>&1" \
+                "Python 3 found" \
+                "Python 3 not found" \
+                "Check if Python 3 interpreter is installed and available in PATH"; then
+        print_fail "Python 3 is required but not found"
+        echo "Please install Python 3 and try again." >&2
         exit 1
     fi
     
     # Check if PyYAML is available
-    if ! python3 -c "import yaml" 2>/dev/null; then
-        echo -e "${RED}❌ PyYAML is required but not found${NC}"
-        echo "Please install PyYAML: pip install PyYAML"
+    if ! execute "python3 -c \"import yaml\" 2>/dev/null" \
+                "PyYAML library found" \
+                "PyYAML library not found" \
+                "Check if PyYAML Python library is installed for YAML configuration parsing"; then
+        print_fail "PyYAML is required but not found"
+        echo "Please install PyYAML: pip install PyYAML" >&2
         exit 1
     fi
     
     # Check if production scripts directory exists
     if [[ ! -d "$PRODUCTION_DIR" ]]; then
-        echo -e "${RED}❌ Production scripts directory not found: $PRODUCTION_DIR${NC}"
+        print_fail "Production scripts directory not found: $PRODUCTION_DIR"
         exit 1
     fi
     
@@ -170,28 +204,31 @@ check_prerequisites() {
     
     for script in "${required_scripts[@]}"; do
         if [[ ! -f "$PRODUCTION_DIR/$script" ]]; then
-            echo -e "${RED}❌ Required script not found: $PRODUCTION_DIR/$script${NC}"
+            print_fail "Required script not found: $PRODUCTION_DIR/$script"
             exit 1
         fi
         if [[ ! -x "$PRODUCTION_DIR/$script" ]]; then
-            echo -e "${YELLOW}⚠️  Making script executable: $script${NC}"
-            chmod +x "$PRODUCTION_DIR/$script"
+            print_warn "⚠️  Making script executable: $script"
+            execute_or_dryrun "chmod +x \"$PRODUCTION_DIR/$script\"" \
+                             "Made script executable: $script" \
+                             "Failed to make script executable: $script" \
+                             "Set execute permissions on required script for system configuration"
         fi
     done
     
     # Check sudo access for system modifications
-    echo "Checking system privileges..."
+    echo "Checking system privileges..." >&2
     if check_active_user_is_root; then
-        echo -e "${GREEN}✅ Running as root - full system access available${NC}"
+        print_success "Running as root - full system access available"
     elif check_active_user_has_sudo_access; then
-        echo -e "${GREEN}✅ Sudo access available - system modifications possible${NC}"
+        print_success "Sudo access available - system modifications possible"
     else
-        echo -e "${RED}❌ No root or sudo access - system modifications will fail${NC}"
-        echo "Please run as root or ensure your user has sudo privileges."
+        print_fail "No root or sudo access - system modifications will fail"
+        echo "Please run as root or ensure your user has sudo privileges." >&2
         exit 1
     fi
     
-    echo -e "${GREEN}✅ All prerequisites satisfied${NC}"
+    print_success "All prerequisites satisfied"
     echo ""
 }
 
@@ -211,24 +248,24 @@ interactive_setup() {
     python3 -m config_analyzer "$CONFIG_FILE"
     
     if [[ $? -ne 0 ]]; then
-        echo -e "${RED}❌ Failed to analyze configuration${NC}"
+        print_fail "Failed to analyze configuration"
         exit 1
     fi
     
     echo ""
     if [[ "$DRY_RUN" == "true" ]]; then
-        echo -e "${YELLOW}🔍 DRY RUN MODE: No changes will be made${NC}"
+        print_warn "🔍 DRY RUN MODE: No changes will be made"
         echo ""
     fi
     
     read -p "Proceed with configuration? [Y/n]: " CONFIRM
     case $CONFIRM in
         [Nn])
-            echo "Configuration cancelled."
+            echo "Configuration cancelled." >&2
             exit 0
             ;;
         *)
-            echo -e "${GREEN}Proceeding with configuration...${NC}"
+            print_info "Proceeding with configuration..."
             ;;
     esac
     echo ""
@@ -256,7 +293,7 @@ except:
 # Phase 1: Install system tools
 phase_install_tools() {
     echo ""
-    echo -e "${BLUE}📦 Phase 1: Installing system tools${NC}"
+    print_header "📦 Phase 1: Installing system tools"
     echo ""
     
     local cmd="$PRODUCTION_DIR/11_install_tools.sh"
@@ -270,17 +307,11 @@ phase_install_tools() {
         install_flags="$install_flags --no-samba"
     fi
     
-    if [[ "$DRY_RUN" == "true" ]]; then
-        echo "[DRY RUN] Would execute: $cmd $install_flags"
-        echo -e "${GREEN}✅ System tools installation (dry run)${NC}"
-    else
-        echo "Installing required system tools..."
-        if "$cmd" $install_flags; then
-            echo -e "${GREEN}✅ System tools installation complete${NC}"
-        else
-            echo -e "${RED}❌ Failed to install system tools${NC}"
-            exit 1
-        fi
+    if ! execute_or_execute_dryrun "$cmd $install_flags" \
+                                  "System tools installation complete" \
+                                  "Failed to install system tools" \
+                                  "Install required system packages (ACL tools, Samba) for Shuttle functionality"; then
+        exit 1
     fi
 }
 
@@ -288,12 +319,12 @@ phase_install_tools() {
 phase_configure_users() {
     if ! is_component_enabled "configure_users_groups"; then
         echo ""
-        echo -e "${YELLOW}⏭️  Phase 2: Skipping users and groups configuration${NC}"
+        print_warn "⏭️  Phase 2: Skipping users and groups configuration"
         return 0
     fi
     
     echo ""
-    echo -e "${BLUE}👥 Phase 2: Configuring users and groups${NC}"
+    print_header "👥 Phase 2: Configuring users and groups"
     echo ""
     
     # Use Python module to process users and groups
@@ -305,16 +336,16 @@ phase_configure_users() {
     python3 -m user_group_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag
 
     if [[ $? -ne 0 ]]; then
-        echo -e "${RED}❌ Failed to configure users and groups${NC}"
+        print_fail "Failed to configure users and groups"
         exit 1
     fi
-    echo -e "${GREEN}✅ Users and groups configuration complete${NC}"
+    print_success "Users and groups configuration complete"
 }
 
 # Phase 3: Set permissions
 phase_set_permissions() {
     echo ""
-    echo -e "${BLUE}🔐 Phase 3: Setting file permissions${NC}"
+    print_header "🔐 Phase 3: Setting file permissions"
     echo ""
     
     # Use Python module to process permissions
@@ -326,9 +357,9 @@ phase_set_permissions() {
     python3 -m permission_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag
 
     if [[ $? -ne 0 ]]; then
-        echo -e "${YELLOW}⚠️  Some permission settings may have failed${NC}"
+        print_warn "⚠️  Some permission settings may have failed"
     else
-        echo -e "${GREEN}✅ File permissions configuration complete${NC}"
+        print_success "File permissions configuration complete"
     fi
 }
 
@@ -336,12 +367,12 @@ phase_set_permissions() {
 phase_configure_samba() {
     if ! is_component_enabled "configure_samba"; then
         echo ""
-        echo -e "${YELLOW}⏭️  Phase 4: Skipping Samba configuration${NC}"
+        print_warn "⏭️  Phase 4: Skipping Samba configuration"
         return 0
     fi
     
     echo ""
-    echo -e "${BLUE}🌐 Phase 4: Configuring Samba${NC}"
+    print_header "🌐 Phase 4: Configuring Samba"
     echo ""
     
     # Use Python module to configure Samba
@@ -353,9 +384,9 @@ phase_configure_samba() {
     python3 -m samba_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag
 
     if [[ $? -ne 0 ]]; then
-        echo -e "${YELLOW}⚠️  Some Samba configuration may have failed${NC}"
+        print_warn "⚠️  Some Samba configuration may have failed"
     else
-        echo -e "${GREEN}✅ Samba configuration complete${NC}"
+        print_success "Samba configuration complete"
     fi
 }
 
@@ -363,33 +394,24 @@ phase_configure_samba() {
 phase_configure_firewall() {
     if ! is_component_enabled "configure_firewall"; then
         echo ""
-        echo -e "${YELLOW}⏭️  Phase 5: Skipping firewall configuration${NC}"
+        print_warn "⏭️  Phase 5: Skipping firewall configuration"
         return 0
     fi
     
     echo ""
-    echo -e "${BLUE}🔥 Phase 5: Configuring firewall${NC}"
+    print_header "🔥 Phase 5: Configuring firewall"
     echo ""
     
-    local cmd="$PRODUCTION_DIR/14_configure_firewall.sh show-status"
-    
-    if [[ "$DRY_RUN" == "true" ]]; then
-        echo "[DRY RUN] Would execute: $cmd"
-        echo -e "${GREEN}✅ Firewall configuration (dry run)${NC}"
-    else
-        echo "Checking firewall status..."
-        if "$PRODUCTION_DIR/14_configure_firewall.sh" show-status; then
-            echo -e "${GREEN}✅ Firewall configuration complete${NC}"
-        else
-            echo -e "${YELLOW}⚠️  Firewall configuration check completed with warnings${NC}"
-        fi
-    fi
+    execute_or_execute_dryrun "$PRODUCTION_DIR/14_configure_firewall.sh show-status" \
+                              "Firewall configuration complete" \
+                              "Firewall configuration check completed with warnings" \
+                              "Check and configure firewall settings for Shuttle security requirements"
 }
 
 # Run configuration wizard
 run_configuration_wizard() {
     echo ""
-    echo -e "${BLUE}🧙 Running Configuration Wizard${NC}"
+    print_header "🧙 Running Configuration Wizard"
     echo ""
     
     # Change to config directory
@@ -414,9 +436,14 @@ run_configuration_wizard() {
     
     # Run the wizard with arguments
     python3 -m config_wizard $wizard_args
+    local wizard_exit_code=$?
     
-    if [[ $? -ne 0 ]]; then
-        echo -e "${RED}❌ Configuration wizard failed${NC}"
+    if [[ $wizard_exit_code -eq 2 ]]; then
+        print_success "Configuration saved successfully"
+        echo "Exiting as requested - configuration saved but not applied."
+        exit 0
+    elif [[ $wizard_exit_code -ne 0 ]]; then
+        print_fail "Configuration wizard failed"
         exit 1
     fi
     
@@ -426,10 +453,10 @@ run_configuration_wizard() {
     if [[ -n "$latest_config" ]]; then
         CONFIG_FILE="$PROJECT_ROOT/config/$latest_config"
         echo ""
-        echo -e "${GREEN}✅ Using generated configuration: $CONFIG_FILE${NC}"
+        print_success "Using generated configuration: $CONFIG_FILE"
         echo ""
     else
-        echo -e "${RED}❌ Could not find generated configuration file${NC}"
+        print_fail "Could not find generated configuration file"
         exit 1
     fi
     
@@ -440,11 +467,11 @@ run_configuration_wizard() {
 # Show completion summary
 show_completion_summary() {
     echo ""
-    echo -e "${GREEN}🎉 Production environment configuration complete!${NC}"
+    print_success "🎉 Production environment configuration complete!"
     echo ""
     
     if [[ "$DRY_RUN" == "true" ]]; then
-        echo -e "${YELLOW}This was a dry run. No changes were made.${NC}"
+        print_warn "This was a dry run. No changes were made."
         echo "Run without --dry-run to apply the configuration."
         echo ""
     else
@@ -470,8 +497,8 @@ show_completion_summary() {
 
 # Main execution function
 main() {
-    echo "Starting production environment configuration..."
-    echo ""
+    echo "Starting production environment configuration..." >&2
+    echo "" >&2
     
     # Parse command line arguments
     parse_arguments "$@"

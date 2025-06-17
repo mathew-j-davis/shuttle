@@ -25,7 +25,7 @@ shuttle/
 │           └── read_write_ledger.py      # Version tracking
 ├── scripts/                    # All utility scripts
 │   ├── 0_key_generation/       # Key generation script
-│   ├── 1_deployment_steps/           # Installation scripts (numbered 01-10)
+│   ├── 1_installation_steps/           # Installation scripts (numbered 01-10)
 │   ├── health_check_tests/     # Health check and testing scripts
 │   └── vscode_debugging/      # VS Code debugging configurations
 ├── example/                    # Example configurations and files
@@ -80,7 +80,7 @@ shuttle/
 
 #### Setup Scripts
 
-The deployment scripts in `scripts/1_deployment_steps/` have specific requirements:
+The deployment scripts in `scripts/1_installation_steps/` have specific requirements:
 
 - **Scripts requiring sudo**:
   - `03_sudo_install_dependencies.sh` - System packages installation
@@ -106,7 +106,7 @@ The deployment scripts in `scripts/1_deployment_steps/` have specific requiremen
 
 #### Environment Variables
 
-The application uses these environment variables (set by `scripts/1_deployment_steps/00_set_env.sh`):
+The application uses these environment variables (set by `scripts/1_installation_steps/00_set_env.sh`):
 
 - `SHUTTLE_CONFIG_PATH` - Path to the configuration file
 - `SHUTTLE_VENV_PATH` - Path to the virtual environment
@@ -425,7 +425,7 @@ The tracker unit tests demonstrate:
    - **Purpose:** Contains all Python modules
 
 2. **Deployment Scripts**
-   - **Location:** `/opt/shuttle/scripts/1_deployment_steps`
+   - **Location:** `/opt/shuttle/scripts/1_installation_steps`
    - **Purpose:** Installation scripts (01-10)
 
 3. **Temporary Setup Scripts**

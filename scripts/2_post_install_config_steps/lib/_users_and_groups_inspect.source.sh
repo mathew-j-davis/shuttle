@@ -295,7 +295,8 @@ modify_user_home_directory() {
     fi
     
     # Execute usermod - it will handle creation, permissions, and ownership
-    execute_or_dryrun "$usermod_cmd" "Set home directory for '$user_identifier'" "Failed to set home directory for '$user_identifier'" || return 1
+    execute_or_dryrun "$usermod_cmd" "Set home directory for '$user_identifier'" "Failed to set home directory for '$user_identifier'" \
+                     "Modify user account to set home directory path and move existing files if needed" || return 1
     
     return 0
 }
@@ -330,7 +331,8 @@ add_user_to_group_core() {
         gpasswd_cmd="sudo $gpasswd_cmd"
     fi
     
-    execute_or_dryrun "$gpasswd_cmd" "Added '$user_identifier' to group '$groupname'" "Failed to add '$user_identifier' to group '$groupname'" || return 1
+    execute_or_dryrun "$gpasswd_cmd" "Added '$user_identifier' to group '$groupname'" "Failed to add '$user_identifier' to group '$groupname'" \
+                     "Add user to specified group to grant access to group-based resources and permissions" || return 1
     
     return 0
 }
@@ -365,7 +367,8 @@ remove_user_from_group_core() {
         gpasswd_cmd="sudo $gpasswd_cmd"
     fi
     
-    execute_or_dryrun "$gpasswd_cmd" "Removed '$user_identifier' from group '$groupname'" "Failed to remove '$user_identifier' from group '$groupname'" || return 1
+    execute_or_dryrun "$gpasswd_cmd" "Removed '$user_identifier' from group '$groupname'" "Failed to remove '$user_identifier' from group '$groupname'" \
+                     "Remove user from specified group to revoke access to group-based resources and permissions" || return 1
     
     return 0
 }
@@ -515,7 +518,8 @@ add_acl_to_path_core() {
     log INFO "Adding ACL '$acl_entry' to: $path"
     
     # Execute setfacl command
-    execute_or_dryrun "$setfacl_cmd" "Added ACL '$acl_entry' to '$path'" "Failed to add ACL '$acl_entry' to '$path'" || return 1
+    execute_or_dryrun "$setfacl_cmd" "Added ACL '$acl_entry' to '$path'" "Failed to add ACL '$acl_entry' to '$path'" \
+                     "Set file access control list entry to grant specific permissions to user or group" || return 1
     
     return 0
 }
@@ -557,7 +561,8 @@ remove_acl_from_path_core() {
     log INFO "Removing ACL '$acl_entry' from: $path"
     
     # Execute setfacl command
-    execute_or_dryrun "$setfacl_cmd" "Removed ACL '$acl_entry' from '$path'" "Failed to remove ACL '$acl_entry' from '$path'" || return 1
+    execute_or_dryrun "$setfacl_cmd" "Removed ACL '$acl_entry' from '$path'" "Failed to remove ACL '$acl_entry' from '$path'" \
+                     "Remove file access control list entry to revoke specific permissions from user or group" || return 1
     
     return 0
 }

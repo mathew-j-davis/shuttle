@@ -277,7 +277,8 @@ set_path_permissions_core() {
         fi
         
         # Execute chmod command
-        execute_or_dryrun "$chmod_cmd" "Changed permissions of '$path' to '$mode'" "Failed to change permissions of '$path'" || return 1
+        execute_or_dryrun "$chmod_cmd" "Changed permissions of '$path' to '$mode'" "Failed to change permissions of '$path'" \
+                         "Modify file or directory permissions to control access (read/write/execute) for owner/group/others" || return 1
         
         # Show summary of changes if not dry run
         if [[ "$DRY_RUN" != "true" ]]; then
@@ -331,7 +332,8 @@ set_separate_file_dir_permissions() {
     log INFO "Setting directory permissions..."
     while IFS= read -r -d '' dir; do
         local chmod_cmd="${sudo_prefix}chmod '$dir_mode' '$dir'"
-        if execute_or_dryrun "$chmod_cmd" "Set directory permissions: $dir -> $dir_mode" "Failed to set permissions on directory: $dir"; then
+        if execute_or_dryrun "$chmod_cmd" "Set directory permissions: $dir -> $dir_mode" "Failed to set permissions on directory: $dir" \
+                          "Apply specific permissions to directory to control access and traversal rights"; then
             ((dirs_changed++))
         else
             ((errors++))
@@ -342,7 +344,8 @@ set_separate_file_dir_permissions() {
     log INFO "Setting file permissions..."
     while IFS= read -r -d '' file; do
         local chmod_cmd="${sudo_prefix}chmod '$file_mode' '$file'"
-        if execute_or_dryrun "$chmod_cmd" "Set file permissions: $file -> $file_mode" "Failed to set permissions on file: $file"; then
+        if execute_or_dryrun "$chmod_cmd" "Set file permissions: $file -> $file_mode" "Failed to set permissions on file: $file" \
+                          "Apply specific permissions to file to control read/write/execute access rights"; then
             ((files_changed++))
         else
             ((errors++))

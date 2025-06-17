@@ -66,12 +66,14 @@ start_samba_core() {
     # Start smbd service
     log INFO "Starting smbd service..."
     local cmd="sudo systemctl start smbd"
-    execute_or_dryrun "$cmd" "smbd service started successfully" "Failed to start smbd service" || error_exit "Failed to start smbd service"
+    execute_or_dryrun "$cmd" "smbd service started successfully" "Failed to start smbd service" \
+                     "Start Samba smbd daemon to enable SMB/CIFS file sharing functionality" || error_exit "Failed to start smbd service"
     
     # Start nmbd service
     log INFO "Starting nmbd service..."
     local cmd="sudo systemctl start nmbd"
-    if ! execute_or_dryrun "$cmd" "nmbd service started successfully" "Failed to start nmbd service"; then
+    if ! execute_or_dryrun "$cmd" "nmbd service started successfully" "Failed to start nmbd service" \
+                        "Start Samba nmbd daemon to provide NetBIOS name resolution and browsing services"; then
         log WARN "Failed to start nmbd service (may not be critical)"
     fi
     

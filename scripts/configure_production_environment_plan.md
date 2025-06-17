@@ -1,7 +1,7 @@
 # Production Environment Configuration Script Planning
 
 ## Overview
-This script will provide an interactive, guided setup for Shuttle production environments, similar to how `1_install.sh` works for initial installation. It will orchestrate the individual configuration scripts in `scripts/2_production_environment_steps/`.
+This script will provide an interactive, guided setup for Shuttle production environments, similar to how `1_install.sh` works for initial installation. It will orchestrate the individual configuration scripts in `scripts/2_post_install_config_steps/`.
 
 ## Script: `configure_production_environment.sh`
 
@@ -315,7 +315,7 @@ Lab 2:
 
 #### Script Dependencies
 ```
-scripts/2_production_environment_steps/
+scripts/2_post_install_config_steps/
 ├── 11_configure_firewall.sh        # (to be created)
 ├── 12_configure_users.sh           # Main user/group setup
 ├── 13_configure_smb.sh             # Samba configuration

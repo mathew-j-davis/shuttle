@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 # Get script directory and project root
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-DEPLOYMENT_DIR="$SCRIPT_DIR/1_deployment_steps"
+DEPLOYMENT_DIR="$SCRIPT_DIR/1_installation_steps"
 
 # Change to project root
 cd "$PROJECT_ROOT"
@@ -40,6 +40,9 @@ INSTALL_CLAMAV=false
 CHECK_DEFENDER=false
 SKIP_PYTHON_DEPS=false
 SKIP_MODULES=false
+
+# Set command history file for this installation session
+export COMMAND_HISTORY_FILE="/tmp/shuttle_install_command_history_$(date +%Y%m%d_%H%M%S).log"
 
 echo "========================================="
 echo "    Shuttle Interactive Setup Script     "
@@ -469,18 +472,18 @@ check_and_install_system_deps() {
         echo "   • freshclam - Virus definition updater"
         echo "   • clamav-daemon - Background scanning service"
         echo ""
-        read -p "Install ClamAV? (Default: Yes) [Y/n/x]: " choice
+        read -p "Install ClamAV? (Default: No) [Y/n/x]: " choice
         case $choice in
-            [Nn]) 
-                INSTALL_CLAMAV=false
-                echo -e "${YELLOW}⚠️  Skipping ClamAV - virus scanning will be limited to Microsoft Defender${NC}"
+            [Yy]) 
+                INSTALL_CLAMAV=true
                 ;;
             [Xx]) 
                 echo "Installation cancelled by user."
                 exit 0 
                 ;;
-            *) # Default is Yes
-                INSTALL_CLAMAV=true
+            *) # Default is No
+                INSTALL_CLAMAV=false
+                echo -e "${YELLOW}⚠️  Skipping ClamAV - virus scanning will be limited to Microsoft Defender${NC}"
                 ;;
         esac
     else
@@ -1138,29 +1141,29 @@ show_next_steps() {
         case $VENV_TYPE in
             "existing")
                 echo "   - You already have a virtual environment active"
-                echo -e "   ${BLUE}pip install -r scripts/1_deployment_steps/requirements.txt${NC}"
+                echo -e "   ${BLUE}pip install -r scripts/1_installation_steps/requirements.txt${NC}"
                 ;;
             "script")
                 echo "   - Activate the virtual environment first:"
                 echo -e "   ${BLUE}source $VENV_PATH/bin/activate${NC}"
-                echo -e "   ${BLUE}pip install -r scripts/1_deployment_steps/requirements.txt${NC}"
+                echo -e "   ${BLUE}pip install -r scripts/1_installation_steps/requirements.txt${NC}"
                 ;;
             "global")
                 echo "   - Installing globally:"
-                echo -e "   ${BLUE}pip install -r scripts/1_deployment_steps/requirements.txt${NC}"
+                echo -e "   ${BLUE}pip install -r scripts/1_installation_steps/requirements.txt${NC}"
                 ;;
         esac
         
         echo ""
         echo "3. Install Shuttle modules:"
         if [[ "$INSTALL_MODE" == "dev" ]]; then
-            echo -e "   ${BLUE}./scripts/1_deployment_steps/08_install_shared.sh -e${NC}"
-            echo -e "   ${BLUE}./scripts/1_deployment_steps/09_install_defender_test.sh -e${NC}"
-            echo -e "   ${BLUE}./scripts/1_deployment_steps/10_install_shuttle.sh -e${NC}"
+            echo -e "   ${BLUE}./scripts/1_installation_steps/08_install_shared.sh -e${NC}"
+            echo -e "   ${BLUE}./scripts/1_installation_steps/09_install_defender_test.sh -e${NC}"
+            echo -e "   ${BLUE}./scripts/1_installation_steps/10_install_shuttle.sh -e${NC}"
         else
-            echo -e "   ${BLUE}./scripts/1_deployment_steps/08_install_shared.sh${NC}"
-            echo -e "   ${BLUE}./scripts/1_deployment_steps/09_install_defender_test.sh${NC}"
-            echo -e "   ${BLUE}./scripts/1_deployment_steps/10_install_shuttle.sh${NC}"
+            echo -e "   ${BLUE}./scripts/1_installation_steps/08_install_shared.sh${NC}"
+            echo -e "   ${BLUE}./scripts/1_installation_steps/09_install_defender_test.sh${NC}"
+            echo -e "   ${BLUE}./scripts/1_installation_steps/10_install_shuttle.sh${NC}"
         fi
     else
         # Everything was installed successfully

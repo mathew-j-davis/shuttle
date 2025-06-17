@@ -302,7 +302,11 @@ _create_local_user() {
     useradd_cmd="$useradd_cmd $username"
     
     # Execute useradd
-    execute_or_dryrun "$useradd_cmd" "User '$username' created successfully" "Failed to create user '$username'" || error_exit "Failed to create user '$username'"
+    execute_or_dryrun "$useradd_cmd" \
+                     "User '$username' created successfully" \
+                     "Failed to create user '$username'" \
+                     "Create new system user account for Shuttle file operations" \
+                     || error_exit "Failed to create user '$username'"
     
     # Set password if provided
     if [[ -n "$password" ]]; then
@@ -311,7 +315,11 @@ _create_local_user() {
         if ! check_active_user_is_root; then
             passwd_cmd="echo '$username:$password' | sudo chpasswd"
         fi
-        execute_or_dryrun "$passwd_cmd" "Password set for user '$username'" "Failed to set password for user '$username'" || log WARN "Failed to set password for user '$username'"
+        execute_or_dryrun "$passwd_cmd" \
+                         "Password set for user '$username'" \
+                         "Failed to set password for user '$username'" \
+                         "Set initial password for user authentication" \
+                         || log WARN "Failed to set password for user '$username'"
     fi
     
     return 0

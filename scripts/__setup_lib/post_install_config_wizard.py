@@ -19,7 +19,7 @@ class ConfigWizard:
         self.config = {
             'version': '1.0',
             'metadata': {
-                'description': 'Shuttle user setup configuration',
+                'description': 'Shuttle post-install user configuration',
                 'environment': 'production',
                 'created': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'generated_by': 'Configuration Wizard'
@@ -123,16 +123,16 @@ class ConfigWizard:
         """Select deployment environment"""
         print("\n1. Select Environment")
         print("-------------------")
-        print("1) Production - Service accounts, no shell access")
-        print("2) Development - Interactive accounts for debugging")
-        print("3) Testing - Mix of service and interactive accounts")
+        print("1) Development - Interactive accounts for debugging")
+        print("2) Testing - Mix of service and interactive accounts")
+        print("3) Production - Service accounts, no shell access")
         
         choice = self._get_choice("Select environment", ["1", "2", "3"], "1")
         
         env_map = {
-            "1": "production",
-            "2": "development",
-            "3": "testing"
+            "1": "development",
+            "2": "testing",
+            "3": "production"
         }
         self.config['metadata']['environment'] = env_map[choice]
     
@@ -145,20 +145,20 @@ class ConfigWizard:
         
         # Package installation
         print("Package Installation:")
-        self.config['components']['install_samba'] = self._confirm("  Install Samba?", True)
-        self.config['components']['install_acl'] = self._confirm("  Install ACL tools?", True)
+        self.config['components']['install_samba'] = self._confirm("  Install Samba? (Default: Yes)", True)
+        self.config['components']['install_acl'] = self._confirm("  Install ACL tools? (Default: Yes)", True)
         print("")
         
         # Configuration steps
         print("Configuration Steps:")
-        self.config['components']['configure_users_groups'] = self._confirm("  Configure users and groups?", True)
+        self.config['components']['configure_users_groups'] = self._confirm("  Configure users and groups? (Default: Yes)", True)
         
         if self.config['components']['install_samba']:
-            self.config['components']['configure_samba'] = self._confirm("  Configure Samba settings?", True)
+            self.config['components']['configure_samba'] = self._confirm("  Configure Samba settings? (Default: Yes)", True)
         else:
             self.config['components']['configure_samba'] = False
             
-        self.config['components']['configure_firewall'] = self._confirm("  Configure firewall?", True)
+        self.config['components']['configure_firewall'] = self._confirm("  Configure firewall? (Default: Yes)", True)
         print("")
     
     def _select_user_approach(self):
@@ -199,10 +199,10 @@ class ConfigWizard:
         if self.config['metadata']['environment'] == 'development':
             if user_source == "existing":
                 print(f"\nFor existing user '{username}', how will they use Samba?")
-                print("1) Service account - programmatic/automated file access")
-                print("2) Interactive user - desktop/human file sharing")
-                type_choice = self._get_choice("Select usage type", ["1", "2"], "2")
-                account_type = "service" if type_choice == "1" else "interactive"
+                print("1) Interactive user - desktop/human file sharing")
+                print("2) Service account - programmatic/automated file access")
+                type_choice = self._get_choice("Select usage type", ["1", "2"], "1")
+                account_type = "interactive" if type_choice == "1" else "service"
             else:
                 if self._confirm("Create interactive account with shell access?", False):
                     account_type = "interactive"
@@ -243,7 +243,9 @@ class ConfigWizard:
         })
         
         # Samba configuration
-        if self.config['components']['configure_samba'] and self._confirm("Enable Samba access for this user?", True):
+        print("\nEnable Samba Access for User")
+        print("============================")
+        if self.config['components']['configure_samba'] and self._confirm("Enable Samba access for this user? (Default: Yes)", True):
             user['samba'] = {'enabled': True}
             
             # Samba authentication method
@@ -716,14 +718,14 @@ def main():
     """Main entry point"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='Shuttle User Setup Configuration Wizard')
+    parser = argparse.ArgumentParser(description='Shuttle Post-Install Configuration Wizard')
     parser.add_argument('--shuttle-config-path', help='Path to shuttle configuration file')
     parser.add_argument('--test-work-dir', help='Test work directory path')
     parser.add_argument('--test-config-path', help='Test configuration file path')
     
     args = parser.parse_args()
     
-    print("Shuttle User Setup Configuration Wizard")
+    print("Shuttle Post-Install Configuration Wizard")
     print("======================================")
     
     wizard = ConfigWizard(
@@ -748,38 +750,124 @@ def main():
     choice = input("Select option [1]: ").strip() or "1"
     
     if choice == "1":
-        # Save only - show commands and exit
-        default_filename = f"shuttle_user_setup_{config[0]['metadata']['environment']}.yaml"
+        # Save only - show commands and exit with special code
+        default_filename = f"config/shuttle_user_setup_{config[0]['metadata']['environment']}.yaml"
         filename = input(f"Save as [{default_filename}]: ").strip() or default_filename
+        
+        # Ensure config directory exists
+        config_dir = os.path.dirname(filename)
+        if config_dir and not os.path.exists(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+        
         save_config(config, filename)
         
+        # Validate configuration
         print(f"\n{'='*60}")
-        print("CONFIGURATION SAVED - NEXT STEPS")
+        print("CONFIGURATION VALIDATION")
+        print("="*60)
+        
+        try:
+            # Basic YAML validation
+            with open(filename, 'r') as f:
+                list(yaml.safe_load_all(f))
+            print("✅ YAML syntax is valid")
+            
+            # Check for required sections
+            validation_errors = []
+            with open(filename, 'r') as f:
+                docs = list(yaml.safe_load_all(f))
+            
+            # Validate first document (main config)
+            if not docs:
+                validation_errors.append("No configuration documents found")
+            else:
+                main_config = docs[0]
+                
+                # Check required sections
+                required_sections = ['metadata', 'settings', 'groups', 'components']
+                for section in required_sections:
+                    if section not in main_config:
+                        validation_errors.append(f"Missing required section: {section}")
+                
+                # Check metadata
+                if 'metadata' in main_config:
+                    metadata = main_config['metadata']
+                    required_metadata = ['environment', 'created']
+                    for field in required_metadata:
+                        if field not in metadata:
+                            validation_errors.append(f"Missing required metadata field: {field}")
+            
+            # Validate user documents
+            user_count = len(docs) - 1
+            if user_count == 0:
+                validation_errors.append("No users defined")
+            else:
+                for i, doc in enumerate(docs[1:], 1):
+                    if doc.get('type') != 'user':
+                        validation_errors.append(f"Document {i+1}: Invalid type, expected 'user'")
+                    elif 'user' not in doc:
+                        validation_errors.append(f"Document {i+1}: Missing 'user' section")
+                    else:
+                        user = doc['user']
+                        required_user_fields = ['name', 'source', 'account_type', 'groups']
+                        for field in required_user_fields:
+                            if field not in user:
+                                validation_errors.append(f"User {user.get('name', 'unnamed')}: Missing required field '{field}'")
+            
+            if validation_errors:
+                print("❌ Configuration validation errors found:")
+                for error in validation_errors:
+                    print(f"   • {error}")
+                print("")
+                print("Please review and fix these issues before applying the configuration.")
+                print("")
+            else:
+                print("✅ Configuration validation passed")
+                print("")
+                
+        except yaml.YAMLError as e:
+            print(f"❌ YAML syntax error: {e}")
+            print("")
+            print("Please review and fix the YAML syntax before applying the configuration.")
+            print("")
+        except Exception as e:
+            print(f"❌ Validation error: {e}")
+            print("")
+        
+        print(f"{'='*60}")
+        print("NEXT STEPS")
         print("="*60)
         print("To review the configuration:")
         print(f"  cat {filename}")
         print("")
         print("To test what would be applied (dry run):")
-        print(f"  ./2_configure_production.sh --config {filename} --dry-run")
+        print(f"  ./2_post_install_config.sh --config {filename} --dry-run")
         print("")
         print("To apply the configuration:")
-        print(f"  ./2_configure_production.sh --config {filename}")
+        print(f"  ./2_post_install_config.sh --config {filename}")
         print("")
         print("Configuration wizard complete.")
+        sys.exit(2)  # Exit with code 2 to indicate "save only, don't continue"
         
     elif choice == "2":
         # Apply now without saving
         print("\nTo apply this configuration, run:")
-        print("  ./2_configure_production.sh --config <temp_config>")
+        print("  ./2_post_install_config.sh --config <temp_config>")
         
     elif choice == "3":
         # Save and apply
-        default_filename = f"shuttle_user_setup_{config[0]['metadata']['environment']}.yaml"
+        default_filename = f"config/shuttle_user_setup_{config[0]['metadata']['environment']}.yaml"
         filename = input(f"Save as [{default_filename}]: ").strip() or default_filename
+        
+        # Ensure config directory exists
+        config_dir = os.path.dirname(filename)
+        if config_dir and not os.path.exists(config_dir):
+            os.makedirs(config_dir, exist_ok=True)
+        
         save_config(config, filename)
         
         print("\nTo apply this configuration, run:")
-        print(f"  ./2_configure_production.sh --config {filename}")
+        print(f"  ./2_post_install_config.sh --config {filename}")
         
     elif choice == "4":
         print("\nConfiguration not saved.")

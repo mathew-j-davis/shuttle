@@ -137,7 +137,7 @@ For development/testing, run the setup script:
 
 ```bash
 # Set up test environment (from project root)
-python scripts/1_deployment_steps/07_setup_config.py --output-dir test_area
+python scripts/1_installation_steps/07_setup_config.py --output-dir test_area
 
 # Generate test GPG keys
 scripts/0_key_generation/00_generate_shuttle_keys.sh \
@@ -163,7 +163,7 @@ Tests require a configuration file with test-specific paths. The `07_setup_confi
 
 ```bash
 # Create test configuration
-python scripts/1_deployment_steps/07_setup_config.py \
+python scripts/1_installation_steps/07_setup_config.py \
     --output-dir test_area \
     --source-path test_area/source \
     --destination-path test_area/destination \
@@ -214,7 +214,7 @@ For convenience, create a test environment setup script:
 mkdir -p test_area/{source,destination,quarantine,hazard,logs}
 
 # Generate test config
-python scripts/1_deployment_steps/07_setup_config.py \
+python scripts/1_installation_steps/07_setup_config.py \
     --output-dir test_area \
     --source-path test_area/source \
     --destination-path test_area/destination \

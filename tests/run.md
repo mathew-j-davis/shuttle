@@ -15,9 +15,9 @@ This guide explains how to run the shuttle test suite in various ways.
 2. Ensure all modules are installed in development mode:
    ```bash
    # Note: These scripts are automatically called by 1_install.sh
-   ./scripts/1_deployment_steps/08_install_shared.sh -e
-   ./scripts/1_deployment_steps/09_install_defender_test.sh -e
-   ./scripts/1_deployment_steps/10_install_shuttle.sh -e
+   ./scripts/1_installation_steps/08_install_shared.sh -e
+   ./scripts/1_installation_steps/09_install_defender_test.sh -e
+   ./scripts/1_installation_steps/10_install_shuttle.sh -e
    ```
 
 ## Running All Tests

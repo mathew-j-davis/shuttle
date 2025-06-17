@@ -22,15 +22,19 @@ check_active_user_has_sudo_access() {
     
     # "call sudo -n -v to test if already authenticated"
     # First try to check if we already have a valid sudo timestamp (non-interactive)
-    if sudo -n -v 2>/dev/null; then
-        log INFO "Sudo access available (already authenticated)"
+    if execute "sudo -n -v 2>/dev/null" \
+              "Sudo access available (already authenticated)" \
+              "Sudo authentication required" \
+              "Check if user has active sudo authentication timestamp"; then
         return 0
     fi
     
     # "check if user is in sudo/wheel groups"
     # Check if user is in sudo or wheel group (common sudo groups)
-    if groups 2>/dev/null | grep -qE "(sudo|wheel|admin)"; then
-        log INFO "User is in sudo group - sudo access likely available"
+    if execute "groups 2>/dev/null | grep -qE \"(sudo|wheel|admin)\"" \
+              "User is in sudo group - sudo access likely available" \
+              "User is not in sudo groups" \
+              "Check if current user belongs to administrative groups (sudo/wheel/admin)"; then
         log WARN "You may be prompted for your sudo password during execution"
         return 0
     fi

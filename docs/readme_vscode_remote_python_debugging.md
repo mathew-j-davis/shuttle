@@ -126,7 +126,7 @@ Here's a specific example for the Shuttle project:
             "name": "Python: Shuttle",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/1_deployment_steps/shuttle/run_shuttle.py",
+            "program": "${workspaceFolder}/1_installation_steps/shuttle/run_shuttle.py",
             "console": "integratedTerminal",
             "justMyCode": true,
             "python": "/home/username/forge/venv/bin/python",

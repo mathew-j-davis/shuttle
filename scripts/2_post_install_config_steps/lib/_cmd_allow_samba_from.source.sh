@@ -230,7 +230,8 @@ apply_ufw_samba_rules_allow() {
             fi
             
             local ufw_cmd="sudo ufw allow from $src to any port $port proto $proto$rule_comment"
-            execute_or_dryrun "$ufw_cmd" "Added UFW rule: $proto/$port from $src" "Failed to add UFW rule: $proto/$port from $src"
+            execute_or_dryrun "$ufw_cmd" "Added UFW rule: $proto/$port from $src" "Failed to add UFW rule: $proto/$port from $src" \
+                             "Configure UFW firewall to allow Samba traffic from specific source address"
         done
     done
 }
@@ -253,13 +254,15 @@ apply_firewalld_samba_rules_allow() {
             log INFO "Adding firewalld rich rule from $src for $proto/$port"
             
             local firewalld_cmd="sudo firewall-cmd --add-rich-rule=\"$rich_rule\" --permanent"
-            execute_or_dryrun "$firewalld_cmd" "Added firewalld rule: $proto/$port from $src" "Failed to add firewalld rule: $proto/$port from $src"
+            execute_or_dryrun "$firewalld_cmd" "Added firewalld rule: $proto/$port from $src" "Failed to add firewalld rule: $proto/$port from $src" \
+                             "Add firewalld rich rule to allow Samba traffic from specific source address permanently"
         done
     done
     
     # Reload firewalld to apply permanent rules
     local reload_cmd="sudo firewall-cmd --reload"
-    execute_or_dryrun "$reload_cmd" "Firewalld rules reloaded successfully" "Failed to reload firewalld rules"
+    execute_or_dryrun "$reload_cmd" "Firewalld rules reloaded successfully" "Failed to reload firewalld rules" \
+                     "Reload firewalld configuration to activate newly added permanent rules"
 }
 
 # Iptables rule application
@@ -279,13 +282,18 @@ apply_iptables_samba_rules_allow() {
             fi
             
             local iptables_cmd="sudo iptables -A INPUT -s $src -p $proto --dport $port $rule_comment -j ACCEPT"
-            execute_or_dryrun "$iptables_cmd" "Added iptables rule: $proto/$port from $src" "Failed to add iptables rule: $proto/$port from $src"
+            execute_or_dryrun "$iptables_cmd" "Added iptables rule: $proto/$port from $src" "Failed to add iptables rule: $proto/$port from $src" \
+                             "Add iptables INPUT rule to allow Samba traffic from specific source address"
         done
     done
     
     # Save iptables rules
-    if command -v iptables-save >/dev/null 2>&1; then
+    if execute "command -v iptables-save >/dev/null 2>&1" \
+              "Iptables-save command available" \
+              "Iptables-save command not available" \
+              "Check if iptables-save utility is installed for rule persistence"; then
         local save_cmd="sudo iptables-save > /etc/iptables/rules.v4"
-        execute_or_dryrun "$save_cmd" "Iptables rules saved" "Could not save iptables rules to /etc/iptables/rules.v4"
+        execute_or_dryrun "$save_cmd" "Iptables rules saved" "Could not save iptables rules to /etc/iptables/rules.v4" \
+                         "Save current iptables rules to persistent configuration file for reboot survival"
     fi
 }

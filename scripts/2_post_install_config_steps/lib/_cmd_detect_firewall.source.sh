@@ -82,17 +82,29 @@ detect_firewall_core() {
     # Check for ufw
     local ufw_available=false
     local ufw_active=false
-    if command -v ufw >/dev/null 2>&1; then
+    if execute "command -v ufw >/dev/null 2>&1" \
+              "UFW firewall available" \
+              "UFW firewall not available" \
+              "Check if UFW (Uncomplicated Firewall) is installed on the system"; then
         ufw_available=true
         echo "UFW: Available"
         
-        if ufw --version >/dev/null 2>&1; then
-            local ufw_ver=$(ufw --version 2>/dev/null | head -1)
+        if execute "ufw --version >/dev/null 2>&1" \
+                  "UFW version check successful" \
+                  "UFW version check failed" \
+                  "Get UFW version information for compatibility checking"; then
+            local ufw_ver=$(execute "ufw --version 2>/dev/null | head -1" \
+                                   "UFW version retrieved" \
+                                   "UFW version retrieval failed" \
+                                   "Extract UFW version string from command output")
             echo "UFW Version: $ufw_ver"
         fi
         
         # Check if ufw is active
-        if ufw status 2>/dev/null | grep -q "Status: active"; then
+        if execute "ufw status 2>/dev/null | grep -q \"Status: active\"" \
+                  "UFW is currently active" \
+                  "UFW is not active" \
+                  "Check if UFW firewall is currently enabled and running"; then
             ufw_active=true
             detected_firewall="ufw"
             firewall_status="active"
@@ -107,17 +119,29 @@ detect_firewall_core() {
     # Check for firewalld
     local firewalld_available=false
     local firewalld_active=false
-    if command -v firewall-cmd >/dev/null 2>&1; then
+    if execute "command -v firewall-cmd >/dev/null 2>&1" \
+              "Firewalld available" \
+              "Firewalld not available" \
+              "Check if firewalld (dynamic firewall manager) is installed on the system"; then
         firewalld_available=true
         echo "Firewalld: Available"
         
-        if firewall-cmd --version >/dev/null 2>&1; then
-            local firewalld_ver=$(firewall-cmd --version 2>/dev/null)
+        if execute "firewall-cmd --version >/dev/null 2>&1" \
+                  "Firewalld version check successful" \
+                  "Firewalld version check failed" \
+                  "Get firewalld version information for compatibility checking"; then
+            local firewalld_ver=$(execute "firewall-cmd --version 2>/dev/null" \
+                                          "Firewalld version retrieved" \
+                                          "Firewalld version retrieval failed" \
+                                          "Extract firewalld version string from command output")
             echo "Firewalld Version: $firewalld_ver"
         fi
         
         # Check if firewalld is active
-        if systemctl is-active firewalld >/dev/null 2>&1; then
+        if execute "systemctl is-active firewalld >/dev/null 2>&1" \
+                  "Firewalld service is active" \
+                  "Firewalld service is not active" \
+                  "Check if firewalld systemd service is currently running"; then
             firewalld_active=true
             if [[ "$detected_firewall" == "none" ]]; then
                 detected_firewall="firewalld"
@@ -134,12 +158,18 @@ detect_firewall_core() {
     # Check for iptables
     local iptables_available=false
     local iptables_rules=false
-    if command -v iptables >/dev/null 2>&1; then
+    if execute "command -v iptables >/dev/null 2>&1" \
+              "Iptables available" \
+              "Iptables not available" \
+              "Check if iptables (Linux netfilter firewall) is installed on the system"; then
         iptables_available=true
         echo "Iptables: Available"
         
         # Check if iptables has custom rules
-        local rule_count=$(iptables -L 2>/dev/null | grep -c "^Chain\|^target" || echo "0")
+        local rule_count=$(execute "iptables -L 2>/dev/null | grep -c \"^Chain\|^target\" || echo \"0\"" \
+                                  "Iptables rules counted" \
+                                  "Could not count iptables rules" \
+                                  "Count iptables rules to determine if custom firewall rules exist")
         if [[ "$rule_count" -gt 6 ]]; then  # More than default chains
             iptables_rules=true
             if [[ "$detected_firewall" == "none" ]]; then
@@ -200,7 +230,10 @@ detect_firewall_core() {
             echo ""
             echo "UFW Details:"
             if [[ "$ufw_active" == "true" ]]; then
-                ufw status verbose 2>/dev/null | sed 's/^/  /' || echo "  Could not get detailed status"
+                execute "ufw status verbose 2>/dev/null | sed 's/^/  /'" \
+                       "UFW detailed status retrieved" \
+                       "Could not get UFW detailed status" \
+                       "Get verbose UFW firewall status and rule information" || echo "  Could not get detailed status"
             else
                 echo "  UFW is installed but not active"
                 echo "  To activate: sudo ufw enable"
@@ -211,7 +244,10 @@ detect_firewall_core() {
             echo ""
             echo "Firewalld Details:"
             if [[ "$firewalld_active" == "true" ]]; then
-                firewall-cmd --list-all 2>/dev/null | sed 's/^/  /' || echo "  Could not get detailed status"
+                execute "firewall-cmd --list-all 2>/dev/null | sed 's/^/  /'" \
+                       "Firewalld detailed status retrieved" \
+                       "Could not get firewalld detailed status" \
+                       "Get firewalld zone configuration and active rules" || echo "  Could not get detailed status"
             else
                 echo "  Firewalld is installed but not active"
                 echo "  To activate: sudo systemctl enable --now firewalld"
@@ -222,7 +258,10 @@ detect_firewall_core() {
             echo ""
             echo "Iptables Details:"
             echo "  Filter table rules:"
-            iptables -L -n --line-numbers 2>/dev/null | sed 's/^/    /' || echo "    Could not list rules"
+            execute "iptables -L -n --line-numbers 2>/dev/null | sed 's/^/    /'" \
+                   "Iptables rules listed" \
+                   "Could not list iptables rules" \
+                   "Display current iptables filter table rules with line numbers" || echo "    Could not list rules"
         fi
     fi
     

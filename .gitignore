@@ -14,7 +14,7 @@ src/shuttle_app/build/
 src/shared_library/shuttle_common.egg-info/
 src/shuttle_defender_test_app/shuttle_defender_test.egg-info/
 src/shuttle_app/shuttle.egg-info/
-scripts/1_deployment_steps/shuttle_env.sh
+scripts/1_installation_steps/shuttle_env.sh
 config.conf
 work
 setup_complete.txt
