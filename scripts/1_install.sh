@@ -1,5 +1,5 @@
 #!/bin/bash
-# install.sh - Interactive Shuttle installation script
+# 1_install.sh - Interactive Shuttle installation script
 #
 # This script guides you through installing Shuttle with appropriate
 # configuration for your environment (development, user, or system/service)

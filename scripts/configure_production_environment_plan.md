@@ -1,7 +1,7 @@
 # Production Environment Configuration Script Planning
 
 ## Overview
-This script will provide an interactive, guided setup for Shuttle production environments, similar to how `install.sh` works for initial installation. It will orchestrate the individual configuration scripts in `scripts/2_production_environment_steps/`.
+This script will provide an interactive, guided setup for Shuttle production environments, similar to how `1_install.sh` works for initial installation. It will orchestrate the individual configuration scripts in `scripts/2_production_environment_steps/`.
 
 ## Script: `configure_production_environment.sh`
 

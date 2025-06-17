@@ -22,7 +22,7 @@ shuttle/
 │   ├── 1_deployment_steps/     # Installation scripts (numbered 01-10)
 │   ├── health_check_tests/     # Health check and testing scripts
 │   ├── vscode_debugging/       # VS Code debugging configurations
-│   └── install.sh              # Interactive installation script
+│   └── 1_install.sh              # Interactive installation script
 ├── example/                    # Example configurations and files
 └── tests/                      # Test suite
 ```
@@ -81,7 +81,7 @@ The easiest way to install Shuttle is using the interactive installation script:
 
 ```bash
 cd /path/to/shuttle
-./scripts/install.sh
+./scripts/1_install.sh
 ```
 
 This script provides:
@@ -254,7 +254,7 @@ By default, modules are installed in standard mode. For development mode (editab
 ./scripts/1_deployment_steps/10_install_shuttle.sh -e
 ```
 
-**Note:** The interactive `install.sh` script automatically handles development mode installation when you select the development installation mode.
+**Note:** The interactive `1_install.sh` script automatically handles development mode installation when you select the development installation mode.
 
 ## Data Directory Setup
 

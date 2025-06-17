@@ -65,13 +65,62 @@ validate_parameter_value() {
 
 # Function to execute command or show what would be done in dry-run mode
 # Note: Command should already include sudo prefix if needed
+# History file for command logging
+COMMAND_HISTORY_FILE="${COMMAND_HISTORY_FILE:-/tmp/shuttle_command_history_$(date +%Y%m%d_%H%M%S).log}"
+
+# Initialize history file
+init_command_history() {
+    if [[ ! -f "$COMMAND_HISTORY_FILE" ]]; then
+        {
+            echo "# Shuttle Command History"
+            echo "# Started: $(date)"
+            echo "# Script: ${SCRIPT_NAME:-unknown}"
+            echo "# User: $(whoami)"
+            echo "# Working Directory: $(pwd)"
+            echo ""
+        } > "$COMMAND_HISTORY_FILE"
+        log INFO "Command history logging to: $COMMAND_HISTORY_FILE"
+    fi
+}
+
+# Log command to history
+log_command_history() {
+    local timestamp="$1"
+    local command="$2"
+    local explanation="$3"
+    local status="$4"
+    local dry_run="$5"
+    
+    init_command_history
+    
+    {
+        echo "[$timestamp] $status"
+        if [[ -n "$explanation" ]]; then
+            echo "  Explanation: $explanation"
+        fi
+        echo "  Command: $command"
+        if [[ "$dry_run" == "true" ]]; then
+            echo "  Mode: DRY RUN"
+        fi
+        echo ""
+    } >> "$COMMAND_HISTORY_FILE"
+}
+
 execute_or_dryrun() {
     local cmd="$1"
     local success_msg="$2"
     local error_msg="$3"
+    local explanation="${4:-}"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Show explanation if provided
+    if [[ -n "$explanation" ]]; then
+        log INFO "Explanation: $explanation"
+    fi
     
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY RUN] Would execute: $cmd"
+        log_command_history "$timestamp" "$cmd" "$explanation" "DRY RUN" "true"
         return 0
     fi
     
@@ -79,9 +128,36 @@ execute_or_dryrun() {
     
     if eval "$cmd"; then
         log INFO "$success_msg"
+        log_command_history "$timestamp" "$cmd" "$explanation" "SUCCESS" "false"
         return 0
     else
         log ERROR "$error_msg"
+        log_command_history "$timestamp" "$cmd" "$explanation" "FAILED" "false"
+        return 1
+    fi
+}
+
+execute() {
+    local cmd="$1"
+    local success_msg="$2"
+    local error_msg="$3"
+    local explanation="${4:-}"
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Show explanation if provided
+    if [[ -n "$explanation" ]]; then
+        log INFO "Explanation: $explanation"
+    fi
+    
+    log DEBUG "Executing (read-only): $cmd"
+    
+    if eval "$cmd"; then
+        log INFO "$success_msg"
+        log_command_history "$timestamp" "$cmd" "$explanation" "SUCCESS (READ)" "false"
+        return 0
+    else
+        log ERROR "$error_msg"
+        log_command_history "$timestamp" "$cmd" "$explanation" "FAILED (READ)" "false"
         return 1
     fi
 }

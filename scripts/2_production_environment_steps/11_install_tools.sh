@@ -132,7 +132,8 @@ install_packages() {
     if [[ "$VERBOSE" == "true" ]]; then
         execute_or_dryrun "$install_cmd" "Installed packages: $package_list" "Failed to install packages: $package_list"
     else
-        execute_or_dryrun "$install_cmd >/dev/null 2>&1" "Installed packages: $package_list" "Failed to install packages: $package_list"
+        # Only redirect stdout, keep stderr visible for sudo password prompts
+        execute_or_dryrun "$install_cmd >/dev/null" "Installed packages: $package_list" "Failed to install packages: $package_list"
     fi
 }
 
@@ -197,7 +198,7 @@ filter_uninstalled_packages() {
     
     for package in "${packages[@]}"; do
         if check_package_installed "$pkg_manager" "$package"; then
-            log INFO "Package already installed: $package"
+            log INFO "Package already installed: $package" >&2
         else
             uninstalled+=("$package")
         fi
