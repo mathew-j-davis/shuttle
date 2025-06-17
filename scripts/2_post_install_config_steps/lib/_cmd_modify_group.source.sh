@@ -1,3 +1,9 @@
+# Source input validation library for security
+SCRIPT_DIR_FOR_VALIDATION="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")}")"
+if [[ -f "$SCRIPT_DIR_FOR_VALIDATION/_input_validation.source.sh" ]]; then
+    source "$SCRIPT_DIR_FOR_VALIDATION/_input_validation.source.sh"
+fi
+
 # Command-specific help functions
 show_help_modify_group() {
     cat << EOF
@@ -31,8 +37,6 @@ EOF
 }
 
 cmd_modify_group() {
-    # Capture original parameters before they're consumed by parsing
-    local original_params="$*"
     
     local groupname=""
     local new_name=""
@@ -42,15 +46,15 @@ cmd_modify_group() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --group)
-                groupname=$(validate_parameter_value "$1" "${2:-}" "Group name required after --group" "show_help_modify_group")
+                groupname=$(validate_parameter_group "$1" "${2:-}" "show_help_modify_group")
                 shift 2
                 ;;
             --new-name)
-                new_name=$(validate_parameter_value "$1" "${2:-}" "New name required after --new-name" "show_help_modify_group")
+                new_name=$(validate_parameter_group "$1" "${2:-}" "show_help_modify_group")
                 shift 2
                 ;;
             --gid)
-                gid=$(validate_parameter_value "$1" "${2:-}" "Group ID required after --gid" "show_help_modify_group")
+                gid=$(validate_parameter_numeric "$1" "${2:-}" "show_help_modify_group")
                 shift 2
                 ;;
             --dry-run)
@@ -80,7 +84,9 @@ cmd_modify_group() {
         error_exit "At least one modification option (--new-name or --gid) must be specified"
     fi
     
-    echo "modify-group command called with parameters: $original_params"
+    # Note: Input validation is already performed during parameter parsing using:
+    # - validate_parameter_group() for group name and new name
+    # - validate_parameter_numeric() for GID
     
     # Check tool availability
     check_tool_permission_or_error_exit "groupmod" "modify groups" "groupmod not available - cannot modify groups"

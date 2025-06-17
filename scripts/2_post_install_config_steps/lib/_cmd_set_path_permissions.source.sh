@@ -1,3 +1,9 @@
+# Source input validation library for security
+SCRIPT_DIR_FOR_VALIDATION="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+if [[ -f "$SCRIPT_DIR_FOR_VALIDATION/_input_validation.source.sh" ]]; then
+    source "$SCRIPT_DIR_FOR_VALIDATION/_input_validation.source.sh"
+fi
+
 # Command-specific help functions
 show_help_set_path_permissions() {
     cat << EOF
@@ -168,6 +174,37 @@ cmd_set_path_permissions() {
     fi
     
     echo "set-path-permissions command called with parameters: $original_params"
+    
+    # Input validation for security
+    if ! validate_input "path" "$path" "path"; then
+        error_exit "Invalid path provided to set path permissions function"
+    fi
+    
+    # Validate permission modes if provided
+    if [[ -n "$mode" ]]; then
+        if ! validate_input "mode" "$mode" "permission mode"; then
+            error_exit "Invalid permission mode provided"
+        fi
+    fi
+    
+    if [[ -n "$file_mode" ]]; then
+        if ! validate_input "mode" "$file_mode" "file mode"; then
+            error_exit "Invalid file mode provided"
+        fi
+    fi
+    
+    if [[ -n "$dir_mode" ]]; then
+        if ! validate_input "mode" "$dir_mode" "directory mode"; then
+            error_exit "Invalid directory mode provided"
+        fi
+    fi
+    
+    # Validate reference file if provided
+    if [[ -n "$reference_file" ]]; then
+        if ! validate_input "path" "$reference_file" "reference file"; then
+            error_exit "Invalid reference file path provided"
+        fi
+    fi
     
     # Check tool availability
     check_tool_permission_or_error_exit "chmod" "change permissions" "chmod not available - cannot change file permissions"

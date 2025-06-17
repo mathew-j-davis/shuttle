@@ -1,3 +1,5 @@
+# Input validation library will be loaded by the main script's setup lib loader
+
 # Command-specific help functions
 show_help_add_samba_user() {
     cat << EOF
@@ -38,9 +40,6 @@ EOF
 }
 
 cmd_add_samba_user() {
-    # Capture original parameters before they're consumed by parsing
-    local original_params="$*"
-    
     local username=""
     local password=""
     local force=false
@@ -49,11 +48,11 @@ cmd_add_samba_user() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --user)
-                username=$(validate_parameter_value "$1" "${2:-}" "Username required after --user" "show_help_add_samba_user")
+                username=$(validate_parameter_user "$1" "${2:-}" "show_help_add_samba_user")
                 shift 2
                 ;;
             --password)
-                password=$(validate_parameter_value "$1" "${2:-}" "Password required after --password" "show_help_add_samba_user")
+                password=$(validate_parameter_password "$1" "${2:-}" "show_help_add_samba_user")
                 shift 2
                 ;;
             --force)
@@ -81,7 +80,8 @@ cmd_add_samba_user() {
         error_exit "Username is required"
     fi
     
-    echo "add-samba-user command called with parameters: $original_params"
+    # Note: Input validation is already performed during parameter parsing
+    # using validate_parameter_user() and validate_parameter_password()
     
     # Call the core function
     add_samba_user_core "$username" "$password" "$force"
@@ -105,7 +105,9 @@ add_samba_user_core() {
     
     # Check if user already exists in Samba
     local user_exists=false
-    if sudo pdbedit -L 2>/dev/null | grep -q "^$username:"; then
+    local escaped_username
+    escaped_username=$(sanitize_for_regex "$username")
+    if sudo pdbedit -L 2>/dev/null | grep -q "^$escaped_username:"; then
         user_exists=true
         if [[ "$force" != "true" ]]; then
             error_exit "Samba user '$username' already exists. Use --force to reset password."
@@ -130,21 +132,20 @@ add_samba_user_core() {
     
     # Add or update user in Samba
     if [[ -n "$password" ]]; then
-        # Use provided password
-        log INFO "Setting Samba password for user '$username' from parameter"
-        local smbpasswd_cmd="printf '%s\n%s\n' \"$password\" \"$password\" | sudo smbpasswd -a -s \"$username\" >/dev/null 2>&1"
-        execute_or_dryrun "$smbpasswd_cmd" "Successfully set Samba password for '$username'" "Failed to set Samba password for '$username'" \
-                         "Add user to Samba database with provided password using non-interactive mode" || error_exit "Failed to set Samba password for '$username'"
+        # Use provided password with secure handling (supports ALL characters)
+        log INFO "Setting Samba password for user '$username' from parameter (secure method)"
+        execute_smbpasswd_with_password "$username" "$password" "-a -s" \
+            "Add user to Samba database with provided password using secure stdin method" || error_exit "Failed to set Samba password for '$username'"
     else
         # Interactive password prompt
         log INFO "Setting Samba password for user '$username' (interactive prompt)"
-        local smbpasswd_interactive_cmd="sudo smbpasswd -a \"$username\""
+        local smbpasswd_interactive_cmd="sudo smbpasswd -a '$username'"
         execute_or_dryrun "$smbpasswd_interactive_cmd" "Successfully set Samba password for '$username'" "Failed to set Samba password for '$username'" \
                          "Add user to Samba database with interactive password prompt for administrator input" || error_exit "Failed to set Samba password for '$username'"
     fi
     
     # Ensure user is enabled
-    local enable_cmd="sudo smbpasswd -e \"$username\" >/dev/null 2>&1"
+    local enable_cmd="sudo smbpasswd -e '$username' >/dev/null 2>&1"
     if ! execute_or_dryrun "$enable_cmd" "Enabled Samba user '$username'" "Failed to enable Samba user '$username'" \
                            "Enable Samba user account to allow authentication and file sharing access"; then
         log WARN "Failed to enable Samba user '$username' (may already be enabled)"

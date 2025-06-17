@@ -10,10 +10,18 @@ set -euo pipefail
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 LIB_DIR="$SCRIPT_DIR/lib"
 
-# Source shared functions
-source "$LIB_DIR/_common_.source.sh"
-source "$LIB_DIR/_check_tool.source.sh"
-source "$LIB_DIR/_check_active_user.source.sh"
+# Source shared setup libraries using clean import pattern
+SETUP_LIB_DIR="$(dirname "$SCRIPT_DIR")/__setup_lib_sh"
+if [[ -f "$SETUP_LIB_DIR/_setup_lib_loader.source.sh" ]]; then
+    source "$SETUP_LIB_DIR/_setup_lib_loader.source.sh"
+    load_common_libs || {
+        echo "ERROR: Failed to load required setup libraries" >&2
+        exit 1
+    }
+else
+    echo "ERROR: Setup library loader not found at $SETUP_LIB_DIR/_setup_lib_loader.source.sh" >&2
+    exit 1
+fi
 source "$LIB_DIR/_cmd_add_share.source.sh"
 source "$LIB_DIR/_cmd_remove_share.source.sh"
 source "$LIB_DIR/_cmd_list_shares.source.sh"

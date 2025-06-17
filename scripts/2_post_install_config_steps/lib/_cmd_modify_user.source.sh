@@ -1,3 +1,9 @@
+# Source input validation library for security
+SCRIPT_DIR_FOR_VALIDATION="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")}")"
+if [[ -f "$SCRIPT_DIR_FOR_VALIDATION/_input_validation.source.sh" ]]; then
+    source "$SCRIPT_DIR_FOR_VALIDATION/_input_validation.source.sh"
+fi
+
 # Command-specific help functions
 show_help_modify_user() {
     cat << EOF
@@ -61,8 +67,6 @@ EOF
 }
 
 cmd_modify_user() {
-    # Capture original parameters before they're consumed by parsing
-    local original_params="$*"
     
     local username=""
     local is_domain=false
@@ -87,7 +91,7 @@ cmd_modify_user() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --user)
-                username=$(validate_parameter_value "$1" "${2:-}" "Username required after --user" "show_help_modify_user")
+                username=$(validate_parameter_user "$1" "${2:-}" "show_help_modify_user")
                 shift 2
                 ;;
             --domain)
@@ -95,32 +99,32 @@ cmd_modify_user() {
                 shift
                 ;;
             --group)
-                primary_group=$(validate_parameter_value "$1" "${2:-}" "Group name required after --group" "show_help_modify_user")
+                primary_group=$(validate_parameter_group "$1" "${2:-}" "show_help_modify_user")
                 shift 2
                 ;;
             --add-groups)
-                add_groups=$(validate_parameter_value "$1" "${2:-}" "Group list required after --add-groups" "show_help_modify_user")
+                add_groups=$(validate_parameter_group_list "$1" "${2:-}" "show_help_modify_user")
                 shift 2
                 ;;
             --remove-groups)
-                remove_groups=$(validate_parameter_value "$1" "${2:-}" "Group list required after --remove-groups" "show_help_modify_user")
+                remove_groups=$(validate_parameter_group_list "$1" "${2:-}" "show_help_modify_user")
                 shift 2
                 ;;
             --home)
-                home_dir=$(validate_parameter_value "$1" "${2:-}" "Home directory path required after --home" "show_help_modify_user")
+                home_dir=$(validate_parameter_path "$1" "${2:-}" "show_help_modify_user")
                 shift 2
                 ;;
             --shell)
-                shell=$(validate_parameter_value "$1" "${2:-}" "Shell path required after --shell" "show_help_modify_user")
+                shell=$(validate_parameter_shell "$1" "${2:-}" "show_help_modify_user")
                 shell_explicitly_set=true
                 shift 2
                 ;;
             --comment)
-                comment=$(validate_parameter_value "$1" "${2:-}" "Comment text required after --comment" "show_help_modify_user")
+                comment=$(validate_parameter_comment "$1" "${2:-}" "show_help_modify_user")
                 shift 2
                 ;;
             --uid)
-                uid=$(validate_parameter_value "$1" "${2:-}" "User ID required after --uid" "show_help_modify_user")
+                uid=$(validate_parameter_numeric "$1" "${2:-}" "show_help_modify_user")
                 shift 2
                 ;;
             --lock)
@@ -132,7 +136,7 @@ cmd_modify_user() {
                 shift
                 ;;
             --expire)
-                expire_date=$(validate_parameter_value "$1" "${2:-}" "Expiration date required after --expire" "show_help_modify_user")
+                expire_date=$(validate_parameter_value "$1" "${2:-}" "Expiration date required after --expire (YYYY-MM-DD format)" "show_help_modify_user")
                 shift 2
                 ;;
             --no-expire)
@@ -140,7 +144,7 @@ cmd_modify_user() {
                 shift
                 ;;
             --password)
-                password=$(validate_parameter_value "$1" "${2:-}" "Password required after --password" "show_help_modify_user")
+                password=$(validate_parameter_password "$1" "${2:-}" "show_help_modify_user")
                 shift 2
                 ;;
             --create-home)
@@ -198,11 +202,15 @@ cmd_modify_user() {
         error_exit "Cannot specify both --create-home and --remove-home"
     fi
     
-    # Validate shell choice if specified
-    if [[ -n "$shell" ]] && ! validate_shell "$shell"; then
-        show_help_modify_user
-        error_exit "Invalid shell: $shell. Shell must be a valid executable or one of the common shells"
-    fi
+    # Note: Input validation is already performed during parameter parsing using:
+    # - validate_parameter_user() for username
+    # - validate_parameter_group() for primary group
+    # - validate_parameter_group_list() for add/remove groups
+    # - validate_parameter_path() for home directory
+    # - validate_parameter_shell() for shell
+    # - validate_parameter_comment() for comment
+    # - validate_parameter_numeric() for UID
+    # - validate_parameter_password() for password
     
     # Validate expiration date format if specified
     if [[ -n "$expire_date" ]] && ! [[ "$expire_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
@@ -210,7 +218,6 @@ cmd_modify_user() {
         error_exit "Invalid date format: $expire_date. Use YYYY-MM-DD format"
     fi
     
-    echo "modify-user command called with parameters: $original_params"
     
     # Branch based on user type
     if [[ "$is_domain" == "true" ]]; then

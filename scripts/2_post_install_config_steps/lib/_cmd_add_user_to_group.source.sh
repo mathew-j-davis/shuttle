@@ -1,3 +1,5 @@
+# Input validation library will be loaded by the main script's setup lib loader
+
 # Command-specific help functions
 show_help_add_user_to_group() {
     cat << EOF
@@ -28,9 +30,6 @@ EOF
 }
 
 cmd_add_user_to_group() {
-    # Capture original parameters before they're consumed by parsing
-    local original_params="$*"
-    
     local username=""
     local groupname=""
     local is_domain=false
@@ -39,11 +38,11 @@ cmd_add_user_to_group() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --user)
-                username=$(validate_parameter_value "$1" "${2:-}" "Username required after --user" "show_help_add_user_to_group")
+                username=$(validate_parameter_user "$1" "${2:-}" "show_help_add_user_to_group")
                 shift 2
                 ;;
             --group)
-                groupname=$(validate_parameter_value "$1" "${2:-}" "Group name required after --group" "show_help_add_user_to_group")
+                groupname=$(validate_parameter_group "$1" "${2:-}" "show_help_add_user_to_group")
                 shift 2
                 ;;
             --domain)
@@ -76,7 +75,8 @@ cmd_add_user_to_group() {
         error_exit "Group name is required"
     fi
     
-    echo "add-user-to-group command called with parameters: $original_params"
+    # Note: Input validation is already performed during parameter parsing
+    # using validate_parameter_user() and validate_parameter_group()
     
     # Check tool availability
     check_tool_permission_or_error_exit "gpasswd" "modify group membership" "gpasswd not available - cannot add users to groups"

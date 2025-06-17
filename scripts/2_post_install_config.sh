@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PRODUCTION_DIR="$SCRIPT_DIR/2_post_install_config_steps"
-SETUP_LIB_DIR="$SCRIPT_DIR/__setup_lib"
+SETUP_LIB_DIR="$SCRIPT_DIR/__setup_lib_py"
 LIB_DIR="$PRODUCTION_DIR/lib"
 
 # Add setup lib to Python path
@@ -27,9 +27,21 @@ export PYTHONPATH="${SETUP_LIB_DIR}:${PYTHONPATH}"
 # Set command history file for this configuration session
 export COMMAND_HISTORY_FILE="/tmp/shuttle_post_install_configuration_command_history_$(date +%Y%m%d_%H%M%S).log"
 
-# Source helper functions for sudo detection and logging
-source "$LIB_DIR/_common_.source.sh"
-source "$LIB_DIR/_check_active_user.source.sh"
+# Export DRY_RUN for use by all scripts and modules
+export DRY_RUN
+
+# Source shared setup libraries using clean import pattern
+SETUP_LIB_SH_DIR="$SCRIPT_DIR/__setup_lib_sh"
+if [[ -f "$SETUP_LIB_SH_DIR/_setup_lib_loader.source.sh" ]]; then
+    source "$SETUP_LIB_SH_DIR/_setup_lib_loader.source.sh"
+    load_common_libs || {
+        echo "ERROR: Failed to load required setup libraries" >&2
+        exit 1
+    }
+else
+    echo "ERROR: Setup library loader not found at $SETUP_LIB_SH_DIR/_setup_lib_loader.source.sh" >&2
+    exit 1
+fi
 
 # Output functions for main script
 print_info() {
@@ -57,7 +69,7 @@ print_fail() {
 }
 
 # Default configuration file location
-DEFAULT_CONFIG="$PROJECT_ROOT/config/shuttle_user_setup.yaml"
+DEFAULT_CONFIG="$PROJECT_ROOT/config/shuttle_post_install_configuration.yaml"
 CONFIG_FILE=""
 INTERACTIVE_MODE=true
 DRY_RUN=false
@@ -115,6 +127,7 @@ parse_arguments() {
                 ;;
             --dry-run)
                 DRY_RUN=true
+                export DRY_RUN  # Export for child processes
                 shift
                 ;;
             --wizard)
@@ -333,7 +346,13 @@ phase_configure_users() {
         dry_run_flag="--dry-run"
     fi
     
-    python3 -m user_group_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag
+    # Pass shuttle config path if available for path resolution
+    local config_args=""
+    if [[ -n "$SHUTTLE_CONFIG_PATH" ]]; then
+        config_args="--shuttle-config-path=$SHUTTLE_CONFIG_PATH"
+    fi
+    
+    python3 -m user_group_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag $config_args
 
     if [[ $? -ne 0 ]]; then
         print_fail "Failed to configure users and groups"
@@ -435,7 +454,7 @@ run_configuration_wizard() {
     fi
     
     # Run the wizard with arguments
-    python3 -m config_wizard $wizard_args
+    python3 -m post_install_config_wizard $wizard_args
     local wizard_exit_code=$?
     
     if [[ $wizard_exit_code -eq 2 ]]; then
@@ -448,7 +467,7 @@ run_configuration_wizard() {
     fi
     
     # Try to find the generated config file
-    local latest_config=$(ls -t shuttle_user_setup_*.yaml 2>/dev/null | head -1)
+    local latest_config=$(ls -t shuttle_post_install_config_*.yaml 2>/dev/null | head -1)
     
     if [[ -n "$latest_config" ]]; then
         CONFIG_FILE="$PROJECT_ROOT/config/$latest_config"

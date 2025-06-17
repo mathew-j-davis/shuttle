@@ -1,3 +1,5 @@
+# Input validation library will be loaded by the main script's setup lib loader
+
 # Command-specific help functions
 show_help_add_group() {
     cat << EOF
@@ -26,9 +28,6 @@ EOF
 }
 
 cmd_add_group() {
-    # Capture original parameters before they're consumed by parsing
-    local original_params="$*"
-    
     local groupname=""
     local gid=""
     local system_group=false
@@ -37,11 +36,11 @@ cmd_add_group() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --group)
-                groupname=$(validate_parameter_value "$1" "${2:-}" "Group name required after --group" "show_help_add_group")
+                groupname=$(validate_parameter_group "$1" "${2:-}" "show_help_add_group")
                 shift 2
                 ;;
             --gid)
-                gid=$(validate_parameter_value "$1" "${2:-}" "Group ID required after --gid" "show_help_add_group")
+                gid=$(validate_parameter_numeric "$1" "${2:-}" "show_help_add_group")
                 shift 2
                 ;;
             --system)
@@ -69,7 +68,8 @@ cmd_add_group() {
         error_exit "Group name is required"
     fi
     
-    echo "add-group command called with parameters: $original_params"
+    # Note: Input validation is already performed during parameter parsing
+    # using validate_parameter_group() and validate_parameter_numeric()
     
     # Check tool availability
     check_tool_permission_or_error_exit "groupadd" "create groups" "groupadd not available - cannot create groups"
@@ -88,11 +88,11 @@ cmd_add_group() {
     # --system: Create system group (GID < 1000)
     groupadd_cmd=$(append_if_true "$system_group" "$groupadd_cmd" " --system")
     
-    # --gid: Specify group ID
-    groupadd_cmd=$(append_if_set "$gid" "$groupadd_cmd" " --gid $gid")
+    # --gid: Specify group ID (quoted for security)
+    groupadd_cmd=$(append_if_set "$gid" "$groupadd_cmd" " --gid '$gid'")
     
-    # Add groupname as final argument
-    groupadd_cmd="$groupadd_cmd $groupname"
+    # Add groupname as final argument (quoted for security)
+    groupadd_cmd="$groupadd_cmd '$groupname'"
     
     # Execute groupadd
     execute_or_dryrun "$groupadd_cmd" "Group '$groupname' created successfully" "Failed to create group '$groupname'" || error_exit "Failed to create group '$groupname'"

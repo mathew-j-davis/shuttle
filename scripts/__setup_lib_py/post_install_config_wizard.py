@@ -751,7 +751,7 @@ def main():
     
     if choice == "1":
         # Save only - show commands and exit with special code
-        default_filename = f"config/shuttle_user_setup_{config[0]['metadata']['environment']}.yaml"
+        default_filename = f"shuttle_post_install_config_{config[0]['metadata']['environment']}.yaml"
         filename = input(f"Save as [{default_filename}]: ").strip() or default_filename
         
         # Ensure config directory exists
@@ -837,26 +837,28 @@ def main():
         print(f"{'='*60}")
         print("NEXT STEPS")
         print("="*60)
+        print("From the project root directory, you can:")
+        print("")
         print("To review the configuration:")
-        print(f"  cat {filename}")
+        print(f"  cat config/{filename}")
         print("")
         print("To test what would be applied (dry run):")
-        print(f"  ./2_post_install_config.sh --config {filename} --dry-run")
+        print(f"  ./scripts/2_post_install_config.sh --config config/{filename} --dry-run")
         print("")
         print("To apply the configuration:")
-        print(f"  ./2_post_install_config.sh --config {filename}")
+        print(f"  ./scripts/2_post_install_config.sh --config config/{filename}")
         print("")
         print("Configuration wizard complete.")
         sys.exit(2)  # Exit with code 2 to indicate "save only, don't continue"
         
     elif choice == "2":
         # Apply now without saving
-        print("\nTo apply this configuration, run:")
-        print("  ./2_post_install_config.sh --config <temp_config>")
+        print("\nTo apply this configuration, run from project root:")
+        print("  ./scripts/2_post_install_config.sh --config <temp_config>")
         
     elif choice == "3":
         # Save and apply
-        default_filename = f"config/shuttle_user_setup_{config[0]['metadata']['environment']}.yaml"
+        default_filename = f"shuttle_post_install_config_{config[0]['metadata']['environment']}.yaml"
         filename = input(f"Save as [{default_filename}]: ").strip() or default_filename
         
         # Ensure config directory exists
@@ -866,8 +868,8 @@ def main():
         
         save_config(config, filename)
         
-        print("\nTo apply this configuration, run:")
-        print(f"  ./2_post_install_config.sh --config {filename}")
+        print("\nTo apply this configuration, run from project root:")
+        print(f"  ./scripts/2_post_install_config.sh --config config/{filename}")
         
     elif choice == "4":
         print("\nConfiguration not saved.")

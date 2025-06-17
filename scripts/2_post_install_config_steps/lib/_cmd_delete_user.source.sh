@@ -1,3 +1,5 @@
+# Input validation library will be loaded by the main script's setup lib loader
+
 # Command-specific help functions
 show_help_delete_user() {
     cat << EOF
@@ -47,9 +49,6 @@ EOF
 }
 
 cmd_delete_user() {
-    # Capture original parameters before they're consumed by parsing
-    local original_params="$*"
-    
     local username=""
     local is_domain=false
     local remove_home=false
@@ -63,7 +62,7 @@ cmd_delete_user() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --user)
-                username=$(validate_parameter_value "$1" "${2:-}" "Username required after --user" "show_help_delete_user")
+                username=$(validate_parameter_user "$1" "${2:-}" "show_help_delete_user")
                 shift 2
                 ;;
             --domain)
@@ -83,7 +82,7 @@ cmd_delete_user() {
                 shift
                 ;;
             --backup-home)
-                backup_home=$(validate_parameter_value "$1" "${2:-}" "Backup path required after --backup-home" "show_help_delete_user")
+                backup_home=$(validate_parameter_path "$1" "${2:-}" "show_help_delete_user")
                 shift 2
                 ;;
             --preserve-files)
@@ -122,7 +121,8 @@ cmd_delete_user() {
         preserve_files=true  # Default to safe option
     fi
     
-    echo "delete-user command called with parameters: $original_params"
+    # Note: Input validation is already performed during parameter parsing
+    # using validate_parameter_user() and validate_parameter_path()
     
     # Branch based on user type
     if [[ "$is_domain" == "true" ]]; then
@@ -141,6 +141,8 @@ _delete_local_user() {
     local backup_home="$5"
     local remove_owned_files="$6"
     
+    # Note: Input validation already performed during parameter parsing
+    
     check_tool_permission_or_error_exit "userdel" "delete users" "userdel not available - cannot delete users"
     
     # Check if user exists
@@ -152,7 +154,10 @@ _delete_local_user() {
     
     # Check if user is currently logged in (unless force specified)
     if [[ "$force_delete" != "true" ]]; then
-        if who | grep -q "^$username "; then
+        # Use sanitized username for grep to prevent regex injection
+        local escaped_username
+        escaped_username=$(sanitize_for_regex "$username")
+        if who | grep -q "^$escaped_username "; then
             error_exit "User '$username' is currently logged in. Use --force to delete anyway or ask user to log out first"
         fi
     fi
@@ -197,8 +202,8 @@ _delete_local_user() {
         userdel_cmd="$userdel_cmd --force"
     fi
     
-    # Add username as final argument
-    userdel_cmd="$userdel_cmd $username"
+    # Add username as final argument (quoted for security)
+    userdel_cmd="$userdel_cmd '$username'"
     
     # Execute userdel
     execute_or_dryrun "$userdel_cmd" "User '$username' deleted successfully" "Failed to delete user '$username'" || error_exit "Failed to delete user '$username'"

@@ -1,3 +1,9 @@
+# Source input validation library for security
+SCRIPT_DIR_FOR_VALIDATION="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")}")"
+if [[ -f "$SCRIPT_DIR_FOR_VALIDATION/_input_validation.source.sh" ]]; then
+    source "$SCRIPT_DIR_FOR_VALIDATION/_input_validation.source.sh"
+fi
+
 # Command-specific help functions
 show_help_delete_group() {
     cat << EOF
@@ -26,8 +32,6 @@ EOF
 }
 
 cmd_delete_group() {
-    # Capture original parameters before they're consumed by parsing
-    local original_params="$*"
     
     local groupname=""
     local force=false
@@ -36,7 +40,7 @@ cmd_delete_group() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --group)
-                groupname=$(validate_parameter_value "$1" "${2:-}" "Group name required after --group" "show_help_delete_group")
+                groupname=$(validate_parameter_group "$1" "${2:-}" "show_help_delete_group")
                 shift 2
                 ;;
             --force)
@@ -64,7 +68,8 @@ cmd_delete_group() {
         error_exit "Group name is required"
     fi
     
-    echo "delete-group command called with parameters: $original_params"
+    # Note: Input validation is already performed during parameter parsing
+    # using validate_parameter_group() for group name
     
     # Check tool availability
     check_tool_permission_or_error_exit "groupdel" "delete groups" "groupdel not available - cannot delete groups"

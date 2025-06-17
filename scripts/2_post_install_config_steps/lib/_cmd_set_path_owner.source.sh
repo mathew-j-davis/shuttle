@@ -1,3 +1,5 @@
+# Input validation library will be loaded by the main script's setup lib loader
+
 # Command-specific help functions
 show_help_set_path_owner() {
     cat << EOF
@@ -9,9 +11,10 @@ Required Parameters:
   --path <path>         Path to change ownership for
 
 Ownership Parameters (at least one required):
-  --user <user>         New owner username or UID
-  --group <group>       New group name or GID
-  --user-group <user:group>  Set both user and group (format: user:group)
+  --user <username>     New owner username
+  --uid <uid>          New owner user ID (numeric)
+  --group <groupname>   New group name
+  --gid <gid>          New group ID (numeric)
 
 Optional Parameters:
   --recursive           Apply changes recursively to directories
@@ -21,14 +24,20 @@ Optional Parameters:
   --dry-run             Show what would be done without making changes
 
 Examples:
-  # Change owner only
+  # Change owner by username
   $SCRIPT_NAME set-path-owner --path /home/project --user alice
   
-  # Change group only
+  # Change owner by UID
+  $SCRIPT_NAME set-path-owner --path /home/project --uid 1000
+  
+  # Change group by name
   $SCRIPT_NAME set-path-owner --path /var/log/app --group developers
   
-  # Change both user and group
-  $SCRIPT_NAME set-path-owner --path /opt/app --user-group alice:developers
+  # Change group by GID
+  $SCRIPT_NAME set-path-owner --path /var/log/app --gid 1001
+  
+  # Change both user and group (mixed name/numeric)
+  $SCRIPT_NAME set-path-owner --path /opt/app --user alice --gid 1001
   
   # Change recursively
   $SCRIPT_NAME set-path-owner --path /home/project --user alice --recursive
@@ -41,7 +50,9 @@ Examples:
 
 Notes:
   - Requires appropriate permissions (usually root/sudo)
-  - Use numeric IDs when usernames/groups don't exist
+  - Use --uid/--gid when usernames/groups don't exist locally
+  - Cannot specify both --user and --uid (use one or the other)
+  - Cannot specify both --group and --gid (use one or the other)
   - --preserve-root prevents accidental changes to system root
   - --from option is useful for bulk ownership transfers
   - --reference copies both user and group from another file
@@ -49,13 +60,11 @@ EOF
 }
 
 cmd_set_path_owner() {
-    # Capture original parameters before they're consumed by parsing
-    local original_params="$*"
-    
     local path=""
     local new_user=""
+    local new_uid=""
     local new_group=""
-    local user_group=""
+    local new_gid=""
     local recursive=false
     local preserve_root=true
     local reference_file=""
@@ -65,19 +74,23 @@ cmd_set_path_owner() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --path)
-                path=$(validate_parameter_value "$1" "${2:-}" "Path required after --path" "show_help_set_path_owner")
+                path=$(validate_parameter_path "$1" "${2:-}" "show_help_set_path_owner")
                 shift 2
                 ;;
             --user)
-                new_user=$(validate_parameter_value "$1" "${2:-}" "User required after --user" "show_help_set_path_owner")
+                new_user=$(validate_parameter_user "$1" "${2:-}" "show_help_set_path_owner")
                 shift 2
                 ;;
             --group)
-                new_group=$(validate_parameter_value "$1" "${2:-}" "Group required after --group" "show_help_set_path_owner")
+                new_group=$(validate_parameter_group "$1" "${2:-}" "show_help_set_path_owner")
                 shift 2
                 ;;
-            --user-group)
-                user_group=$(validate_parameter_value "$1" "${2:-}" "User:group required after --user-group" "show_help_set_path_owner")
+            --uid)
+                new_uid=$(validate_parameter_numeric "$1" "${2:-}" "show_help_set_path_owner")
+                shift 2
+                ;;
+            --gid)
+                new_gid=$(validate_parameter_numeric "$1" "${2:-}" "show_help_set_path_owner")
                 shift 2
                 ;;
             --recursive)
@@ -93,7 +106,7 @@ cmd_set_path_owner() {
                 shift
                 ;;
             --reference)
-                reference_file=$(validate_parameter_value "$1" "${2:-}" "Reference file required after --reference" "show_help_set_path_owner")
+                reference_file=$(validate_parameter_path "$1" "${2:-}" "show_help_set_path_owner")
                 shift 2
                 ;;
             --from)
@@ -121,30 +134,35 @@ cmd_set_path_owner() {
         error_exit "Path is required"
     fi
     
-    # Parse user_group if provided
-    if [[ -n "$user_group" ]]; then
-        if [[ "$user_group" =~ ^([^:]+):([^:]+)$ ]]; then
-            new_user="${BASH_REMATCH[1]}"
-            new_group="${BASH_REMATCH[2]}"
-        else
-            show_help_set_path_owner
-            error_exit "Invalid user:group format: $user_group. Use format 'user:group'"
-        fi
+    # Validate conflicting user specifications
+    if [[ -n "$new_user" && -n "$new_uid" ]]; then
+        show_help_set_path_owner
+        error_exit "Cannot specify both --user and --uid. Use --user for username or --uid for numeric ID"
+    fi
+    
+    # Validate conflicting group specifications
+    if [[ -n "$new_group" && -n "$new_gid" ]]; then
+        show_help_set_path_owner
+        error_exit "Cannot specify both --group and --gid. Use --group for name or --gid for numeric ID"
     fi
     
     # Validate that at least one ownership change is specified
-    if [[ -z "$new_user" && -z "$new_group" && -z "$reference_file" ]]; then
+    if [[ -z "$new_user" && -z "$new_uid" && -z "$new_group" && -z "$new_gid" && -z "$reference_file" ]]; then
         show_help_set_path_owner
-        error_exit "Must specify at least one of: --user, --group, --user-group, or --reference"
+        error_exit "Must specify at least one of: --user, --uid, --group, --gid, or --reference"
     fi
     
     # Validate conflicting options
-    if [[ -n "$reference_file" && (-n "$new_user" || -n "$new_group") ]]; then
+    if [[ -n "$reference_file" && (-n "$new_user" || -n "$new_uid" || -n "$new_group" || -n "$new_gid") ]]; then
         show_help_set_path_owner
-        error_exit "Cannot specify both --reference and --user/--group options"
+        error_exit "Cannot specify both --reference and ownership options (--user/--uid/--group/--gid)"
     fi
     
-    echo "set-path-owner command called with parameters: $original_params"
+    # Note: Input validation is already performed during parameter parsing using:
+    # - validate_parameter_path() for paths
+    # - validate_parameter_user() for usernames  
+    # - validate_parameter_group() for group names
+    # - validate_parameter_numeric() for UID/GID values
     
     # Check tool availability
     check_tool_permission_or_error_exit "chown" "change ownership" "chown not available - cannot change file ownership"
@@ -160,7 +178,7 @@ cmd_set_path_owner() {
     fi
     
     # Call the core function
-    set_path_owner_core "$path" "$new_user" "$new_group" "$recursive" "$reference_file" "$from_owner"
+    set_path_owner_core "$path" "$new_user" "$new_uid" "$new_group" "$new_gid" "$recursive" "$reference_file" "$from_owner"
     
     return 0
 }
@@ -169,10 +187,28 @@ cmd_set_path_owner() {
 set_path_owner_core() {
     local path="$1"
     local new_user="$2"
-    local new_group="$3"
-    local recursive="$4"
-    local reference_file="$5"
-    local from_owner="$6"
+    local new_uid="$3"
+    local new_group="$4"
+    local new_gid="$5"
+    local recursive="$6"
+    local reference_file="$7"
+    local from_owner="$8"
+    
+    # Determine final user and group values
+    local final_user=""
+    local final_group=""
+    
+    if [[ -n "$new_user" ]]; then
+        final_user="$new_user"
+    elif [[ -n "$new_uid" ]]; then
+        final_user="$new_uid"
+    fi
+    
+    if [[ -n "$new_group" ]]; then
+        final_group="$new_group"
+    elif [[ -n "$new_gid" ]]; then
+        final_group="$new_gid"
+    fi
     
     # Handle reference file
     if [[ -n "$reference_file" ]]; then
@@ -188,35 +224,35 @@ set_path_owner_core() {
             return 1
         fi
         
-        IFS=':' read -r new_user new_group <<< "$ref_stat"
-        log INFO "Using ownership from reference file '$reference_file': $new_user:$new_group"
+        IFS=':' read -r final_user final_group <<< "$ref_stat"
+        log INFO "Using ownership from reference file '$reference_file': $final_user:$final_group"
     fi
     
     # Build ownership string for chown
     local ownership_string=""
-    if [[ -n "$new_user" && -n "$new_group" ]]; then
-        ownership_string="$new_user:$new_group"
-    elif [[ -n "$new_user" ]]; then
-        ownership_string="$new_user"
-    elif [[ -n "$new_group" ]]; then
-        ownership_string=":$new_group"
+    if [[ -n "$final_user" && -n "$final_group" ]]; then
+        ownership_string="$final_user:$final_group"
+    elif [[ -n "$final_user" ]]; then
+        ownership_string="$final_user"
+    elif [[ -n "$final_group" ]]; then
+        ownership_string=":$final_group"
     else
         log ERROR "No ownership changes specified"
         return 1
     fi
     
     # Validate user exists (if not numeric)
-    if [[ -n "$new_user" && ! "$new_user" =~ ^[0-9]+$ ]]; then
-        if ! getent passwd "$new_user" >/dev/null 2>&1; then
-            log WARN "User '$new_user' does not exist in the system"
+    if [[ -n "$final_user" && ! "$final_user" =~ ^[0-9]+$ ]]; then
+        if ! getent passwd "$final_user" >/dev/null 2>&1; then
+            log WARN "User '$final_user' does not exist in the system"
             log INFO "Proceeding anyway - chown will fail if user is invalid"
         fi
     fi
     
     # Validate group exists (if not numeric)
-    if [[ -n "$new_group" && ! "$new_group" =~ ^[0-9]+$ ]]; then
-        if ! getent group "$new_group" >/dev/null 2>&1; then
-            log WARN "Group '$new_group' does not exist in the system"
+    if [[ -n "$final_group" && ! "$final_group" =~ ^[0-9]+$ ]]; then
+        if ! getent group "$final_group" >/dev/null 2>&1; then
+            log WARN "Group '$final_group' does not exist in the system"
             log INFO "Proceeding anyway - chown will fail if group is invalid"
         fi
     fi

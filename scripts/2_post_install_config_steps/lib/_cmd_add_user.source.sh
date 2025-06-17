@@ -1,4 +1,6 @@
 
+# Input validation library will be loaded by the main script's setup lib loader
+
 # Function to validate shell selection
 validate_shell() {
     local shell_path="$1"
@@ -95,9 +97,6 @@ EOF
 }
 
 cmd_add_user() {
-    # Capture original parameters before they're consumed by parsing
-    local original_params="$*"
-    
     local username=""
     local is_local=false
     local is_domain=false
@@ -119,7 +118,7 @@ cmd_add_user() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --user)
-                username=$(validate_parameter_value "$1" "${2:-}" "Username required after --user" "show_help_add_user")
+                username=$(validate_parameter_user "$1" "${2:-}" "show_help_add_user")
                 shift 2
                 ;;
             --local)
@@ -146,28 +145,28 @@ cmd_add_user() {
                 shift 2
                 ;;
             --group)
-                primary_group=$(validate_parameter_value "$1" "${2:-}" "Group name required after --group" "show_help_add_user")
+                primary_group=$(validate_parameter_group "$1" "${2:-}" "show_help_add_user")
                 shift 2
                 ;;
             --groups)
-                additional_groups=$(validate_parameter_value "$1" "${2:-}" "Group list required after --groups" "show_help_add_user")
+                additional_groups=$(validate_parameter_group_list "$1" "${2:-}" "show_help_add_user")
                 shift 2
                 ;;
             --home)
-                home_dir=$(validate_parameter_value "$1" "${2:-}" "Home directory path required after --home" "show_help_add_user")
+                home_dir=$(validate_parameter_path "$1" "${2:-}" "show_help_add_user")
                 shift 2
                 ;;
             --shell)
-                shell=$(validate_parameter_value "$1" "${2:-}" "Shell path required after --shell" "show_help_add_user")
+                shell=$(validate_parameter_shell "$1" "${2:-}" "show_help_add_user")
                 shell_explicitly_set=true
                 shift 2
                 ;;
             --comment)
-                comment=$(validate_parameter_value "$1" "${2:-}" "Comment text required after --comment" "show_help_add_user")
+                comment=$(validate_parameter_comment "$1" "${2:-}" "show_help_add_user")
                 shift 2
                 ;;
             --uid)
-                uid=$(validate_parameter_value "$1" "${2:-}" "User ID required after --uid" "show_help_add_user")
+                uid=$(validate_parameter_numeric "$1" "${2:-}" "show_help_add_user")
                 shift 2
                 ;;
             --no-create-home)
@@ -184,7 +183,7 @@ cmd_add_user() {
                 shift
                 ;;
             --password)
-                password=$(validate_parameter_value "$1" "${2:-}" "Password required after --password" "show_help_add_user")
+                password=$(validate_parameter_password "$1" "${2:-}" "show_help_add_user")
                 shift 2
                 ;;
             --dry-run)
@@ -230,9 +229,7 @@ cmd_add_user() {
         error_exit "Invalid shell: $shell. Shell must be a valid executable or one of the common shells"
     fi
     
-    echo "add-user command called with parameters: $original_params"
-
-    # # Branch based on user type
+    # Branch based on user type
     if [[ "$is_local" == "true" ]]; then
         _create_local_user "$username" "$primary_group" "$additional_groups" \
                           "$home_dir" "$shell" "$comment" "$uid" \
@@ -258,6 +255,16 @@ _create_local_user() {
     local system_account="$9"
     local password="${10}"
     
+    # Note: Input validation is already performed during parameter parsing using:
+    # - validate_parameter_user() for username
+    # - validate_parameter_group() for primary group  
+    # - validate_parameter_group_list() for additional groups (validates each group individually)
+    # - validate_parameter_path() for home directory
+    # - validate_parameter_shell() for shell
+    # - validate_parameter_comment() for comment
+    # - validate_parameter_numeric() for UID
+    # - validate_parameter_password() for password
+    
     check_tool_permission_or_error_exit "useradd" "create users" "useradd not available - cannot create users"
     
     # Check if user already exists
@@ -275,16 +282,16 @@ _create_local_user() {
     useradd_cmd=$(append_if_true "$system_account" "$useradd_cmd" " --system")
     
     # --uid: Specify user ID
-    useradd_cmd=$(append_if_set "$uid" "$useradd_cmd" " --uid $uid")
+    useradd_cmd=$(append_if_set "$uid" "$useradd_cmd" " --uid '$uid'")
     
     # --gid: Set primary group
-    useradd_cmd=$(append_if_set "$primary_group" "$useradd_cmd" " --gid $primary_group")
+    useradd_cmd=$(append_if_set "$primary_group" "$useradd_cmd" " --gid '$primary_group'")
     
     # --groups: Add to supplementary groups
-    useradd_cmd=$(append_if_set "$additional_groups" "$useradd_cmd" " --groups $additional_groups")
+    useradd_cmd=$(append_if_set "$additional_groups" "$useradd_cmd" " --groups '$additional_groups'")
     
     # --home-dir: Set home directory path
-    useradd_cmd=$(append_if_set "$home_dir" "$useradd_cmd" " --home-dir $home_dir")
+    useradd_cmd=$(append_if_set "$home_dir" "$useradd_cmd" " --home-dir '$home_dir'")
     
     # --no-create-home: Don't create home directory if requested
     useradd_cmd=$(append_if_true "$no_create_home" "$useradd_cmd" " --no-create-home")
@@ -293,13 +300,13 @@ _create_local_user() {
     useradd_cmd=$(append_if_false "$no_create_home" "$useradd_cmd" " --create-home")
     
     # --shell: Set login shell
-    useradd_cmd=$(append_if_set "$shell" "$useradd_cmd" " --shell $shell")
+    useradd_cmd=$(append_if_set "$shell" "$useradd_cmd" " --shell '$shell'")
     
     # --comment: Set GECOS field/user description
     useradd_cmd=$(append_if_set "$comment" "$useradd_cmd" " --comment \"$comment\"")
     
-    # Add username as final argument
-    useradd_cmd="$useradd_cmd $username"
+    # Add username as final argument (quoted for security)
+    useradd_cmd="$useradd_cmd '$username'"
     
     # Execute useradd
     execute_or_dryrun "$useradd_cmd" \
@@ -311,9 +318,10 @@ _create_local_user() {
     # Set password if provided
     if [[ -n "$password" ]]; then
         log INFO "Setting password for user '$username'..."
-        local passwd_cmd="echo '$username:$password' | chpasswd"
+        # Use printf to safely handle passwords with special characters
+        local passwd_cmd="printf '%s:%s\\n' '$username' '$password' | chpasswd"
         if ! check_active_user_is_root; then
-            passwd_cmd="echo '$username:$password' | sudo chpasswd"
+            passwd_cmd="printf '%s:%s\\n' '$username' '$password' | sudo chpasswd"
         fi
         execute_or_dryrun "$passwd_cmd" \
                          "Password set for user '$username'" \
