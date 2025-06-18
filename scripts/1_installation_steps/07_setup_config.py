@@ -23,6 +23,13 @@ def parse_arguments():
     """Parse command line arguments for configuration setup"""
     parser = argparse.ArgumentParser(description='Setup Shuttle configuration and directories')
     
+    # Operation mode selection
+    parser.add_argument('--create-config', action='store_true', help='Create main configuration file')
+    parser.add_argument('--create-test-config', action='store_true', help='Create test configuration file')
+    parser.add_argument('--create-ledger', action='store_true', help='Create ledger file')
+    parser.add_argument('--create-test-keys', action='store_true', help='Create test encryption keys')
+    parser.add_argument('--all', action='store_true', help='Create all files (default behavior)')
+    
     # Path arguments - use work_dir subdirectories as defaults
     parser.add_argument('--source-path', help='Path to the source directory (default: WORK_DIR/in)')
     parser.add_argument('--destination-path', help='Path to the destination directory (default: WORK_DIR/out)')
@@ -69,54 +76,55 @@ def parse_arguments():
     
     return parser.parse_args()
 
-# Get required environment variables
-work_dir = get_required_env_var("SHUTTLE_TEST_WORK_DIR", "shuttle working directory")
-config_path = get_required_env_var("SHUTTLE_CONFIG_PATH", "shuttle configuration file")
-config_dir = os.path.dirname(config_path)
+def create_directories(work_dir, config_dir, args):
+    """Create necessary directories for Shuttle operation"""
+    source_dir = args.source_path or os.path.join(work_dir, "in")
+    dest_dir = args.destination_path or os.path.join(work_dir, "out")
+    quarantine_dir = args.quarantine_path or os.path.join(work_dir, "quarantine")
+    log_dir = args.log_path or os.path.join(work_dir, "logs")
+    hazard_archive_dir = args.hazard_archive_path or os.path.join(work_dir, "hazard")
+    ledger_file_path = args.ledger_file_path or os.path.join(work_dir, "ledger", "ledger.yaml")
+    ledger_file_dir = os.path.dirname(ledger_file_path)
+    
+    # Create working directories if they don't exist
+    os.makedirs(work_dir, exist_ok=True)
+    os.makedirs(source_dir, exist_ok=True)
+    os.makedirs(quarantine_dir, exist_ok=True)
+    os.makedirs(dest_dir, exist_ok=True)
+    os.makedirs(log_dir, exist_ok=True)
+    os.makedirs(ledger_file_dir, exist_ok=True)
+    os.makedirs(hazard_archive_dir, exist_ok=True)
+    os.makedirs(config_dir, exist_ok=True)
+    
+    return {
+        'source_dir': source_dir,
+        'dest_dir': dest_dir,
+        'quarantine_dir': quarantine_dir,
+        'log_dir': log_dir,
+        'hazard_archive_dir': hazard_archive_dir,
+        'ledger_file_path': ledger_file_path,
+        'ledger_file_dir': ledger_file_dir
+    }
 
-# Parse command line arguments
-args = parse_arguments()
-
-# Set up paths with defaults based on work_dir and config_dir
-source_dir = args.source_path or os.path.join(work_dir, "in")
-dest_dir = args.destination_path or os.path.join(work_dir, "out")
-quarantine_dir = args.quarantine_path or os.path.join(work_dir, "quarantine")
-log_dir = args.log_path or os.path.join(work_dir, "logs")
-hazard_archive_dir = args.hazard_archive_path or os.path.join(work_dir, "hazard")
-ledger_file_path = args.ledger_file_path or os.path.join(work_dir, "ledger", "ledger.yaml")
-hazard_encryption_key_path = args.hazard_encryption_key_path or os.path.join(config_dir, "public-key.gpg")
-
-# Derived paths
-settings_file = config_path
-ledger_file_dir = os.path.dirname(ledger_file_path)
-
-
-# Create working directories if they don't exist
-os.makedirs(work_dir, exist_ok=True)
-os.makedirs(source_dir, exist_ok=True)
-os.makedirs(quarantine_dir, exist_ok=True)
-os.makedirs(dest_dir, exist_ok=True)
-os.makedirs(log_dir, exist_ok=True)
-os.makedirs(ledger_file_dir, exist_ok=True)
-os.makedirs(hazard_archive_dir, exist_ok=True)
-
-# Create config directory if it doesn't exist
-os.makedirs(config_dir, exist_ok=True)
-
-# Create config file if it doesn't exist
-if not os.path.exists(settings_file):
-    # Create new config file
+def create_config_file(config_path, args, paths, config_dir):
+    """Create main Shuttle configuration file"""
+    if os.path.exists(config_path):
+        print(f"Configuration file already exists: {config_path}")
+        return False
+        
     print("Creating new config file")
     config = configparser.ConfigParser()
+    
+    hazard_encryption_key_path = args.hazard_encryption_key_path or os.path.join(config_dir, "public-key.gpg")
 
     config['paths'] = {
-            'source_path': source_dir,
-            'destination_path': dest_dir,
-            'quarantine_path': quarantine_dir,
-            'log_path': log_dir,
-            'hazard_archive_path': hazard_archive_dir,
+            'source_path': paths['source_dir'],
+            'destination_path': paths['dest_dir'],
+            'quarantine_path': paths['quarantine_dir'],
+            'log_path': paths['log_dir'],
+            'hazard_archive_path': paths['hazard_archive_dir'],
             'hazard_encryption_key_path': hazard_encryption_key_path,
-            'ledger_file_path': ledger_file_path
+            'ledger_file_path': paths['ledger_file_path']
         }
 
     config['settings'] = {
@@ -148,53 +156,43 @@ if not os.path.exists(settings_file):
             'use_tls': str(args.notify_use_tls)
         }
 
-    with open(settings_file, 'w') as configfile:
+    with open(config_path, 'w') as configfile:
         config.write(configfile)
+    
+    print(f"Created settings file at {config_path}")
+    return True
 
-print(f"Created settings file at {settings_file}")
-
-# Create default ledger.yaml file
-print("Creating default ledger.yaml file...")
-
-
-
-# defender:
-#   tested_versions:
-#     - version: "101.12345.123"
-#       test_time: "2025-05-09T10:30:00"
-#       test_result: "pass"
-#       test_details: "All detection tests passed"
-#     - version: "101.12345.456"
-#       test_time: "2025-05-01T14:22:00"
-#       test_result: "pass" 
-#       test_details: "All detection tests passed"
-
-# Create YAML structure with empty tested_versions list
-status_data = {
-    'defender': {
-        'tested_versions': [],
-        'current_version': ''
+def create_ledger_file(ledger_file_path):
+    """Create default ledger.yaml file"""
+    if os.path.exists(ledger_file_path):
+        print(f"Ledger file already exists: {ledger_file_path}")
+        return False
+        
+    print("Creating default ledger.yaml file...")
+    
+    # Create YAML structure with empty tested_versions list
+    status_data = {
+        'defender': {
+            'tested_versions': [],
+            'current_version': ''
+        }
     }
-}
 
-# Write the ledger.yaml file
-with open(ledger_file_path, 'w') as yaml_file:
-    yaml.dump(status_data, yaml_file, default_flow_style=False, sort_keys=False)
+    # Write the ledger.yaml file
+    with open(ledger_file_path, 'w') as yaml_file:
+        yaml.dump(status_data, yaml_file, default_flow_style=False, sort_keys=False)
 
-print(f"Created ledger file at {ledger_file_path}")
+    print(f"Created ledger file at {ledger_file_path}")
+    return True
 
-# Create test configuration file
-test_config_path = os.environ.get('SHUTTLE_TEST_CONFIG_PATH')
-if test_config_path:
-    test_config_dir = os.path.dirname(test_config_path)
-    os.makedirs(test_config_dir, exist_ok=True)
-    
-    print("Creating test configuration file...")
-    
-    # Generate test keys for encryption
-    test_area_dir = os.path.dirname(test_config_path)  # Should be test_area
+def create_test_keys(test_area_dir):
+    """Generate test encryption keys"""
     test_key_public_path = os.path.join(test_area_dir, 'shuttle_test_key_public.gpg')
     
+    if os.path.exists(test_key_public_path):
+        print(f"Test keys already exist: {test_key_public_path}")
+        return False
+        
     print("Generating test encryption keys...")
     import subprocess
     key_generation_script = os.path.join(os.path.dirname(os.path.dirname(__file__)), '0_key_generation', '00_generate_shuttle_keys.sh')
@@ -212,8 +210,32 @@ if test_config_path:
     if result.returncode == 0:
         print(f"Test encryption keys generated successfully")
         print(f"Public key: {test_key_public_path}")
+        return True
     else:
         print(f"Warning: Failed to generate test keys: {result.stderr}")
+        return False
+
+def create_test_config_file(test_config_path, config_dir):
+    """Create test configuration file"""
+    if not test_config_path:
+        print("SHUTTLE_TEST_CONFIG_PATH not set, skipping test config creation")
+        return False
+        
+    if os.path.exists(test_config_path):
+        print(f"Test config file already exists: {test_config_path}")
+        return False
+        
+    test_config_dir = os.path.dirname(test_config_path)
+    os.makedirs(test_config_dir, exist_ok=True)
+    
+    print("Creating test configuration file...")
+    
+    # Generate test keys for encryption
+    test_area_dir = os.path.dirname(test_config_path)  # Should be test_area
+    test_key_public_path = os.path.join(test_area_dir, 'shuttle_test_key_public.gpg')
+    
+    # Generate test keys if they don't exist
+    if not create_test_keys(test_area_dir):
         # Fall back to pointing to main config key if test key generation fails
         test_key_public_path = os.path.join(config_dir, 'shuttle_public.gpg')
     
@@ -254,20 +276,68 @@ if test_config_path:
         test_config.write(configfile)
     
     print(f"Created test config file at {test_config_path}")
-else:
-    print("SHUTTLE_TEST_CONFIG_PATH not set, skipping test config creation")
+    return True
 
+def main():
+    """Main function to handle modular configuration creation"""
+    # Get required environment variables
+    work_dir = get_required_env_var("SHUTTLE_TEST_WORK_DIR", "shuttle working directory")
+    config_path = get_required_env_var("SHUTTLE_CONFIG_PATH", "shuttle configuration file")
+    config_dir = os.path.dirname(config_path)
 
-# Setup complete
-print("\nSetup complete!")
+    # Parse command line arguments
+    args = parse_arguments()
+    
+    # Check what operations to perform
+    if not any([args.create_config, args.create_test_config, args.create_ledger, args.create_test_keys, args.all]):
+        # Default behavior - create all
+        args.all = True
+    
+    # Create directories first
+    paths = create_directories(work_dir, config_dir, args)
+    
+    # Track what was created
+    created_files = []
+    
+    # Perform requested operations
+    if args.all or args.create_config:
+        if create_config_file(config_path, args, paths, config_dir):
+            created_files.append(f"Configuration: {config_path}")
+    
+    if args.all or args.create_ledger:
+        if create_ledger_file(paths['ledger_file_path']):
+            created_files.append(f"Ledger: {paths['ledger_file_path']}")
+    
+    if args.all or args.create_test_config:
+        test_config_path = os.environ.get('SHUTTLE_TEST_CONFIG_PATH')
+        if create_test_config_file(test_config_path, config_dir):
+            created_files.append(f"Test config: {test_config_path}")
+    
+    if args.all or args.create_test_keys:
+        test_config_path = os.environ.get('SHUTTLE_TEST_CONFIG_PATH')
+        if test_config_path:
+            test_area_dir = os.path.dirname(test_config_path)
+            if create_test_keys(test_area_dir):
+                created_files.append(f"Test keys: {test_area_dir}/shuttle_test_key_*.gpg")
+    
+    # Show summary
+    if created_files:
+        print("\nSetup complete!")
+        print("\nFiles created:")
+        for file_info in created_files:
+            print(f"  {file_info}")
+    else:
+        print("\nNo new files created (all files already exist)")
+    
+    # Show directory summary (only if --all or no specific flags)
+    if args.all:
+        print("\nDirectories created:")
+        print(f"  Work: {work_dir}")
+        print(f"  Source: {paths['source_dir']}")
+        print(f"  Quarantine: {paths['quarantine_dir']}")
+        print(f"  Destination: {paths['dest_dir']}")
+        print(f"  Hazard archive: {paths['hazard_archive_dir']}")
+        print(f"  Logs: {paths['log_dir']}")
 
-# Summary of setup
-print("\nDirectories created:")
-print(f"  Work: {work_dir}")
-print(f"  Source: {source_dir}")
-print(f"  Quarantine: {quarantine_dir}")
-print(f"  Destination: {dest_dir}")
-print(f"  Hazard archive: {hazard_archive_dir}")
-print(f"  Logs: {log_dir}")
-print(f"\nConfiguration: {settings_file}")
-print(f"Ledger: {ledger_file_path}")
+if __name__ == "__main__":
+    main()

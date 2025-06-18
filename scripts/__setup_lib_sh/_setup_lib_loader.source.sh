@@ -56,6 +56,19 @@ load_common_libs() {
     return 0
 }
 
+# Load installation constants and helper functions
+load_installation_constants_lib() {
+    local calling_script_dir="${1:-$(dirname "$(readlink -f "${BASH_SOURCE[1]}")")}"
+    
+    # Load installation constants library
+    source_setup_lib "installation_constants" "$calling_script_dir" || return 1
+    
+    # Load the constants into shell variables
+    load_installation_constants || return 1
+    
+    return 0
+}
+
 # Alternative: Load all essential libraries at once
 load_all_setup_libs() {
     local calling_script_dir="${1:-$(dirname "$(readlink -f "${BASH_SOURCE[1]}")")}"
@@ -66,6 +79,19 @@ load_all_setup_libs() {
     source_setup_lib "_check_tool" "$calling_script_dir" || return 1
     source_setup_lib "_users_and_groups_inspect" "$calling_script_dir" || return 1
     source_setup_lib "_common_" "$calling_script_dir" || return 1
+    
+    return 0
+}
+
+# Load all libraries including installation constants
+load_all_libs_with_constants() {
+    local calling_script_dir="${1:-$(dirname "$(readlink -f "${BASH_SOURCE[1]}")")}"
+    
+    # Load common libraries
+    load_all_setup_libs "$calling_script_dir" || return 1
+    
+    # Load installation constants
+    load_installation_constants_lib "$calling_script_dir" || return 1
     
     return 0
 }

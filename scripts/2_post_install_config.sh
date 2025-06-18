@@ -111,7 +111,7 @@ show_usage() {
 Usage: $0 [options]
 
 Options:
-  --config <file>       Path to YAML configuration file (default: $DEFAULT_CONFIG)
+  --instructions <file> Path to YAML instructions file (default: wizard mode)
   --non-interactive     Run in non-interactive mode
   --dry-run             Show what would be done without making changes
   --wizard              Run configuration wizard to create YAML file first
@@ -120,8 +120,8 @@ Options:
 Examples:
   $0                                    # Interactive mode with default config
   $0 --wizard                          # Run wizard to create config, then apply
-  $0 --config /path/to/config.yaml     # Interactive mode with custom config
-  $0 --config config.yaml --non-interactive  # Automated mode
+  $0 --instructions /path/to/post_install_instructions.yaml     # Interactive mode with custom instructions
+  $0 --instructions post_install_instructions.yaml --non-interactive  # Automated mode
   $0 --dry-run                          # Show what would be done
   $0 --wizard --dry-run                 # Create config with wizard, then dry run
 
@@ -135,7 +135,7 @@ EOF
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case $1 in
-            --config)
+            --instructions)
                 CONFIG_FILE="$2"
                 shift 2
                 ;;
@@ -164,8 +164,10 @@ parse_arguments() {
         esac
     done
     
-    # Set default config if not specified
-    CONFIG_FILE=${CONFIG_FILE:-$DEFAULT_CONFIG}
+    # If no --instructions specified and no --wizard, default to wizard
+    if [[ -z "$CONFIG_FILE" && "$RUN_WIZARD" == "false" ]]; then
+        RUN_WIZARD=true
+    fi
 }
 
 # Validate configuration file

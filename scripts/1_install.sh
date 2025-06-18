@@ -81,8 +81,50 @@ check_sudo_access() {
     fi
 }
 
-# 1. Installation Mode Selection
-select_installation_mode() {
+# Validate saved installation mode against current state
+validate_install_mode_instructions() {
+    local saved_mode="$1"
+    
+    # Validate the saved mode is valid
+    if ! is_valid_install_mode "$saved_mode"; then
+        echo -e "${RED}❌ Invalid installation mode in instructions: $saved_mode${NC}"
+        echo "Run in wizard mode: $0 --wizard"
+        exit 1
+    fi
+    
+    # For service mode, check if user has appropriate permissions
+    if [[ "$saved_mode" == "$INSTALL_MODE_SERVICE" ]]; then
+        # Check if user can potentially write to system directories
+        if [[ $EUID -ne 0 ]] && ! sudo -n true 2>/dev/null; then
+            echo -e "${YELLOW}⚠️  Instructions specify service mode but you may lack system permissions${NC}"
+            echo ""
+            echo "Service mode typically requires root or sudo access for:"
+            echo "- Writing to /etc/shuttle/ and /opt/shuttle/"
+            echo "- Creating system users and groups"
+            echo ""
+            read -p "Continue with service mode? [y/N]: " confirm
+            case "$confirm" in
+                [Yy])
+                    echo "Proceeding with service mode - you may be prompted for sudo later"
+                    ;;
+                *)
+                    echo "Installation cancelled. Run in wizard mode: $0 --wizard"
+                    exit 1
+                    ;;
+            esac
+        fi
+    fi
+    
+    # Apply the saved mode
+    INSTALL_MODE="$saved_mode"
+    ENV_FLAG=$(get_env_flag_for_mode "$saved_mode")
+    USER_INSTALL_MODE_CHOICE="$saved_mode"
+    
+    echo -e "${GREEN}✅ Using installation mode from instructions: $saved_mode${NC}"
+}
+
+# Interactive installation mode selection (wizard mode)
+interactive_install_mode_choice() {
     echo "=== Shuttle Installation Mode ==="
     echo ""
     echo "Select installation mode:"
@@ -107,42 +149,182 @@ select_installation_mode() {
     
     case $INSTALL_MODE_CHOICE in
         1) 
-            INSTALL_MODE="dev"
-            ENV_FLAG="-e"
+            INSTALL_MODE="$INSTALL_MODE_DEV"
+            ENV_FLAG=$(get_env_flag_for_mode "$INSTALL_MODE")
+            USER_INSTALL_MODE_CHOICE="$INSTALL_MODE_DEV"
             echo -e "${GREEN}Selected: Development mode${NC}"
             ;;
         2) 
-            INSTALL_MODE="user"
-            ENV_FLAG="-u"
+            INSTALL_MODE="$INSTALL_MODE_USER"
+            ENV_FLAG=$(get_env_flag_for_mode "$INSTALL_MODE")
+            USER_INSTALL_MODE_CHOICE="$INSTALL_MODE_USER"
             echo -e "${GREEN}Selected: User production mode${NC}"
             ;;
         3) 
-            INSTALL_MODE="service"
-            ENV_FLAG=""
+            INSTALL_MODE="$INSTALL_MODE_SERVICE"
+            ENV_FLAG=$(get_env_flag_for_mode "$INSTALL_MODE")
+            USER_INSTALL_MODE_CHOICE="$INSTALL_MODE_SERVICE"
             echo -e "${GREEN}Selected: Service account mode${NC}"
             ;;
         *) 
-            INSTALL_MODE="dev"
-            ENV_FLAG="-e"
+            INSTALL_MODE="$INSTALL_MODE_DEV"
+            ENV_FLAG=$(get_env_flag_for_mode "$INSTALL_MODE")
+            USER_INSTALL_MODE_CHOICE="$INSTALL_MODE_DEV"
             echo -e "${GREEN}Defaulting to: Development mode${NC}"
             ;;
     esac
     echo ""
 }
 
-# 2. Check Virtual Environment Status
-check_venv_status() {
-    echo "=== Python Virtual Environment Check ==="
-    echo ""
+# 2. Unified Installation Mode Selection
+select_installation_mode() {
+    # Check if we're running from instructions or wizard mode
+    if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
+        # Instructions mode - validate saved choice
+        echo "Reading installation mode from instructions..."
+        
+        # TODO: Read saved choice from instructions file
+        # For now, this is a placeholder - we'll implement file reading later
+        echo "Instructions mode not yet implemented - falling back to wizard"
+        interactive_install_mode_choice
+    else
+        # Wizard mode - interactive choice
+        interactive_install_mode_choice
+    fi
+}
+
+# Load installation constants for consistent choice handling
+load_installation_constants_for_install() {
+    # Load the constants library
+    SETUP_LIB_SH_DIR="$SCRIPT_DIR/__setup_lib_sh"
+    local loader_path="$SETUP_LIB_SH_DIR/_setup_lib_loader.source.sh"
     
-    # Check if we're already in a virtual environment
+    if [[ -f "$loader_path" ]]; then
+        source "$loader_path"
+        # Pass explicit directory to ensure correct path resolution
+        load_installation_constants_lib "$SCRIPT_DIR" || {
+            echo "ERROR: Failed to load installation constants from $SCRIPT_DIR" >&2
+            return 1
+        }
+    else
+        echo "ERROR: Setup library loader not found at: $loader_path" >&2
+        return 1
+    fi
+}
+
+# Detect current virtual environment state (always runs)
+detect_venv_state() {
+    local current_venv_active=false
+    local current_venv_path=""
+    
     if [[ -n "$VIRTUAL_ENV" ]]; then
-        echo -e "${GREEN}✅ Virtual environment is active: $VIRTUAL_ENV${NC}"
+        current_venv_active=true
+        current_venv_path="$VIRTUAL_ENV"
+    fi
+    
+    # Export state for use by other functions
+    CURRENT_VENV_ACTIVE="$current_venv_active"
+    CURRENT_VENV_PATH="$current_venv_path"
+}
+
+# Validate saved instructions against current venv state
+validate_venv_instructions() {
+    local current_venv_active="$1"
+    local saved_user_choice="$2"
+    
+    case "$saved_user_choice" in
+        "$VENV_CHOICE_EXISTING")
+            # Instructions expect to use existing venv
+            if [[ "$current_venv_active" == "true" ]]; then
+                IN_VENV=true
+                CREATE_VENV=false
+                VENV_TYPE="$VENV_TYPE_EXISTING"
+                echo -e "${GREEN}✅ Using active virtual environment as instructed: $CURRENT_VENV_PATH${NC}"
+            else
+                echo -e "${RED}❌ Instructions expect active virtual environment${NC}"
+                echo ""
+                echo "When instructions were saved, a virtual environment was active,"
+                echo "but no virtual environment is currently active."
+                echo ""
+                echo "Please either:"
+                echo "1. Activate your virtual environment and run again"
+                echo "2. Run in wizard mode: $0 --wizard"
+                exit 1
+            fi
+            ;;
+            
+        "$VENV_CHOICE_SCRIPT_CREATES")
+            # Instructions want script to create venv
+            if [[ "$current_venv_active" == "true" ]]; then
+                echo -e "${RED}❌ Instructions want script to create virtual environment${NC}"
+                echo ""
+                echo "When instructions were saved, no virtual environment was active,"
+                echo "but you currently have a virtual environment active: $CURRENT_VENV_PATH"
+                echo ""
+                echo "Please either:"
+                echo "1. Deactivate your virtual environment: deactivate"
+                echo "2. Run in wizard mode: $0 --wizard"
+                exit 1
+            else
+                CREATE_VENV=true
+                VENV_TYPE="$VENV_TYPE_SCRIPT"
+                IN_VENV=false
+                echo -e "${GREEN}✅ Will create virtual environment as instructed${NC}"
+            fi
+            ;;
+            
+        "$VENV_CHOICE_GLOBAL")
+            # Instructions want global install
+            if [[ "$current_venv_active" == "true" ]]; then
+                echo -e "${YELLOW}⚠️  Instructions specify global install but venv is active${NC}"
+                echo ""
+                echo "When instructions were saved, global installation was chosen,"
+                echo "but you currently have a virtual environment active: $CURRENT_VENV_PATH"
+                echo ""
+                echo "Global installation will ignore the virtual environment."
+                read -p "Continue with global install? [y/N]: " confirm
+                case "$confirm" in
+                    [Yy])
+                        CREATE_VENV=false
+                        VENV_TYPE="$VENV_TYPE_GLOBAL"
+                        IN_VENV=false
+                        echo -e "${GREEN}✅ Using global Python installation as instructed${NC}"
+                        ;;
+                    *)
+                        echo "Installation cancelled. Run in wizard mode: $0 --wizard"
+                        exit 1
+                        ;;
+                esac
+            else
+                CREATE_VENV=false
+                VENV_TYPE="$VENV_TYPE_GLOBAL"
+                IN_VENV=false
+                echo -e "${GREEN}✅ Using global Python installation as instructed${NC}"
+            fi
+            ;;
+        *)
+            echo -e "${RED}❌ Unknown venv choice in instructions: $saved_user_choice${NC}"
+            echo "Run in wizard mode: $0 --wizard"
+            exit 1
+            ;;
+    esac
+}
+
+# Interactive venv choice (wizard mode)
+interactive_venv_choice() {
+    local current_venv_active="$1"
+    
+    if [[ "$current_venv_active" == "true" ]]; then
+        echo -e "${GREEN}✅ Virtual environment is active: $CURRENT_VENV_PATH${NC}"
         echo ""
         echo "Python packages will be installed in this environment."
         IN_VENV=true
         CREATE_VENV=false
-        VENV_TYPE="existing"
+        VENV_TYPE="$VENV_TYPE_EXISTING"
+        
+        # Save the choice that was made for instructions file
+        USER_VENV_CHOICE="$VENV_CHOICE_EXISTING"
+        EXPECTED_VENV_ACTIVE=true
         return 0
     fi
     
@@ -164,71 +346,101 @@ check_venv_status() {
     echo "   - Then run this script again"
     echo ""
     
-    read -p "Your choice [2]: " VENV_CHOICE
-    VENV_CHOICE=${VENV_CHOICE:-2}
+    # Loop until we get a valid choice (avoids recursive calls)
+    while true; do
+        read -p "Your choice [2]: " VENV_CHOICE
+        VENV_CHOICE=${VENV_CHOICE:-2}
+        
+        case $VENV_CHOICE in
+            1)
+                echo ""
+                echo -e "${YELLOW}⚠️  Warning: Installing globally is not recommended${NC}"
+                echo "This may conflict with system packages or other projects."
+                read -p "Install globally? (Default: No) [y/N/x]: " CONFIRM_GLOBAL
+                case $CONFIRM_GLOBAL in
+                    [Yy]) 
+                        CREATE_VENV=false
+                        VENV_TYPE="$VENV_TYPE_GLOBAL"
+                        IN_VENV=false
+                        USER_VENV_CHOICE="$VENV_CHOICE_GLOBAL"
+                        echo -e "${GREEN}Selected: Global installation${NC}"
+                        break
+                        ;;
+                    [Xx]) 
+                        echo "Installation cancelled by user."
+                        exit 0 
+                        ;;
+                    *) # Default is No - ask again
+                        echo "Cancelled. Please choose another option."
+                        echo ""
+                        continue
+                        ;;
+                esac
+                ;;
+            2)
+                CREATE_VENV=true
+                VENV_TYPE="$VENV_TYPE_SCRIPT"
+                IN_VENV=false
+                USER_VENV_CHOICE="$VENV_CHOICE_SCRIPT_CREATES"
+                echo -e "${GREEN}Selected: Script will create virtual environment${NC}"
+                break
+                ;;
+            3|[Xx])
+                echo ""
+                echo "Please set up your virtual environment:"
+                echo ""
+                echo "For standard venv:"
+                echo -e "  ${BLUE}python3 -m venv .venv${NC}"
+                echo -e "  ${BLUE}source .venv/bin/activate${NC}"
+                echo ""
+                echo "For conda:"
+                echo -e "  ${BLUE}conda create -n shuttle python=3.8${NC}"
+                echo -e "  ${BLUE}conda activate shuttle${NC}"
+                echo ""
+                echo "Then run this installer again."
+                exit 0
+                ;;
+            *)
+                CREATE_VENV=true
+                VENV_TYPE="$VENV_TYPE_SCRIPT"
+                IN_VENV=false
+                USER_VENV_CHOICE="$VENV_CHOICE_SCRIPT_CREATES"
+                echo -e "${GREEN}Defaulting to: Script will create virtual environment${NC}"
+                break
+                ;;
+        esac
+    done
     
-    case $VENV_CHOICE in
-        1)
-            echo ""
-            echo -e "${YELLOW}⚠️  Warning: Installing globally is not recommended${NC}"
-            echo "This may conflict with system packages or other projects."
-            read -p "Install globally? (Default: No) [y/N/x]: " CONFIRM_GLOBAL
-            case $CONFIRM_GLOBAL in
-                [Yy]) 
-                    CREATE_VENV=false
-                    VENV_TYPE="global"
-                    IN_VENV=false
-                    echo -e "${GREEN}Selected: Global installation${NC}"
-                    ;;
-                [Xx]) 
-                    echo "Installation cancelled by user."
-                    exit 0 
-                    ;;
-                *) # Default is No
-                    echo "Cancelled. Please choose another option."
-                    check_venv_status  # Recursive call to ask again
-                    return
-                    ;;
-            esac
-            ;;
-        2)
-            CREATE_VENV=true
-            VENV_TYPE="script"
-            IN_VENV=false
-            echo -e "${GREEN}Selected: Script will create virtual environment${NC}"
-            ;;
-        3|[Xx])
-            echo ""
-            echo "Please set up your virtual environment:"
-            echo ""
-            echo "For standard venv:"
-            echo -e "  ${BLUE}python3 -m venv .venv${NC}"
-            echo -e "  ${BLUE}source .venv/bin/activate${NC}"
-            echo ""
-            echo "For conda:"
-            echo -e "  ${BLUE}conda create -n shuttle python=3.8${NC}"
-            echo -e "  ${BLUE}conda activate shuttle${NC}"
-            echo ""
-            echo "Then run this installer again."
-            exit 0
-            ;;
-        *)
-            CREATE_VENV=true
-            VENV_TYPE="script"
-            IN_VENV=false
-            echo -e "${GREEN}Defaulting to: Script will create virtual environment${NC}"
-            ;;
-    esac
+    # Save that no venv was active when choice was made
+    EXPECTED_VENV_ACTIVE=false
     echo ""
 }
 
-# 2a. IDE-specific Virtual Environment Management (only if in dev mode and creating venv)
-select_venv_ide_options() {
-    if [[ "$INSTALL_MODE" != "dev" ]] || [[ "$CREATE_VENV" != "true" ]]; then
-        return 0
-    fi
+# 2. Unified Virtual Environment Status Check
+check_venv_status() {
+    echo "=== Python Virtual Environment Check ==="
+    echo ""
     
-    # Detect IDEs
+    # Always detect current state first
+    detect_venv_state
+    
+    # Check if we're running from instructions or wizard mode
+    if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
+        # Instructions mode - validate saved choice against current state
+        echo "Reading virtual environment choice from instructions..."
+        
+        # TODO: Read saved choice from instructions file
+        # For now, this is a placeholder - we'll implement file reading later
+        echo "Instructions mode not yet implemented - falling back to wizard"
+        interactive_venv_choice "$CURRENT_VENV_ACTIVE"
+    else
+        # Wizard mode - interactive choice
+        interactive_venv_choice "$CURRENT_VENV_ACTIVE"
+    fi
+}
+
+# Detect current IDE state (always runs when applicable)
+detect_ide_state() {
     DETECTED_IDES=()
     if [[ -n "$VSCODE_PID" ]] || [[ -d ".vscode" ]]; then
         DETECTED_IDES+=("vscode")
@@ -239,6 +451,49 @@ select_venv_ide_options() {
     if [[ -n "$JPY_PARENT_PID" ]]; then
         DETECTED_IDES+=("jupyter")
     fi
+}
+
+# Validate saved IDE preferences against current state
+validate_ide_instructions() {
+    local saved_register_kernel="$1"
+    
+    # Always detect current IDE state
+    detect_ide_state
+    
+    # Check if the saved preference can be applied
+    if [[ "$saved_register_kernel" == "true" ]]; then
+        # Check prerequisites for kernel registration
+        if [[ "$INSTALL_MODE" != "$INSTALL_MODE_DEV" ]]; then
+            echo -e "${YELLOW}⚠️  Instructions specify Jupyter kernel registration but not in dev mode${NC}"
+            echo "Jupyter kernel registration is only available in development mode."
+            REGISTER_KERNEL=false
+        elif [[ "$CREATE_VENV" != "true" ]]; then
+            echo -e "${YELLOW}⚠️  Instructions specify Jupyter kernel registration but not creating venv${NC}"
+            echo "Jupyter kernel registration requires creating a virtual environment."
+            REGISTER_KERNEL=false
+        else
+            REGISTER_KERNEL=true
+            echo -e "${GREEN}✅ Will register Jupyter kernel as instructed${NC}"
+        fi
+    else
+        REGISTER_KERNEL=false
+        echo -e "${GREEN}✅ Will not register Jupyter kernel as instructed${NC}"
+    fi
+    
+    USER_REGISTER_KERNEL_CHOICE="$saved_register_kernel"
+}
+
+# Interactive IDE options (wizard mode)
+interactive_ide_choice() {
+    # Only run if in dev mode and creating venv
+    if [[ "$INSTALL_MODE" != "$INSTALL_MODE_DEV" ]] || [[ "$CREATE_VENV" != "true" ]]; then
+        REGISTER_KERNEL=false
+        USER_REGISTER_KERNEL_CHOICE="false"
+        return 0
+    fi
+    
+    # Detect current IDE state
+    detect_ide_state
     
     if [[ ${#DETECTED_IDES[@]} -gt 0 ]]; then
         echo "=== IDE Integration ==="
@@ -249,6 +504,7 @@ select_venv_ide_options() {
         case $REGISTER_JUPYTER in
             [Yy])
                 REGISTER_KERNEL=true
+                USER_REGISTER_KERNEL_CHOICE="true"
                 echo -e "${GREEN}Will register Jupyter kernel after installation${NC}"
                 ;;
             [Xx])
@@ -257,14 +513,77 @@ select_venv_ide_options() {
                 ;;
             *) # Default is No
                 REGISTER_KERNEL=false
+                USER_REGISTER_KERNEL_CHOICE="false"
                 ;;
         esac
         echo ""
+    else
+        # No IDEs detected - set defaults
+        REGISTER_KERNEL=false
+        USER_REGISTER_KERNEL_CHOICE="false"
     fi
 }
 
-# 3. Check Prerequisites (GPG Keys)
-check_prerequisites() {
+# 3. Unified IDE-specific Virtual Environment Management
+select_venv_ide_options() {
+    # Check if we're running from instructions or wizard mode
+    if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
+        # Instructions mode - validate saved preference
+        echo "Reading IDE preferences from instructions..."
+        
+        # TODO: Read saved preference from instructions file
+        # For now, this is a placeholder - we'll implement file reading later
+        echo "Instructions mode not yet implemented - falling back to wizard"
+        interactive_ide_choice
+    else
+        # Wizard mode - interactive choice
+        interactive_ide_choice
+    fi
+}
+
+# Validate saved GPG key path against current state
+validate_gpg_instructions() {
+    local saved_gpg_path="$1"
+    
+    # Basic path validation
+    if [[ -z "$saved_gpg_path" ]]; then
+        echo -e "${RED}❌ Empty GPG key path in instructions${NC}"
+        echo "Run in wizard mode: $0 --wizard"
+        exit 1
+    fi
+    
+    # Check if key exists at saved path
+    if [[ -f "$saved_gpg_path" ]]; then
+        echo -e "${GREEN}✅ GPG public key found at saved path: $saved_gpg_path${NC}"
+    else
+        echo -e "${YELLOW}⚠️  GPG public key not found at saved path: $saved_gpg_path${NC}"
+        echo ""
+        echo "The key file from instructions doesn't exist. You can:"
+        echo "1. Generate keys and place the public key at this path"
+        echo "2. Continue installation and generate keys later"
+        echo ""
+        echo "To generate GPG keys:"
+        echo -e "  ${BLUE}./scripts/0_key_generation/00_generate_shuttle_keys.sh${NC}"
+        echo -e "  ${BLUE}cp shuttle_public.gpg $saved_gpg_path${NC}"
+        echo ""
+        read -p "Continue with this key path? [Y/n]: " confirm
+        case "$confirm" in
+            [Nn])
+                echo "Installation cancelled. Run in wizard mode: $0 --wizard"
+                exit 1
+                ;;
+        esac
+    fi
+    
+    # Apply saved path
+    GPG_KEY_PATH="$saved_gpg_path"
+    USER_GPG_KEY_PATH_CHOICE="$saved_gpg_path"
+    
+    echo -e "${GREEN}✅ Using GPG key path from instructions: $saved_gpg_path${NC}"
+}
+
+# Interactive GPG prerequisites (wizard mode)
+interactive_gpg_choice() {
     echo "=== Prerequisites Check ==="
     echo ""
     echo "Shuttle requires GPG keys for encrypting malware files that are detected."
@@ -281,6 +600,7 @@ check_prerequisites() {
     echo ""
     read -p "[$DEFAULT_KEY_PATH]: " GPG_KEY_PATH
     GPG_KEY_PATH=${GPG_KEY_PATH:-$DEFAULT_KEY_PATH}
+    USER_GPG_KEY_PATH_CHOICE="$GPG_KEY_PATH"
     
     # Check if key exists
     if [[ -f "$GPG_KEY_PATH" ]]; then
@@ -313,8 +633,100 @@ check_prerequisites() {
     echo ""
 }
 
-# 4. System Dependencies Check and Installation
-check_and_install_system_deps() {
+# 5. Unified Prerequisites Check
+check_prerequisites() {
+    # Check if we're running from instructions or wizard mode
+    if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
+        # Instructions mode - validate saved path
+        echo "Reading GPG key path from instructions..."
+        
+        # TODO: Read saved path from instructions file
+        # For now, this is a placeholder - we'll implement file reading later
+        echo "Instructions mode not yet implemented - falling back to wizard"
+        interactive_gpg_choice
+    else
+        # Wizard mode - interactive choice
+        interactive_gpg_choice
+    fi
+}
+
+# Detect current system dependency state (always runs)
+detect_system_deps_state() {
+    MISSING_BASIC_DEPS=()
+    MISSING_PYTHON=false
+    MISSING_CLAMAV=false
+    MISSING_DEFENDER=false
+    NEED_SUDO=false
+    
+    # Check for basic system tools
+    command -v lsof >/dev/null 2>&1 || MISSING_BASIC_DEPS+=("lsof")
+    command -v gpg >/dev/null 2>&1 || MISSING_BASIC_DEPS+=("gnupg")
+    
+    # Check for Python
+    if ! command -v python3 >/dev/null 2>&1 || ! command -v pip3 >/dev/null 2>&1; then
+        MISSING_PYTHON=true
+    fi
+    
+    # Check for virus scanners
+    if ! command -v clamscan >/dev/null 2>&1; then
+        MISSING_CLAMAV=true
+    fi
+    
+    # Check for Microsoft Defender (mdatp)
+    if ! command -v mdatp >/dev/null 2>&1; then
+        MISSING_DEFENDER=true
+    fi
+    
+    # Determine if we'll need sudo for any installations
+    if [[ ${#MISSING_BASIC_DEPS[@]} -gt 0 ]] || [[ "$MISSING_PYTHON" == "true" ]] || [[ "$MISSING_CLAMAV" == "true" ]]; then
+        NEED_SUDO=true
+    fi
+}
+
+# Validate saved system dependency choices against current state
+validate_system_deps_instructions() {
+    local saved_install_basic_deps="$1"
+    local saved_install_python="$2"
+    local saved_install_clamav="$3"
+    local saved_check_defender="$4"
+    
+    # Always detect current system state
+    detect_system_deps_state
+    
+    # Check for conflicts between saved choices and current state
+    
+    # Python is required - cannot skip if missing
+    if [[ "$saved_install_python" == "false" && "$MISSING_PYTHON" == "true" ]]; then
+        echo -e "${RED}❌ Instructions say don't install Python, but Python is missing${NC}"
+        echo "Python is required for Shuttle to function."
+        echo "Run in wizard mode: $0 --wizard"
+        exit 1
+    fi
+    
+    # Check sudo access if we'll need it
+    if [[ "$NEED_SUDO" == "true" ]]; then
+        if [[ $EUID -ne 0 ]] && ! sudo -n true 2>/dev/null; then
+            echo -e "${YELLOW}⚠️  Instructions require system package installation but sudo access is limited${NC}"
+            echo "You may be prompted for your password during installation."
+        fi
+    fi
+    
+    # Apply saved choices
+    INSTALL_BASIC_DEPS="$saved_install_basic_deps"
+    INSTALL_PYTHON="$saved_install_python"
+    INSTALL_CLAMAV="$saved_install_clamav"
+    CHECK_DEFENDER="$saved_check_defender"
+    
+    USER_INSTALL_BASIC_DEPS_CHOICE="$saved_install_basic_deps"
+    USER_INSTALL_PYTHON_CHOICE="$saved_install_python"
+    USER_INSTALL_CLAMAV_CHOICE="$saved_install_clamav"
+    USER_CHECK_DEFENDER_CHOICE="$saved_check_defender"
+    
+    echo -e "${GREEN}✅ Using system dependency choices from instructions${NC}"
+}
+
+# Interactive system dependency selection (wizard mode)  
+interactive_system_deps_choice() {
     echo "=== System Dependencies Check ==="
     echo ""
     echo "Shuttle requires several system packages to function properly:"
@@ -520,23 +932,85 @@ check_and_install_system_deps() {
     fi
     
     echo ""
+    
+    # Track user choices for instructions file generation
+    USER_INSTALL_BASIC_DEPS_CHOICE="$INSTALL_BASIC_DEPS"
+    USER_INSTALL_PYTHON_CHOICE="$INSTALL_PYTHON"
+    USER_INSTALL_CLAMAV_CHOICE="$INSTALL_CLAMAV" 
+    USER_CHECK_DEFENDER_CHOICE="$CHECK_DEFENDER"
 }
 
-# 3a. Collect Config Path (early, for prerequisites)
-collect_config_path() {
+# 6. Unified System Dependencies Check and Installation
+check_and_install_system_deps() {
+    # Always detect current system state first
+    detect_system_deps_state
+    
+    # Check if we're running from instructions or wizard mode
+    if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
+        # Instructions mode - validate saved choices against current state
+        echo "Reading system dependency choices from instructions..."
+        
+        # TODO: Read saved choices from instructions file
+        # For now, this is a placeholder - we'll implement file reading later
+        echo "Instructions mode not yet implemented - falling back to wizard"
+        interactive_system_deps_choice
+    else
+        # Wizard mode - interactive choice
+        interactive_system_deps_choice
+    fi
+}
+
+# Validate saved config path against current state
+validate_config_path_instructions() {
+    local saved_config_path="$1"
+    
+    # Basic path validation
+    if [[ -z "$saved_config_path" ]]; then
+        echo -e "${RED}❌ Empty config path in instructions${NC}"
+        echo "Run in wizard mode: $0 --wizard"
+        exit 1
+    fi
+    
+    # Check if parent directory exists or can be created
+    local parent_dir=$(dirname "$saved_config_path")
+    if [[ ! -d "$parent_dir" ]]; then
+        echo -e "${YELLOW}⚠️  Config directory doesn't exist: $parent_dir${NC}"
+        echo ""
+        echo "The configuration file directory from instructions doesn't exist."
+        echo "This directory will be created during installation if needed."
+        echo ""
+    fi
+    
+    # Check write permissions for the directory
+    if [[ -d "$parent_dir" ]] && [[ ! -w "$parent_dir" ]]; then
+        echo -e "${YELLOW}⚠️  No write permission for config directory: $parent_dir${NC}"
+        echo ""
+        echo "You may need sudo access to write to this location during installation."
+        echo ""
+    fi
+    
+    # Apply the saved path
+    CONFIG_PATH="$saved_config_path"
+    USER_CONFIG_PATH_CHOICE="$saved_config_path"
+    
+    echo -e "${GREEN}✅ Using config path from instructions: $saved_config_path${NC}"
+}
+
+# Interactive config path collection (wizard mode)
+interactive_config_path_choice() {
     echo "=== Configuration File Location ==="
     echo "Installation mode: $INSTALL_MODE"
     echo ""
     
     # Set up default config path based on installation mode
     case $INSTALL_MODE in
-        "dev")
+        "$INSTALL_MODE_DEV")
             DEFAULT_CONFIG="$PROJECT_ROOT/config/config.conf"
             ;;
-        "user")
+        "$INSTALL_MODE_USER")
             DEFAULT_CONFIG="$HOME/.config/shuttle/config.conf"
             ;;
-        "service")
+        "$INSTALL_MODE_SERVICE")
             DEFAULT_CONFIG="/etc/shuttle/config.conf"
             ;;
     esac
@@ -546,28 +1020,93 @@ collect_config_path() {
     echo ""
     read -p "[$DEFAULT_CONFIG]: " CONFIG_PATH
     CONFIG_PATH=${CONFIG_PATH:-$DEFAULT_CONFIG}
+    USER_CONFIG_PATH_CHOICE="$CONFIG_PATH"
     
     echo ""
     echo "Configuration file will be: $CONFIG_PATH"
     echo ""
 }
 
-# 5. Environment Variables Collection
-collect_environment_variables() {
+# 4. Unified Configuration Path Collection
+collect_config_path() {
+    # Check if we're running from instructions or wizard mode
+    if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
+        # Instructions mode - validate saved path
+        echo "Reading configuration path from instructions..."
+        
+        # TODO: Read saved path from instructions file
+        # For now, this is a placeholder - we'll implement file reading later
+        echo "Instructions mode not yet implemented - falling back to wizard"
+        interactive_config_path_choice
+    else
+        # Wizard mode - interactive choice
+        interactive_config_path_choice
+    fi
+}
+
+# Validate saved environment paths against current state
+validate_environment_paths_instructions() {
+    local saved_venv_path="$1"
+    local saved_test_work_dir="$2"
+    
+    # Validate venv path
+    if [[ -z "$saved_venv_path" ]]; then
+        echo -e "${RED}❌ Empty venv path in instructions${NC}"
+        echo "Run in wizard mode: $0 --wizard"
+        exit 1
+    fi
+    
+    # Validate test work dir
+    if [[ -z "$saved_test_work_dir" ]]; then
+        echo -e "${RED}❌ Empty test work directory in instructions${NC}"
+        echo "Run in wizard mode: $0 --wizard"
+        exit 1
+    fi
+    
+    # Check venv path parent directory
+    local venv_parent=$(dirname "$saved_venv_path")
+    if [[ ! -d "$venv_parent" ]]; then
+        echo -e "${YELLOW}⚠️  Venv parent directory doesn't exist: $venv_parent${NC}"
+        echo "This directory will be created during installation if needed."
+    fi
+    
+    # Check test work dir parent directory
+    local test_parent=$(dirname "$saved_test_work_dir")
+    if [[ ! -d "$test_parent" ]]; then
+        echo -e "${YELLOW}⚠️  Test work parent directory doesn't exist: $test_parent${NC}"
+        echo "This directory will be created during installation if needed."
+    fi
+    
+    # Apply saved paths
+    VENV_PATH="$saved_venv_path"
+    TEST_WORK_DIR="$saved_test_work_dir"
+    USER_VENV_PATH_CHOICE="$saved_venv_path"
+    USER_TEST_WORK_DIR_CHOICE="$saved_test_work_dir"
+    
+    # Derived paths
+    CONFIG_DIR=$(dirname "$CONFIG_PATH")
+    
+    echo -e "${GREEN}✅ Using environment paths from instructions${NC}"
+    echo "  Venv path: $VENV_PATH"
+    echo "  Test work dir: $TEST_WORK_DIR"
+}
+
+# Interactive environment paths collection (wizard mode)
+interactive_environment_paths_choice() {
     echo "=== Environment Variables Setup ==="
     echo ""
     
     # Set up default paths based on installation mode (config path already set)
     case $INSTALL_MODE in
-        "dev")
+        "$INSTALL_MODE_DEV")
             DEFAULT_VENV="$PROJECT_ROOT/.venv"
             DEFAULT_TEST_WORK="$PROJECT_ROOT/test_area"
             ;;
-        "user")
+        "$INSTALL_MODE_USER")
             DEFAULT_VENV="$HOME/.local/share/shuttle/venv"
             DEFAULT_TEST_WORK="$HOME/.local/share/shuttle/test_area"
             ;;
-        "service")
+        "$INSTALL_MODE_SERVICE")
             DEFAULT_VENV="/opt/shuttle/venv"
             DEFAULT_TEST_WORK="/var/lib/shuttle/test_area"
             ;;
@@ -581,6 +1120,7 @@ collect_environment_variables() {
     echo ""
     read -p "[$DEFAULT_VENV]: " VENV_PATH
     VENV_PATH=${VENV_PATH:-$DEFAULT_VENV}
+    USER_VENV_PATH_CHOICE="$VENV_PATH"
     echo ""
     
     echo "Test working directory:"
@@ -588,6 +1128,7 @@ collect_environment_variables() {
     echo ""
     read -p "[$DEFAULT_TEST_WORK]: " TEST_WORK_DIR
     TEST_WORK_DIR=${TEST_WORK_DIR:-$DEFAULT_TEST_WORK}
+    USER_TEST_WORK_DIR_CHOICE="$TEST_WORK_DIR"
     
     # Derived paths
     CONFIG_DIR=$(dirname "$CONFIG_PATH")
@@ -599,43 +1140,60 @@ collect_environment_variables() {
     echo ""
 }
 
+# 7. Unified Environment Variables Collection
+collect_environment_variables() {
+    # Check if we're running from instructions or wizard mode
+    if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
+        # Instructions mode - validate saved paths
+        echo "Reading environment paths from instructions..."
+        
+        # TODO: Read saved paths from instructions file
+        # For now, this is a placeholder - we'll implement file reading later
+        echo "Instructions mode not yet implemented - falling back to wizard"
+        interactive_environment_paths_choice
+    else
+        # Wizard mode - interactive choice
+        interactive_environment_paths_choice
+    fi
+}
+
 # 6. Configuration Parameters Collection
 collect_config_parameters() {
     echo "=== Configuration Parameters ==="
     echo ""
     
-    # Set defaults based on installation mode
+    # Set defaults based on installation mode (using constants)
     case $INSTALL_MODE in
-        "dev")
+        "$INSTALL_MODE_DEV")
             DEFAULT_SOURCE="$PROJECT_ROOT/work/incoming"
             DEFAULT_DEST="$PROJECT_ROOT/work/processed"
             DEFAULT_QUARANTINE="$PROJECT_ROOT/work/quarantine"
             DEFAULT_LOG="$PROJECT_ROOT/work/logs"
             DEFAULT_HAZARD="$PROJECT_ROOT/work/hazard"
             DEFAULT_THREADS=1
-            DEFAULT_LOG_LEVEL="DEBUG"
+            DEFAULT_LOG_LEVEL="$LOG_LEVEL_DEBUG"
             DEFAULT_CLAMAV="n"
             DEFAULT_DEFENDER="Y"
             ;;
-        "user")
+        "$INSTALL_MODE_USER")
             DEFAULT_SOURCE="$HOME/shuttle/incoming"
             DEFAULT_DEST="$HOME/shuttle/processed"
             DEFAULT_QUARANTINE="/tmp/shuttle/quarantine"
             DEFAULT_LOG="$HOME/shuttle/logs"
             DEFAULT_HAZARD="$HOME/shuttle/hazard"
             DEFAULT_THREADS=1
-            DEFAULT_LOG_LEVEL="INFO"
+            DEFAULT_LOG_LEVEL="$LOG_LEVEL_INFO"
             DEFAULT_CLAMAV="n"
             DEFAULT_DEFENDER="Y"
             ;;
-        "service")
+        "$INSTALL_MODE_SERVICE")
             DEFAULT_SOURCE="/srv/data/incoming"
             DEFAULT_DEST="/srv/data/processed"
             DEFAULT_QUARANTINE="/tmp/shuttle/quarantine"
             DEFAULT_LOG="/var/log/shuttle"
             DEFAULT_HAZARD="/srv/data/hazard"
             DEFAULT_THREADS=1
-            DEFAULT_LOG_LEVEL="INFO"
+            DEFAULT_LOG_LEVEL="$LOG_LEVEL_INFO"
             DEFAULT_CLAMAV="n"
             DEFAULT_DEFENDER="Y"
             ;;
@@ -870,9 +1428,29 @@ collect_config_parameters() {
         echo "  Notifications: Disabled"
     fi
     echo ""
+    
+    # Track user choices for instructions file generation
+    USER_SOURCE_PATH_CHOICE="$SOURCE_PATH"
+    USER_DEST_PATH_CHOICE="$DEST_PATH"
+    USER_QUARANTINE_PATH_CHOICE="$QUARANTINE_PATH"
+    USER_LOG_PATH_CHOICE="$LOG_PATH"
+    USER_HAZARD_PATH_CHOICE="$HAZARD_PATH"
+    USER_USE_CLAMAV_CHOICE="$USE_CLAMAV"
+    USER_USE_DEFENDER_CHOICE="$USE_DEFENDER"
+    USER_SCAN_THREADS_CHOICE="$SCAN_THREADS"
+    USER_MIN_FREE_SPACE_CHOICE="$MIN_FREE_SPACE"
+    USER_LOG_LEVEL_CHOICE="$LOG_LEVEL"
+    USER_ADMIN_EMAIL_CHOICE="$ADMIN_EMAIL"
+    USER_SMTP_SERVER_CHOICE="$SMTP_SERVER"
+    USER_SMTP_PORT_CHOICE="$SMTP_PORT"
+    USER_SMTP_USERNAME_CHOICE="$SMTP_USERNAME"
+    USER_SMTP_PASSWORD_CHOICE="$SMTP_PASSWORD"
+    USER_USE_TLS_CHOICE="$USE_TLS"
+    USER_DELETE_SOURCE_CHOICE="$DELETE_SOURCE"
+    USER_LEDGER_PATH_CHOICE="$LEDGER_PATH"
 }
 
-# 7. Execute Installation
+# 8. Execute Installation
 execute_installation() {
     echo "=== Installation Execution ==="
     echo ""
@@ -1265,8 +1843,70 @@ EOF
     echo ""
 }
 
+# Function to show usage
+show_usage() {
+    cat << EOF
+Usage: $0 [options]
+
+Options:
+  --instructions <file> Path to YAML installation instructions file (default: wizard mode)
+  --wizard              Run installation wizard (default when no options provided)
+  --help               Show this help message
+
+Examples:
+  $0                                    # Interactive wizard mode (default)
+  $0 --wizard                          # Explicit wizard mode
+  $0 --instructions install_instructions.yaml   # Use saved installation instructions
+
+Installation Instructions File:
+  The YAML file defines installation settings including paths, environment,
+  and system dependencies for reproducible installations.
+EOF
+}
+
+# Parse command line arguments
+parse_arguments() {
+    INSTALL_INSTRUCTIONS_FILE=""
+    RUN_WIZARD=false
+    local INSTALL_INSTRUCTIONS_SPECIFIED=false
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --instructions)
+                INSTALL_INSTRUCTIONS_FILE="$2"
+                INSTALL_INSTRUCTIONS_SPECIFIED=true
+                shift 2
+                ;;
+            --wizard)
+                RUN_WIZARD=true
+                shift
+                ;;
+            --help|-h)
+                show_usage
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}❌ Unknown option: $1${NC}" >&2
+                show_usage
+                exit 1
+                ;;
+        esac
+    done
+    
+    # If no --instructions specified and no --wizard, default to wizard
+    if [[ "$INSTALL_INSTRUCTIONS_SPECIFIED" == "false" && "$RUN_WIZARD" == "false" ]]; then
+        RUN_WIZARD=true
+    fi
+}
+
 # Main function
 main() {
+    # Load installation constants first
+    if ! load_installation_constants_for_install; then
+        echo "Failed to initialize installation system" >&2
+        exit 1
+    fi
+    
     # Step 1: Check virtual environment status FIRST
     check_venv_status
     
@@ -1321,5 +1961,6 @@ main() {
     show_next_steps
 }
 
-# Run main function
-main "$@"
+# Parse arguments and run main function
+parse_arguments "$@"
+main
