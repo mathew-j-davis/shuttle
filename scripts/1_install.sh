@@ -115,6 +115,16 @@ validate_user_choice() {
     return 0
 }
 
+# Helper function to add dry-run flag to script calls
+add_dry_run_flag() {
+    local cmd="$1"
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "$cmd --dry-run"
+    else
+        echo "$cmd"
+    fi
+}
+
 # Helper function to check sudo access (wrapper around library function)
 check_sudo_access() {
     # First check if user is root
@@ -1291,23 +1301,16 @@ collect_environment_variables() {
 # Helper function to ask user about each directory individually (wizard mode)
 ask_directory_creation_policy() {
     echo ""
-    echo "Directory Creation:"
-    echo "Checking if the directories you specified exist and asking about creation..."
+    echo "Directory Creation Policy:"
+    echo "Should the installer create these directories if they don't exist when installation runs?"
     echo ""
     
-    # Initialize directory creation choices
-    CREATE_SOURCE_DIR=false
-    CREATE_DEST_DIR=false
-    CREATE_QUARANTINE_DIR=false
-    CREATE_LOG_DIR=false
-    CREATE_HAZARD_DIR=false
-    
-    # Check and ask for each directory
-    check_and_ask_for_directory "$SOURCE_PATH" "source" "CREATE_SOURCE_DIR"
-    check_and_ask_for_directory "$DEST_PATH" "destination" "CREATE_DEST_DIR"
-    check_and_ask_for_directory "$QUARANTINE_PATH" "quarantine" "CREATE_QUARANTINE_DIR"
-    check_and_ask_for_directory "$LOG_PATH" "log" "CREATE_LOG_DIR"
-    check_and_ask_for_directory "$HAZARD_PATH" "hazard archive" "CREATE_HAZARD_DIR"
+    # Ask for each directory type
+    ask_directory_creation_preference "source" "CREATE_SOURCE_DIR"
+    ask_directory_creation_preference "destination" "CREATE_DEST_DIR" 
+    ask_directory_creation_preference "quarantine" "CREATE_QUARANTINE_DIR"
+    ask_directory_creation_preference "log" "CREATE_LOG_DIR"
+    ask_directory_creation_preference "hazard archive" "CREATE_HAZARD_DIR"
     
     # Save individual directory creation choices
     USER_CREATE_SOURCE_DIR_CHOICE="$CREATE_SOURCE_DIR"
@@ -1319,34 +1322,26 @@ ask_directory_creation_policy() {
     echo ""
 }
 
-# Helper function to check individual directory and ask user
-check_and_ask_for_directory() {
-    local dir_path="$1"
-    local dir_description="$2"
-    local var_name="$3"
+# Helper function to ask user preference for directory creation
+ask_directory_creation_preference() {
+    local dir_description="$1"
+    local var_name="$2"
     
-    if [[ -d "$dir_path" ]]; then
-        echo -e "  ${GREEN}✅ $dir_description directory exists: $dir_path${NC}"
-        eval "$var_name=false"  # Don't need to create
-    else
-        echo -e "  ${YELLOW}⚠️  $dir_description directory does not exist: $dir_path${NC}"
-        read -p "  Create $dir_description directory? (Default: Yes) [Y/n/x]: " CREATE_THIS_DIR
-        case $CREATE_THIS_DIR in
-            [Nn])
-                eval "$var_name=false"
-                echo -e "    ${YELLOW}⚠️  $dir_description directory will not be created${NC}"
-                ;;
-            [Xx])
-                echo "Installation cancelled by user."
-                exit 0
-                ;;
-            *) # Default is Yes
-                eval "$var_name=true"
-                echo -e "    ${GREEN}✅ $dir_description directory will be created${NC}"
-                ;;
-        esac
-        echo ""
-    fi
+    read -p "  Create $dir_description directory if it doesn't exist? (Default: Yes) [Y/n/x]: " CREATE_THIS_DIR
+    case $CREATE_THIS_DIR in
+        [Nn])
+            eval "$var_name=false"
+            echo -e "    ${YELLOW}⚠️  $dir_description directory will NOT be created automatically${NC}"
+            ;;
+        [Xx])
+            echo "Installation cancelled by user."
+            exit 0
+            ;;
+        *) # Default is Yes
+            eval "$var_name=true"
+            echo -e "    ${GREEN}✅ $dir_description directory will be created if needed${NC}"
+            ;;
+    esac
 }
 
 # Helper function to check/create directories based on individual choice (execution time)
@@ -1904,7 +1899,8 @@ execute_installation() {
     # Install basic system tools if needed
     if [[ "$INSTALL_BASIC_DEPS" == "true" ]]; then
         echo "Installing basic system tools..."
-        "$DEPLOYMENT_DIR/03_sudo_install_dependencies.sh"
+        DEPS_CMD=$(add_dry_run_flag "$DEPLOYMENT_DIR/03_sudo_install_dependencies.sh")
+        $DEPS_CMD
         if [[ $? -ne 0 ]]; then
             echo -e "${RED}❌ Failed to install system dependencies${NC}"
             exit 1
@@ -1915,7 +1911,8 @@ execute_installation() {
     # Install Python if needed
     if [[ "$INSTALL_PYTHON" == "true" ]]; then
         echo "Installing Python 3 and development tools..."
-        "$DEPLOYMENT_DIR/00_sudo_install_python.sh"
+        PYTHON_CMD=$(add_dry_run_flag "$DEPLOYMENT_DIR/01_sudo_install_python.sh")
+        $PYTHON_CMD
         if [[ $? -ne 0 ]]; then
             echo -e "${RED}❌ Failed to install Python${NC}"
             exit 1
@@ -1926,7 +1923,8 @@ execute_installation() {
     # Install ClamAV if requested
     if [[ "$INSTALL_CLAMAV" == "true" ]]; then
         echo "Installing ClamAV antivirus scanner..."
-        "$DEPLOYMENT_DIR/05_sudo_install_clamav.sh"
+        CLAMAV_CMD=$(add_dry_run_flag "$DEPLOYMENT_DIR/05_sudo_install_clamav.sh")
+        $CLAMAV_CMD
         if [[ $? -ne 0 ]]; then
             echo -e "${RED}❌ Failed to install ClamAV${NC}"
             exit 1
@@ -1937,7 +1935,8 @@ execute_installation() {
     # Check Microsoft Defender if requested
     if [[ "$CHECK_DEFENDER" == "true" ]]; then
         echo "Checking Microsoft Defender configuration..."
-        "$DEPLOYMENT_DIR/04_check_defender_is_installed.sh"
+        DEFENDER_CHECK_CMD=$(add_dry_run_flag "$DEPLOYMENT_DIR/04_check_defender_is_installed.sh")
+        $DEFENDER_CHECK_CMD
         if [[ $? -ne 0 ]]; then
             echo -e "${YELLOW}⚠️  Microsoft Defender check completed with warnings${NC}"
         else
@@ -1958,6 +1957,9 @@ execute_installation() {
     if [[ "$CREATE_VENV" == "false" ]]; then
         ENV_VENV_CMD="$ENV_VENV_CMD --do-not-create-venv"
     fi
+    
+    # Add dry-run flag if needed
+    ENV_VENV_CMD=$(add_dry_run_flag "$ENV_VENV_CMD")
     
     echo "Running: $ENV_VENV_CMD"
     $ENV_VENV_CMD
@@ -2039,7 +2041,8 @@ execute_installation() {
     if [[ "$IN_VENV" == "true" ]] || [[ "$VENV_TYPE" == "global" ]] || [[ -n "$VIRTUAL_ENV" ]]; then
         # Install Python dependencies
         echo "Installing Python development dependencies..."
-        "$DEPLOYMENT_DIR/06_install_python_dev_dependencies.sh"
+        PYTHON_DEPS_CMD=$(add_dry_run_flag "$DEPLOYMENT_DIR/06_install_python_dev_dependencies.sh")
+        $PYTHON_DEPS_CMD
         if [[ $? -ne 0 ]]; then
             echo -e "${RED}❌ Failed to install Python dependencies${NC}"
             exit 1
@@ -2075,21 +2078,24 @@ execute_installation() {
         fi
         
         echo "Installing shared library..."
-        "$DEPLOYMENT_DIR/08_install_shared.sh" $MODULE_FLAG
+        SHARED_CMD=$(add_dry_run_flag "$DEPLOYMENT_DIR/08_install_shared.sh $MODULE_FLAG")
+        $SHARED_CMD
         if [[ $? -ne 0 ]]; then
             echo -e "${RED}❌ Failed to install shared library${NC}"
             exit 1
         fi
         
         echo "Installing defender test module..."
-        "$DEPLOYMENT_DIR/09_install_defender_test.sh" $MODULE_FLAG
+        DEFENDER_CMD=$(add_dry_run_flag "$DEPLOYMENT_DIR/09_install_defender_test.sh $MODULE_FLAG")
+        $DEFENDER_CMD
         if [[ $? -ne 0 ]]; then
             echo -e "${RED}❌ Failed to install defender test module${NC}"
             exit 1
         fi
         
         echo "Installing shuttle application..."
-        "$DEPLOYMENT_DIR/10_install_shuttle.sh" $MODULE_FLAG
+        SHUTTLE_CMD=$(add_dry_run_flag "$DEPLOYMENT_DIR/10_install_shuttle.sh $MODULE_FLAG")
+        $SHUTTLE_CMD
         if [[ $? -ne 0 ]]; then
             echo -e "${RED}❌ Failed to install shuttle application${NC}"
             exit 1
@@ -2333,6 +2339,9 @@ wizard_completion_options() {
                     echo "You can rerun this installation later with:"
                     echo -e "${BLUE}$0 --instructions $INSTRUCTIONS_FILE${NC}"
                     echo ""
+                    echo "To perform a dry run of the installation (run through the process but make no changes) use --dry-run:"
+                    echo -e "${BLUE}$0 --instructions $INSTRUCTIONS_FILE --dry-run${NC}"
+                    echo ""
                     read -p "Press Enter to continue with installation..."
                     execute_installation
                     show_next_steps
@@ -2356,6 +2365,9 @@ wizard_completion_options() {
                     echo ""
                     echo "You can run this installation later with:"
                     echo -e "${BLUE}$0 --instructions $INSTRUCTIONS_FILE${NC}"
+                    echo ""
+                    echo "To perform a dry run of the installation (run through the process but make no changes) use --dry-run:"
+                    echo -e "${BLUE}$0 --instructions $INSTRUCTIONS_FILE --dry-run${NC}"
                     echo ""
                     echo "Installation saved but not executed."
                     exit 0

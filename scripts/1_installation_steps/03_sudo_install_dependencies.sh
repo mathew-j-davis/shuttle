@@ -3,6 +3,14 @@
 
 set -e  # Exit on error
 
+# Parse command line arguments for dry-run
+DRY_RUN=false
+for arg in "$@"; do
+  if [ "$arg" = "--dry-run" ]; then
+    DRY_RUN=true
+  fi
+done
+
 echo "=== Installing System Dependencies ==="
 echo ""
 
@@ -43,20 +51,28 @@ fi
 echo "📦 Need to install: ${TO_INSTALL[*]}"
 echo ""
 
-# Update package lists
-echo "Updating package lists..."
-if ! sudo apt-get update; then
-    echo "❌ Failed to update package lists"
-    echo "Please check your internet connection and apt sources"
-    exit 1
-fi
+if [[ "$DRY_RUN" == "true" ]]; then
+    echo "[DRY RUN] Would update package lists:"
+    echo "[DRY RUN]   sudo apt-get update"
+    echo ""
+    echo "[DRY RUN] Would install packages:"
+    echo "[DRY RUN]   sudo apt-get install -y ${TO_INSTALL[*]}"
+else
+    # Update package lists
+    echo "Updating package lists..."
+    if ! sudo apt-get update; then
+        echo "❌ Failed to update package lists"
+        echo "Please check your internet connection and apt sources"
+        exit 1
+    fi
 
-# Install packages
-echo ""
-echo "Installing packages..."
-if ! sudo apt-get install -y "${TO_INSTALL[@]}"; then
-    echo "❌ Failed to install some packages"
-    exit 1
+    # Install packages
+    echo ""
+    echo "Installing packages..."
+    if ! sudo apt-get install -y "${TO_INSTALL[@]}"; then
+        echo "❌ Failed to install some packages"
+        exit 1
+    fi
 fi
 
 echo ""

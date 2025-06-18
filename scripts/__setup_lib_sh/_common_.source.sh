@@ -524,7 +524,7 @@ execute_or_dryrun() {
         return 0
     fi
     
-    log DEBUG "Executing: $cmd"
+    # log DEBUG "Executing: $cmd"
     
     if eval "$cmd"; then
         log INFO "$success_msg"
@@ -549,7 +549,7 @@ execute() {
         log INFO "Explanation: $explanation"
     fi
     
-    log DEBUG "Executing (read-only): $cmd"
+    # log DEBUG "Executing (read-only): $cmd"
     
     if eval "$cmd"; then
         log INFO "$success_msg"
@@ -582,9 +582,6 @@ execute_or_execute_dryrun() {
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         # Append --dry-run to our own scripts
         actual_cmd="$cmd --dry-run"
-        log DEBUG "Executing (dry-run): $actual_cmd"
-    else
-        log DEBUG "Executing: $actual_cmd"
     fi
     
     if eval "$actual_cmd"; then

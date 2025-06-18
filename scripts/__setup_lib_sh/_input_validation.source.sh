@@ -56,7 +56,7 @@ validate_username() {
             ;;
     esac
     
-    validation_log "DEBUG" "Username '$username' validation passed"
+    # validation_log "DEBUG" "Username '$username' validation passed"
     return $VALIDATION_SUCCESS
 }
 
@@ -98,7 +98,7 @@ validate_numeric() {
         validation_log "WARN" "$name '$value' is in system reserved range (1-999)"
     fi
     
-    validation_log "DEBUG" "$name '$value' validation passed"
+    # validation_log "DEBUG" "$name '$value' validation passed"
     return $VALIDATION_SUCCESS
 }
 
@@ -144,7 +144,7 @@ validate_path() {
         return $VALIDATION_ERROR
     fi
     
-    validation_log "DEBUG" "$context '$path' validation passed"
+    # validation_log "DEBUG" "$context '$path' validation passed"
     return $VALIDATION_SUCCESS
 }
 
@@ -179,7 +179,7 @@ validate_shell() {
         validation_log "WARN" "Shell '$shell' does not exist"
     fi
     
-    validation_log "DEBUG" "Shell '$shell' validation passed"
+    # validation_log "DEBUG" "Shell '$shell' validation passed"
     return $VALIDATION_SUCCESS
 }
 
@@ -231,7 +231,7 @@ validate_password() {
         has_special=true
     fi
     
-    validation_log "DEBUG" "$context validation passed (length: ${#password}, has_special_chars: $has_special)"
+    # validation_log "DEBUG" "$context validation passed (length: ${#password}, has_special_chars: $has_special)"
     return $VALIDATION_SUCCESS
 }
 
@@ -272,7 +272,7 @@ validate_comment() {
         return $VALIDATION_ERROR
     fi
     
-    validation_log "DEBUG" "$context validation passed"
+    # validation_log "DEBUG" "$context validation passed"
     return $VALIDATION_SUCCESS
 }
 
@@ -292,7 +292,7 @@ validate_permission_mode() {
         return $VALIDATION_ERROR
     fi
     
-    validation_log "DEBUG" "$context '$mode' validation passed"
+    # validation_log "DEBUG" "$context '$mode' validation passed"
     return $VALIDATION_SUCCESS
 }
 
@@ -407,7 +407,7 @@ validate_email_address() {
         return $VALIDATION_ERROR
     fi
     
-    validation_log "INFO" "Successfully validated $context: '$email'"
+    # validation_log "INFO" "Successfully validated $context: '$email'"
     return $VALIDATION_SUCCESS
 }
 
@@ -433,7 +433,7 @@ validate_hostname_or_ip() {
         return $VALIDATION_ERROR
     fi
     
-    validation_log "INFO" "Successfully validated $context: '$host'"
+    # validation_log "INFO" "Successfully validated $context: '$host'"
     return $VALIDATION_SUCCESS
 }
 
@@ -459,7 +459,7 @@ validate_port_number() {
         return $VALIDATION_ERROR
     fi
     
-    validation_log "INFO" "Successfully validated $context: '$port'"
+    # validation_log "INFO" "Successfully validated $context: '$port'"
     return $VALIDATION_SUCCESS
 }
 

@@ -3,9 +3,12 @@ set -e
 
 # Parse command line arguments
 dev_mode=""
+dry_run=false
 for arg in "$@"; do
   if [ "$arg" = "-e" ] || [ "$arg" = "--editable" ]; then
     dev_mode="-e"
+  elif [ "$arg" = "--dry-run" ]; then
+    dry_run=true
   fi
 done
 
@@ -18,12 +21,20 @@ echo "Installing shared library dependency first..."
 echo "Installing shuttle application..."
 cd "$(dirname "$0")/../../src/shuttle_app" || exit 1
 
-if [ -n "$dev_mode" ]; then
-  echo "Installing in development mode..."
-  pip install -e .
+if [ "$dry_run" = true ]; then
+  if [ -n "$dev_mode" ]; then
+    echo "[DRY RUN] Would install in development mode: pip install -e ."
+  else
+    echo "[DRY RUN] Would install in standard mode: pip install ."
+  fi
 else
-  echo "Installing in standard mode..."
-  pip install .
+  if [ -n "$dev_mode" ]; then
+    echo "Installing in development mode..."
+    pip install -e .
+  else
+    echo "Installing in standard mode..."
+    pip install .
+  fi
 fi
 
 echo "Shuttle application installation complete."

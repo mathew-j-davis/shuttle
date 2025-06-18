@@ -225,23 +225,77 @@ def read_installation_instructions(instructions_file_path):
     return installation_choices, user_paths, directory_choices
 
 
-if __name__ == "__main__":
-    # Command line usage for testing
-    if len(sys.argv) != 2:
-        print("Usage: python3 installation_instructions_reader.py <instructions_file>")
-        sys.exit(1)
+def export_shell_variables(instructions_file_path):
+    """
+    Export installation instructions as shell variable assignments
     
+    Args:
+        instructions_file_path: Path to instructions file
+        
+    Returns:
+        str: Shell variable assignments
+    """
     try:
-        choices, paths, directory_choices = read_installation_instructions(sys.argv[1])
-        print("Installation Choices:")
-        for key, value in choices.items():
-            print(f"  {key}: {value}")
-        print("\nUser Paths:")
-        for key, value in paths.items():
-            print(f"  {key}: {value}")
-        print("\nDirectory Creation Choices:")
-        for key, value in directory_choices.items():
-            print(f"  {key}: {value}")
+        choices, paths, directory_choices = read_installation_instructions(instructions_file_path)
+        
+        # Convert Python booleans to shell-friendly strings
+        def bool_to_shell(value):
+            return "true" if value else "false"
+        
+        shell_vars = []
+        
+        # Installation choices
+        shell_vars.append(f"SAVED_VENV_CHOICE='{choices['venv_choice']}'")
+        shell_vars.append(f"SAVED_INSTALL_MODE='{choices['install_mode']}'")
+        shell_vars.append(f"SAVED_REGISTER_JUPYTER_KERNEL='{bool_to_shell(choices['register_jupyter_kernel'])}'")
+        shell_vars.append(f"SAVED_INSTALL_BASIC_DEPS='{bool_to_shell(choices['install_basic_deps'])}'")
+        shell_vars.append(f"SAVED_INSTALL_PYTHON='{bool_to_shell(choices['install_python'])}'")
+        shell_vars.append(f"SAVED_INSTALL_CLAMAV='{bool_to_shell(choices['install_clamav'])}'")
+        shell_vars.append(f"SAVED_CHECK_DEFENDER='{bool_to_shell(choices['check_defender'])}'")
+        
+        # User paths
+        shell_vars.append(f"SAVED_CONFIG_PATH='{paths['config_path']}'")
+        shell_vars.append(f"SAVED_TEST_WORK_DIR='{paths['test_work_dir']}'")
+        
+        # Directory creation choices
+        shell_vars.append(f"SAVED_CREATE_SOURCE_DIR='{bool_to_shell(directory_choices['create_source_dir'])}'")
+        shell_vars.append(f"SAVED_CREATE_DEST_DIR='{bool_to_shell(directory_choices['create_dest_dir'])}'")
+        shell_vars.append(f"SAVED_CREATE_QUARANTINE_DIR='{bool_to_shell(directory_choices['create_quarantine_dir'])}'")
+        shell_vars.append(f"SAVED_CREATE_LOG_DIR='{bool_to_shell(directory_choices['create_log_dir'])}'")
+        shell_vars.append(f"SAVED_CREATE_HAZARD_DIR='{bool_to_shell(directory_choices['create_hazard_dir'])}'")
+        
+        return '\n'.join(shell_vars)
+        
     except InstructionsValidationError as e:
-        print(f"Error: {e}")
+        print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='Read installation instructions')
+    parser.add_argument('instructions_file', help='Path to instructions file')
+    parser.add_argument('--export-shell-vars', action='store_true', 
+                       help='Export variables as shell assignments')
+    
+    args = parser.parse_args()
+    
+    if args.export_shell_vars:
+        print(export_shell_variables(args.instructions_file))
+    else:
+        # Original behavior for testing
+        try:
+            choices, paths, directory_choices = read_installation_instructions(args.instructions_file)
+            print("Installation Choices:")
+            for key, value in choices.items():
+                print(f"  {key}: {value}")
+            print("\nUser Paths:")
+            for key, value in paths.items():
+                print(f"  {key}: {value}")
+            print("\nDirectory Creation Choices:")
+            for key, value in directory_choices.items():
+                print(f"  {key}: {value}")
+        except InstructionsValidationError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
