@@ -10,6 +10,7 @@ import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import configparser
+from post_install_config_constants import get_config_filename
 
 
 class ConfigWizard:
@@ -714,6 +715,115 @@ def save_config(config: List[Dict[str, Any]], filename: str):
     print(f"\nConfiguration saved to: {filename}")
 
 
+def get_default_filename(config: List[Dict[str, Any]]) -> str:
+    """Get default filename based on environment"""
+    environment = config[0]['metadata']['environment']
+    return get_config_filename(environment)
+
+
+def ensure_config_dir(filename: str):
+    """Ensure the config directory exists for the given filename"""
+    config_dir = os.path.dirname(filename)
+    if config_dir and not os.path.exists(config_dir):
+        os.makedirs(config_dir, exist_ok=True)
+
+
+def print_next_steps(filename: str):
+    """Print the next steps instructions"""
+    print(f"{'='*60}")
+    print("NEXT STEPS")
+    print("="*60)
+    print("From the project root directory, you can:")
+    print("")
+    print("To review the configuration:")
+    print(f"  cat config/{filename}")
+    print("")
+    print("To test what would be applied (dry run):")
+    print(f"  ./scripts/2_post_install_config.sh --config config/{filename} --dry-run")
+    print("")
+    print("To apply the configuration:")
+    print(f"  ./scripts/2_post_install_config.sh --config config/{filename}")
+
+
+def validate_yaml_config(filename: str) -> bool:
+    """Validate YAML configuration file and print results"""
+    print(f"\n{'='*60}")
+    print("CONFIGURATION VALIDATION")
+    print("="*60)
+    
+    try:
+        # Basic YAML validation
+        with open(filename, 'r') as f:
+            list(yaml.safe_load_all(f))
+        print("✅ YAML syntax is valid")
+        
+        # Check for required sections
+        validation_errors = []
+        with open(filename, 'r') as f:
+            docs = list(yaml.safe_load_all(f))
+        
+        # Validate first document (main config)
+        if not docs:
+            validation_errors.append("No configuration documents found")
+        else:
+            main_config = docs[0]
+            
+            # Check required sections
+            required_sections = ['metadata', 'settings', 'groups', 'components']
+            for section in required_sections:
+                if section not in main_config:
+                    validation_errors.append(f"Missing required section: {section}")
+            
+            # Check metadata
+            if 'metadata' in main_config:
+                metadata = main_config['metadata']
+                required_metadata = ['environment', 'created']
+                for field in required_metadata:
+                    if field not in metadata:
+                        validation_errors.append(f"Missing required metadata field: {field}")
+        
+        # Validate user documents
+        user_count = len(docs) - 1
+        if user_count == 0:
+            validation_errors.append("No users defined")
+        else:
+            for i, doc in enumerate(docs[1:], 1):
+                if doc.get('type') != 'user':
+                    validation_errors.append(f"Document {i+1}: Invalid type, expected 'user'")
+                elif 'user' not in doc:
+                    validation_errors.append(f"Document {i+1}: Missing 'user' section")
+                else:
+                    user = doc['user']
+                    required_user_fields = ['name', 'source', 'account_type', 'groups']
+                    for field in required_user_fields:
+                        if field not in user:
+                            validation_errors.append(f"User {user.get('name', 'unnamed')}: Missing required field '{field}'")
+        
+        if validation_errors:
+            print("❌ Configuration validation errors found:")
+            for error in validation_errors:
+                print(f"   • {error}")
+            print("")
+            print("Please review and fix these issues before applying the configuration.")
+            print("")
+            return False
+        else:
+            print("✅ Configuration validation passed")
+            print("")
+            return True
+            
+    except yaml.YAMLError as e:
+        print(f"❌ YAML syntax error: {e}")
+        print("")
+        print("Please review and fix the YAML syntax before applying the configuration.")
+        print("")
+        return False
+    except Exception as e:
+        print(f"❌ Validation error: {e}")
+        print("")
+        return False
+
+
 def main():
     """Main entry point"""
     import argparse
@@ -751,125 +861,56 @@ def main():
     
     if choice == "1":
         # Save only - show commands and exit with special code
-        default_filename = f"shuttle_post_install_config_{config[0]['metadata']['environment']}.yaml"
+        default_filename = get_default_filename(config)
         filename = input(f"Save as [{default_filename}]: ").strip() or default_filename
         
-        # Ensure config directory exists
-        config_dir = os.path.dirname(filename)
-        if config_dir and not os.path.exists(config_dir):
-            os.makedirs(config_dir, exist_ok=True)
-        
+        ensure_config_dir(filename)
         save_config(config, filename)
         
-        # Validate configuration
-        print(f"\n{'='*60}")
-        print("CONFIGURATION VALIDATION")
-        print("="*60)
+        validate_yaml_config(filename)
         
-        try:
-            # Basic YAML validation
-            with open(filename, 'r') as f:
-                list(yaml.safe_load_all(f))
-            print("✅ YAML syntax is valid")
-            
-            # Check for required sections
-            validation_errors = []
-            with open(filename, 'r') as f:
-                docs = list(yaml.safe_load_all(f))
-            
-            # Validate first document (main config)
-            if not docs:
-                validation_errors.append("No configuration documents found")
-            else:
-                main_config = docs[0]
-                
-                # Check required sections
-                required_sections = ['metadata', 'settings', 'groups', 'components']
-                for section in required_sections:
-                    if section not in main_config:
-                        validation_errors.append(f"Missing required section: {section}")
-                
-                # Check metadata
-                if 'metadata' in main_config:
-                    metadata = main_config['metadata']
-                    required_metadata = ['environment', 'created']
-                    for field in required_metadata:
-                        if field not in metadata:
-                            validation_errors.append(f"Missing required metadata field: {field}")
-            
-            # Validate user documents
-            user_count = len(docs) - 1
-            if user_count == 0:
-                validation_errors.append("No users defined")
-            else:
-                for i, doc in enumerate(docs[1:], 1):
-                    if doc.get('type') != 'user':
-                        validation_errors.append(f"Document {i+1}: Invalid type, expected 'user'")
-                    elif 'user' not in doc:
-                        validation_errors.append(f"Document {i+1}: Missing 'user' section")
-                    else:
-                        user = doc['user']
-                        required_user_fields = ['name', 'source', 'account_type', 'groups']
-                        for field in required_user_fields:
-                            if field not in user:
-                                validation_errors.append(f"User {user.get('name', 'unnamed')}: Missing required field '{field}'")
-            
-            if validation_errors:
-                print("❌ Configuration validation errors found:")
-                for error in validation_errors:
-                    print(f"   • {error}")
-                print("")
-                print("Please review and fix these issues before applying the configuration.")
-                print("")
-            else:
-                print("✅ Configuration validation passed")
-                print("")
-                
-        except yaml.YAMLError as e:
-            print(f"❌ YAML syntax error: {e}")
-            print("")
-            print("Please review and fix the YAML syntax before applying the configuration.")
-            print("")
-        except Exception as e:
-            print(f"❌ Validation error: {e}")
-            print("")
-        
-        print(f"{'='*60}")
-        print("NEXT STEPS")
-        print("="*60)
-        print("From the project root directory, you can:")
-        print("")
-        print("To review the configuration:")
-        print(f"  cat config/{filename}")
-        print("")
-        print("To test what would be applied (dry run):")
-        print(f"  ./scripts/2_post_install_config.sh --config config/{filename} --dry-run")
-        print("")
-        print("To apply the configuration:")
-        print(f"  ./scripts/2_post_install_config.sh --config config/{filename}")
+        print_next_steps(filename)
         print("")
         print("Configuration wizard complete.")
         sys.exit(2)  # Exit with code 2 to indicate "save only, don't continue"
         
     elif choice == "2":
-        # Apply now without saving
-        print("\nTo apply this configuration, run from project root:")
-        print("  ./scripts/2_post_install_config.sh --config <temp_config>")
+        # Apply now without saving to permanent location
+        import tempfile
+        
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.yaml', delete=False, 
+                                       dir='/tmp', prefix='wizard_temp_config_') as f:
+            temp_filename = f.name
+            yaml.dump_all(config, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        
+        # Write just the filename (not full path) for consistency
+        temp_basename = os.path.basename(temp_filename)
+        with open('/tmp/wizard_config_filename', 'w') as f:
+            f.write(f"../../../{temp_filename}")  # Relative path from config dir
+        
+        print(f"\nTemporary configuration created: {temp_filename}")
+        print("Configuration will be applied without saving to config directory.")
+        print("Note: Temporary file will be deleted after use.")
+        
+        # Exit with code 0 to indicate "continue with apply"
+        sys.exit(0)
         
     elif choice == "3":
         # Save and apply
-        default_filename = f"shuttle_post_install_config_{config[0]['metadata']['environment']}.yaml"
+        default_filename = get_default_filename(config)
         filename = input(f"Save as [{default_filename}]: ").strip() or default_filename
         
-        # Ensure config directory exists
-        config_dir = os.path.dirname(filename)
-        if config_dir and not os.path.exists(config_dir):
-            os.makedirs(config_dir, exist_ok=True)
-        
+        ensure_config_dir(filename)
         save_config(config, filename)
         
-        print("\nTo apply this configuration, run from project root:")
-        print(f"  ./scripts/2_post_install_config.sh --config config/{filename}")
+        # Write filename to a temporary file for the shell script to read
+        with open('/tmp/wizard_config_filename', 'w') as f:
+            f.write(filename)
+        
+        print("\nConfiguration saved. Continuing to apply configuration...")
+        # Exit with code 0 to indicate "continue with apply"
+        sys.exit(0)
         
     elif choice == "4":
         print("\nConfiguration not saved.")

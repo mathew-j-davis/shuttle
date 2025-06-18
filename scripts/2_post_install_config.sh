@@ -24,8 +24,16 @@ LIB_DIR="$PRODUCTION_DIR/lib"
 # Add setup lib to Python path
 export PYTHONPATH="${SETUP_LIB_DIR}:${PYTHONPATH}"
 
+# Import Python constants if possible
+if python3 -c "import post_install_config_constants" 2>/dev/null; then
+    COMMAND_HISTORY_PREFIX=$(python3 -c "from post_install_config_constants import COMMAND_HISTORY_PREFIX; print(COMMAND_HISTORY_PREFIX)")
+else
+    # Fallback if module not available
+    COMMAND_HISTORY_PREFIX="shuttle_post_install_configuration_command_history"
+fi
+
 # Set command history file for this configuration session
-export COMMAND_HISTORY_FILE="/tmp/shuttle_post_install_configuration_command_history_$(date +%Y%m%d_%H%M%S).log"
+export COMMAND_HISTORY_FILE="/tmp/${COMMAND_HISTORY_PREFIX}_$(date +%Y%m%d_%H%M%S).log"
 
 # Export DRY_RUN for use by all scripts and modules
 export DRY_RUN
@@ -68,8 +76,18 @@ print_fail() {
     echo -e "${RED}❌ $*${NC}" >&2
 }
 
+# Import config filename constants
+if python3 -c "import post_install_config_constants" 2>/dev/null; then
+    CONFIG_DEFAULT_FILENAME=$(python3 -c "from post_install_config_constants import CONFIG_DEFAULT_FILENAME; print(CONFIG_DEFAULT_FILENAME)")
+    CONFIG_GLOB_PATTERN=$(python3 -c "from post_install_config_constants import get_config_glob_pattern; print(get_config_glob_pattern())")
+else
+    # Fallback if module not available
+    CONFIG_DEFAULT_FILENAME="shuttle_post_install_configuration.yaml"
+    CONFIG_GLOB_PATTERN="shuttle_post_install_config_*.yaml"
+fi
+
 # Default configuration file location
-DEFAULT_CONFIG="$PROJECT_ROOT/config/shuttle_post_install_configuration.yaml"
+DEFAULT_CONFIG="$PROJECT_ROOT/config/$CONFIG_DEFAULT_FILENAME"
 CONFIG_FILE=""
 INTERACTIVE_MODE=true
 DRY_RUN=false
@@ -466,17 +484,27 @@ run_configuration_wizard() {
         exit 1
     fi
     
-    # Try to find the generated config file
-    local latest_config=$(ls -t shuttle_post_install_config_*.yaml 2>/dev/null | head -1)
-    
-    if [[ -n "$latest_config" ]]; then
-        CONFIG_FILE="$PROJECT_ROOT/config/$latest_config"
+    # Check if wizard saved a filename for us to use
+    if [[ -f /tmp/wizard_config_filename ]]; then
+        local wizard_filename=$(cat /tmp/wizard_config_filename)
+        rm -f /tmp/wizard_config_filename
+        CONFIG_FILE="$PROJECT_ROOT/config/$wizard_filename"
         echo ""
-        print_success "Using generated configuration: $CONFIG_FILE"
+        print_success "Using wizard-generated configuration: $CONFIG_FILE"
         echo ""
     else
-        print_fail "Could not find generated configuration file"
-        exit 1
+        # Try to find the most recently generated config file
+        local latest_config=$(ls -t $CONFIG_GLOB_PATTERN 2>/dev/null | head -1)
+        
+        if [[ -n "$latest_config" ]]; then
+            CONFIG_FILE="$PROJECT_ROOT/config/$latest_config"
+            echo ""
+            print_success "Using generated configuration: $CONFIG_FILE"
+            echo ""
+        else
+            print_fail "Could not find generated configuration file"
+            exit 1
+        fi
     fi
     
     # Return to script directory
