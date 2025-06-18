@@ -6,17 +6,16 @@
 
 set -e  # Exit on error
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
-
 # Get script directory and project root
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DEPLOYMENT_DIR="$SCRIPT_DIR/1_installation_steps"
+
+# Source required libraries (provides colors, logging, and user checks)
+source "$SCRIPT_DIR/__setup_lib_sh/_setup_lib_loader.source.sh"
+source "$SCRIPT_DIR/__setup_lib_sh/_common_.source.sh"
+source "$SCRIPT_DIR/__setup_lib_sh/_check_active_user.source.sh"
+source "$SCRIPT_DIR/__setup_lib_sh/_input_validation.source.sh"
 
 # Change to project root
 cd "$PROJECT_ROOT"
@@ -44,36 +43,105 @@ SKIP_MODULES=false
 # Set command history file for this installation session
 export COMMAND_HISTORY_FILE="/tmp/shuttle_install_command_history_$(date +%Y%m%d_%H%M%S).log"
 
-echo "========================================="
-echo "    Shuttle Interactive Setup Script     "
-echo "========================================="
-echo ""
-echo "Throughout this installation:"
-echo "• Press ENTER to accept the suggested default"
-echo "• Defaults are shown in [brackets]"
-echo "• Type 'x' to exit at any prompt (except file paths)"
-echo ""
+show_banner() {
+    echo "========================================="
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo "  Shuttle Setup Script - DRY RUN MODE   "
+    else
+        echo "    Shuttle Interactive Setup Script     "
+    fi
+    echo "========================================="
+    echo ""
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${YELLOW}🔍 DRY RUN MODE: No changes will be made${NC}"
+        echo -e "${YELLOW}   This will show what would be done${NC}"
+        echo ""
+    fi
+    echo "Throughout this installation:"
+    echo "• Press ENTER to accept the suggested default"
+    echo "• Defaults are shown in [brackets]"
+    echo "• Type 'x' to exit at any prompt (except file paths)"
+    echo ""
+}
 
-# Helper function to check sudo access
-check_sudo_access() {
-    # Check if sudo command exists
-    if ! command -v sudo >/dev/null 2>&1; then
-        echo -e "${RED}❌ sudo command not found${NC}"
-        echo "This system doesn't have sudo installed or it's not in PATH"
+# Helper function for dry-run mode
+dry_run_execute() {
+    local description="$1"
+    local command="$2"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${BLUE}[DRY RUN] Would execute: $description${NC}"
+        echo -e "${BLUE}          Command: $command${NC}"
+        return 0
+    else
+        echo "$description"
+        eval "$command"
+        return $?
+    fi
+}
+
+# Helper function for dry-run file operations
+dry_run_file_operation() {
+    local operation="$1"
+    local target="$2"
+    local description="$3"
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${BLUE}[DRY RUN] Would $operation: $target${NC}"
+        if [[ -n "$description" ]]; then
+            echo -e "${BLUE}          $description${NC}"
+        fi
+        return 0
+    else
+        return 1  # Let caller handle actual operation
+    fi
+}
+
+# Helper function to validate user choice input
+validate_user_choice() {
+    local input="$1"
+    local description="$2"
+    
+    # Allow empty input (will be handled by defaults)
+    if [[ -z "$input" ]]; then
+        return 0
+    fi
+    
+    # Validate that input contains only safe characters for choices
+    if ! validate_safe_text "$input" "$description"; then
         return 1
     fi
     
-    # Check if user has sudo privileges
-    if sudo -n true 2>/dev/null; then
-        # Can run sudo without password
+    return 0
+}
+
+# Helper function to check sudo access (wrapper around library function)
+check_sudo_access() {
+    # First check if user is root
+    if check_active_user_is_root; then
+        # Running as root, no sudo needed
         return 0
-    elif sudo -v 2>/dev/null; then
-        # Has sudo but needs password
-        echo ""
-        echo -e "${YELLOW}🔐 You may be prompted for your sudo password during installation${NC}"
-        echo "   This is needed to install system packages"
-        echo ""
-        return 0
+    fi
+    
+    # Check if user has sudo access capability
+    if check_active_user_has_sudo_access; then
+        # User has sudo access, now validate/cache credentials
+        # Check if we already have valid sudo timestamp
+        if sudo -n true 2>/dev/null; then
+            # Already authenticated
+            return 0
+        else
+            # Need to authenticate - this will prompt for password
+            echo ""
+            echo -e "${YELLOW}🔐 You may be prompted for your sudo password${NC}"
+            echo "   This is needed to install system packages"
+            if sudo -v 2>/dev/null; then
+                return 0
+            else
+                echo -e "${RED}❌ Failed to authenticate with sudo${NC}"
+                return 1
+            fi
+        fi
     else
         echo -e "${RED}❌ No sudo access${NC}"
         echo "You need sudo privileges to install system packages"
@@ -123,6 +191,28 @@ validate_install_mode_instructions() {
     echo -e "${GREEN}✅ Using installation mode from instructions: $saved_mode${NC}"
 }
 
+# Validate saved installation mode choice (instructions mode)
+validate_install_mode_instructions() {
+    local saved_install_mode="$1"
+    
+    # Load constants for validation
+    if ! is_valid_install_mode "$saved_install_mode"; then
+        echo -e "${RED}❌ Invalid installation mode in instructions: $saved_install_mode${NC}"
+        echo "Valid modes: $INSTALL_MODE_DEV, $INSTALL_MODE_USER, $INSTALL_MODE_SERVICE"
+        echo "Run in wizard mode: $0 --wizard"
+        exit 1
+    fi
+    
+    # Apply saved choice
+    INSTALL_MODE="$saved_install_mode"
+    ENV_FLAG=$(get_env_flag_for_mode "$saved_install_mode")
+    
+    # Track user choice for any other processing
+    USER_INSTALL_MODE_CHOICE="$saved_install_mode"
+    
+    echo -e "${GREEN}✅ Using installation mode from instructions: $saved_install_mode${NC}"
+}
+
 # Interactive installation mode selection (wizard mode)
 interactive_install_mode_choice() {
     echo "=== Shuttle Installation Mode ==="
@@ -146,6 +236,13 @@ interactive_install_mode_choice() {
     
     read -p "Installation mode [1]: " INSTALL_MODE_CHOICE
     INSTALL_MODE_CHOICE=${INSTALL_MODE_CHOICE:-1}
+    
+    # Validate installation mode choice
+    if ! validate_user_choice "$INSTALL_MODE_CHOICE" "Installation mode choice"; then
+        echo -e "${RED}❌ Invalid installation mode choice: $INSTALL_MODE_CHOICE${NC}"
+        echo "Please run the script again with a valid choice."
+        exit 1
+    fi
     
     case $INSTALL_MODE_CHOICE in
         1) 
@@ -180,13 +277,11 @@ interactive_install_mode_choice() {
 select_installation_mode() {
     # Check if we're running from instructions or wizard mode
     if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
-        # Instructions mode - validate saved choice
-        echo "Reading installation mode from instructions..."
+        # Instructions mode - use saved choice
+        echo "Using installation mode from instructions: $SAVED_INSTALL_MODE"
         
-        # TODO: Read saved choice from instructions file
-        # For now, this is a placeholder - we'll implement file reading later
-        echo "Instructions mode not yet implemented - falling back to wizard"
-        interactive_install_mode_choice
+        # Validate and apply saved choice
+        validate_install_mode_instructions "$SAVED_INSTALL_MODE"
     else
         # Wizard mode - interactive choice
         interactive_install_mode_choice
@@ -427,12 +522,10 @@ check_venv_status() {
     # Check if we're running from instructions or wizard mode
     if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
         # Instructions mode - validate saved choice against current state
-        echo "Reading virtual environment choice from instructions..."
+        echo "Using virtual environment choice from instructions: $SAVED_VENV_CHOICE"
         
-        # TODO: Read saved choice from instructions file
-        # For now, this is a placeholder - we'll implement file reading later
-        echo "Instructions mode not yet implemented - falling back to wizard"
-        interactive_venv_choice "$CURRENT_VENV_ACTIVE"
+        # Validate saved venv choice against current state
+        validate_venv_instructions "$CURRENT_VENV_ACTIVE" "$SAVED_VENV_CHOICE" true
     else
         # Wizard mode - interactive choice
         interactive_venv_choice "$CURRENT_VENV_ACTIVE"
@@ -528,13 +621,18 @@ interactive_ide_choice() {
 select_venv_ide_options() {
     # Check if we're running from instructions or wizard mode
     if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
-        # Instructions mode - validate saved preference
-        echo "Reading IDE preferences from instructions..."
+        # Instructions mode - use saved preference
+        echo "Using IDE preferences from instructions: register_jupyter_kernel=$SAVED_REGISTER_JUPYTER_KERNEL"
         
-        # TODO: Read saved preference from instructions file
-        # For now, this is a placeholder - we'll implement file reading later
-        echo "Instructions mode not yet implemented - falling back to wizard"
-        interactive_ide_choice
+        # Apply saved choice
+        if [[ "$SAVED_REGISTER_JUPYTER_KERNEL" == "true" ]]; then
+            REGISTER_KERNEL=true
+        else
+            REGISTER_KERNEL=false
+        fi
+        USER_REGISTER_KERNEL_CHOICE="$SAVED_REGISTER_JUPYTER_KERNEL"
+        
+        echo -e "${GREEN}✅ Using IDE preferences from instructions${NC}"
     else
         # Wizard mode - interactive choice
         interactive_ide_choice
@@ -600,6 +698,14 @@ interactive_gpg_choice() {
     echo ""
     read -p "[$DEFAULT_KEY_PATH]: " GPG_KEY_PATH
     GPG_KEY_PATH=${GPG_KEY_PATH:-$DEFAULT_KEY_PATH}
+    
+    # Validate the GPG key path
+    if ! validate_file_path "$GPG_KEY_PATH" "GPG public key"; then
+        echo -e "${RED}❌ Invalid GPG key path: $GPG_KEY_PATH${NC}"
+        echo "Please run the script again with a valid path."
+        exit 1
+    fi
+    
     USER_GPG_KEY_PATH_CHOICE="$GPG_KEY_PATH"
     
     # Check if key exists
@@ -637,13 +743,24 @@ interactive_gpg_choice() {
 check_prerequisites() {
     # Check if we're running from instructions or wizard mode
     if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
-        # Instructions mode - validate saved path
-        echo "Reading GPG key path from instructions..."
+        # Instructions mode - derive GPG path from config path (not stored in instructions)
+        echo "Deriving GPG key path from configuration path..."
         
-        # TODO: Read saved path from instructions file
-        # For now, this is a placeholder - we'll implement file reading later
-        echo "Instructions mode not yet implemented - falling back to wizard"
-        interactive_gpg_choice
+        # Set default key path based on config location (same logic as wizard)
+        CONFIG_DIR=$(dirname "$CONFIG_PATH")
+        DEFAULT_KEY_PATH="$CONFIG_DIR/shuttle_public.gpg"
+        GPG_KEY_PATH="$DEFAULT_KEY_PATH"
+        USER_GPG_KEY_PATH_CHOICE="$GPG_KEY_PATH"
+        
+        # Check if key exists (same validation as wizard)
+        if [[ -f "$GPG_KEY_PATH" ]]; then
+            echo -e "${GREEN}✅ GPG public key found at: $GPG_KEY_PATH${NC}"
+        else
+            echo -e "${YELLOW}⚠️  GPG public key not found at: $GPG_KEY_PATH${NC}"
+            echo "This path will be saved in the configuration."
+            echo "Generate keys after installation and place the public key at this path."
+        fi
+        echo ""
     else
         # Wizard mode - interactive choice
         interactive_gpg_choice
@@ -703,12 +820,10 @@ validate_system_deps_instructions() {
         exit 1
     fi
     
-    # Check sudo access if we'll need it
+    # Note if we'll need sudo (will be checked during execution)
     if [[ "$NEED_SUDO" == "true" ]]; then
-        if [[ $EUID -ne 0 ]] && ! sudo -n true 2>/dev/null; then
-            echo -e "${YELLOW}⚠️  Instructions require system package installation but sudo access is limited${NC}"
-            echo "You may be prompted for your password during installation."
-        fi
+        echo -e "${YELLOW}⚠️  Instructions require system package installation${NC}"
+        echo "Sudo access will be checked when installation is executed."
     fi
     
     # Apply saved choices
@@ -798,19 +913,11 @@ interactive_system_deps_choice() {
         NEED_SUDO=true
     fi
     
-    # Check sudo access if we'll need it
+    # Note if we'll need sudo but don't check access yet (will check during execution)
     if [[ "$NEED_SUDO" == "true" ]]; then
         echo ""
-        echo -e "${YELLOW}🔐 System package installation requires sudo privileges${NC}"
-        if ! check_sudo_access; then
-            echo ""
-            echo -e "${RED}❌ Cannot proceed without sudo access${NC}"
-            echo "Please either:"
-            echo "  1. Run this script as a user with sudo privileges"
-            echo "  2. Ask your system administrator to install the missing packages"
-            echo "  3. Install the packages manually and run this script again"
-            exit 1
-        fi
+        echo -e "${YELLOW}🔐 System package installation will require sudo privileges${NC}"
+        echo "Sudo access will be checked when installation is executed."
     fi
     
     # Report basic dependencies
@@ -948,12 +1055,14 @@ check_and_install_system_deps() {
     # Check if we're running from instructions or wizard mode
     if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
         # Instructions mode - validate saved choices against current state
-        echo "Reading system dependency choices from instructions..."
+        echo "Using system dependency choices from instructions:"
+        echo "  install_basic_deps: $SAVED_INSTALL_BASIC_DEPS"
+        echo "  install_python: $SAVED_INSTALL_PYTHON"
+        echo "  install_clamav: $SAVED_INSTALL_CLAMAV"
+        echo "  check_defender: $SAVED_CHECK_DEFENDER"
         
-        # TODO: Read saved choices from instructions file
-        # For now, this is a placeholder - we'll implement file reading later
-        echo "Instructions mode not yet implemented - falling back to wizard"
-        interactive_system_deps_choice
+        # Validate saved choices against current state
+        validate_system_deps_instructions "$SAVED_INSTALL_BASIC_DEPS" "$SAVED_INSTALL_PYTHON" "$SAVED_INSTALL_CLAMAV" "$SAVED_CHECK_DEFENDER"
     else
         # Wizard mode - interactive choice
         interactive_system_deps_choice
@@ -1020,6 +1129,14 @@ interactive_config_path_choice() {
     echo ""
     read -p "[$DEFAULT_CONFIG]: " CONFIG_PATH
     CONFIG_PATH=${CONFIG_PATH:-$DEFAULT_CONFIG}
+    
+    # Validate the config file path
+    if ! validate_file_path "$CONFIG_PATH" "Configuration file"; then
+        echo -e "${RED}❌ Invalid configuration file path: $CONFIG_PATH${NC}"
+        echo "Please run the script again with a valid path."
+        exit 1
+    fi
+    
     USER_CONFIG_PATH_CHOICE="$CONFIG_PATH"
     
     echo ""
@@ -1031,13 +1148,11 @@ interactive_config_path_choice() {
 collect_config_path() {
     # Check if we're running from instructions or wizard mode
     if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
-        # Instructions mode - validate saved path
-        echo "Reading configuration path from instructions..."
+        # Instructions mode - use saved path
+        echo "Using configuration path from instructions: $SAVED_CONFIG_PATH"
         
-        # TODO: Read saved path from instructions file
-        # For now, this is a placeholder - we'll implement file reading later
-        echo "Instructions mode not yet implemented - falling back to wizard"
-        interactive_config_path_choice
+        # Validate and apply saved path
+        validate_config_path_instructions "$SAVED_CONFIG_PATH"
     else
         # Wizard mode - interactive choice
         interactive_config_path_choice
@@ -1144,21 +1259,161 @@ interactive_environment_paths_choice() {
 collect_environment_variables() {
     # Check if we're running from instructions or wizard mode
     if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
-        # Instructions mode - validate saved paths
-        echo "Reading environment paths from instructions..."
+        # Instructions mode - use saved paths
+        echo "Using environment paths from instructions:"
+        echo "  test_work_dir: $SAVED_TEST_WORK_DIR"
         
-        # TODO: Read saved paths from instructions file
-        # For now, this is a placeholder - we'll implement file reading later
-        echo "Instructions mode not yet implemented - falling back to wizard"
-        interactive_environment_paths_choice
+        # Apply saved paths (venv_path will be derived from other choices)
+        TEST_WORK_DIR="$SAVED_TEST_WORK_DIR"
+        USER_TEST_WORK_DIR_CHOICE="$SAVED_TEST_WORK_DIR"
+        
+        # Set venv path based on installation mode (same logic as wizard)
+        case "$INSTALL_MODE" in
+            "$INSTALL_MODE_DEV")
+                VENV_PATH="$(dirname "$CONFIG_PATH")/.venv"
+                ;;
+            "$INSTALL_MODE_USER") 
+                VENV_PATH="$HOME/.local/share/shuttle/.venv"
+                ;;
+            "$INSTALL_MODE_SERVICE")
+                VENV_PATH="/opt/shuttle/.venv"
+                ;;
+        esac
+        USER_VENV_PATH_CHOICE="$VENV_PATH"
+        
+        echo -e "${GREEN}✅ Using environment paths from instructions${NC}"
     else
         # Wizard mode - interactive choice
         interactive_environment_paths_choice
     fi
 }
 
+# Helper function to ask user about each directory individually (wizard mode)
+ask_directory_creation_policy() {
+    echo ""
+    echo "Directory Creation:"
+    echo "Checking if the directories you specified exist and asking about creation..."
+    echo ""
+    
+    # Initialize directory creation choices
+    CREATE_SOURCE_DIR=false
+    CREATE_DEST_DIR=false
+    CREATE_QUARANTINE_DIR=false
+    CREATE_LOG_DIR=false
+    CREATE_HAZARD_DIR=false
+    
+    # Check and ask for each directory
+    check_and_ask_for_directory "$SOURCE_PATH" "source" "CREATE_SOURCE_DIR"
+    check_and_ask_for_directory "$DEST_PATH" "destination" "CREATE_DEST_DIR"
+    check_and_ask_for_directory "$QUARANTINE_PATH" "quarantine" "CREATE_QUARANTINE_DIR"
+    check_and_ask_for_directory "$LOG_PATH" "log" "CREATE_LOG_DIR"
+    check_and_ask_for_directory "$HAZARD_PATH" "hazard archive" "CREATE_HAZARD_DIR"
+    
+    # Save individual directory creation choices
+    USER_CREATE_SOURCE_DIR_CHOICE="$CREATE_SOURCE_DIR"
+    USER_CREATE_DEST_DIR_CHOICE="$CREATE_DEST_DIR"
+    USER_CREATE_QUARANTINE_DIR_CHOICE="$CREATE_QUARANTINE_DIR"
+    USER_CREATE_LOG_DIR_CHOICE="$CREATE_LOG_DIR"
+    USER_CREATE_HAZARD_DIR_CHOICE="$CREATE_HAZARD_DIR"
+    
+    echo ""
+}
+
+# Helper function to check individual directory and ask user
+check_and_ask_for_directory() {
+    local dir_path="$1"
+    local dir_description="$2"
+    local var_name="$3"
+    
+    if [[ -d "$dir_path" ]]; then
+        echo -e "  ${GREEN}✅ $dir_description directory exists: $dir_path${NC}"
+        eval "$var_name=false"  # Don't need to create
+    else
+        echo -e "  ${YELLOW}⚠️  $dir_description directory does not exist: $dir_path${NC}"
+        read -p "  Create $dir_description directory? (Default: Yes) [Y/n/x]: " CREATE_THIS_DIR
+        case $CREATE_THIS_DIR in
+            [Nn])
+                eval "$var_name=false"
+                echo -e "    ${YELLOW}⚠️  $dir_description directory will not be created${NC}"
+                ;;
+            [Xx])
+                echo "Installation cancelled by user."
+                exit 0
+                ;;
+            *) # Default is Yes
+                eval "$var_name=true"
+                echo -e "    ${GREEN}✅ $dir_description directory will be created${NC}"
+                ;;
+        esac
+        echo ""
+    fi
+}
+
+# Helper function to check/create directories based on individual choice (execution time)
+check_and_create_directory_if_choice_allows() {
+    local dir_path="$1"
+    local dir_description="$2"
+    local create_choice="$3"
+    
+    if [[ -d "$dir_path" ]]; then
+        echo -e "    ${GREEN}✅ Directory exists: $dir_path${NC}"
+        return 0
+    fi
+    
+    if [[ "$create_choice" == "true" ]]; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+            echo -e "    ${BLUE}[DRY RUN] Would create $dir_description directory: $dir_path${NC}"
+            return 0
+        else
+            echo -e "    ${YELLOW}Creating $dir_description directory: $dir_path${NC}"
+            if mkdir -p "$dir_path" 2>/dev/null; then
+                echo -e "    ${GREEN}✅ Directory created: $dir_path${NC}"
+            else
+                echo -e "    ${RED}❌ Failed to create directory: $dir_path${NC}"
+                echo "    You may need elevated permissions or the parent directory may not exist."
+                return 1
+            fi
+        fi
+    else
+        echo -e "    ${YELLOW}⚠️  Directory does not exist: $dir_path${NC}"
+        echo -e "    ${YELLOW}⚠️  Directory creation disabled for $dir_description directory${NC}"
+    fi
+    return 0
+}
+
 # 6. Configuration Parameters Collection
 collect_config_parameters() {
+    if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
+        echo ""
+        echo "📄 Step 8: Using existing configuration files from instructions"
+        
+        # Apply saved individual directory creation choices
+        echo "Directory creation choices from instructions:"
+        echo "  Source directory: $SAVED_CREATE_SOURCE_DIR"
+        echo "  Destination directory: $SAVED_CREATE_DEST_DIR"
+        echo "  Quarantine directory: $SAVED_CREATE_QUARANTINE_DIR"
+        echo "  Log directory: $SAVED_CREATE_LOG_DIR"
+        echo "  Hazard directory: $SAVED_CREATE_HAZARD_DIR"
+        
+        # Set individual directory creation flags from instructions
+        CREATE_SOURCE_DIR="$SAVED_CREATE_SOURCE_DIR"
+        CREATE_DEST_DIR="$SAVED_CREATE_DEST_DIR"
+        CREATE_QUARANTINE_DIR="$SAVED_CREATE_QUARANTINE_DIR"
+        CREATE_LOG_DIR="$SAVED_CREATE_LOG_DIR"
+        CREATE_HAZARD_DIR="$SAVED_CREATE_HAZARD_DIR"
+        
+        # In instructions mode, config files should already exist
+        # Just verify they exist
+        if [[ ! -f "$CONFIG_PATH" ]]; then
+            echo -e "${RED}❌ Configuration file not found: $CONFIG_PATH${NC}"
+            echo "The instructions file points to a missing config file."
+            echo "Run in wizard mode to create configuration files: $0 --wizard"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ Using existing config: $CONFIG_PATH${NC}"
+        return 0
+    fi
+    
     echo "=== Configuration Parameters ==="
     echo ""
     
@@ -1208,6 +1463,13 @@ collect_config_parameters() {
     echo ""
     read -p "[$DEFAULT_SOURCE]: " SOURCE_PATH
     SOURCE_PATH=${SOURCE_PATH:-$DEFAULT_SOURCE}
+    
+    # Validate source path
+    if ! validate_directory_path "$SOURCE_PATH" "Source directory"; then
+        echo -e "${RED}❌ Invalid source directory path: $SOURCE_PATH${NC}"
+        echo "Please run the script again with a valid path."
+        exit 1
+    fi
     echo ""
     
     echo "Destination directory:"
@@ -1215,6 +1477,13 @@ collect_config_parameters() {
     echo ""
     read -p "[$DEFAULT_DEST]: " DEST_PATH
     DEST_PATH=${DEST_PATH:-$DEFAULT_DEST}
+    
+    # Validate destination path
+    if ! validate_directory_path "$DEST_PATH" "Destination directory"; then
+        echo -e "${RED}❌ Invalid destination directory path: $DEST_PATH${NC}"
+        echo "Please run the script again with a valid path."
+        exit 1
+    fi
     echo ""
     
     echo "Quarantine directory:"
@@ -1222,6 +1491,13 @@ collect_config_parameters() {
     echo ""
     read -p "[$DEFAULT_QUARANTINE]: " QUARANTINE_PATH
     QUARANTINE_PATH=${QUARANTINE_PATH:-$DEFAULT_QUARANTINE}
+    
+    # Validate quarantine path
+    if ! validate_directory_path "$QUARANTINE_PATH" "Quarantine directory"; then
+        echo -e "${RED}❌ Invalid quarantine directory path: $QUARANTINE_PATH${NC}"
+        echo "Please run the script again with a valid path."
+        exit 1
+    fi
     echo ""
     
     echo "Log directory:"
@@ -1229,6 +1505,13 @@ collect_config_parameters() {
     echo ""
     read -p "[$DEFAULT_LOG]: " LOG_PATH
     LOG_PATH=${LOG_PATH:-$DEFAULT_LOG}
+    
+    # Validate log path
+    if ! validate_directory_path "$LOG_PATH" "Log directory"; then
+        echo -e "${RED}❌ Invalid log directory path: $LOG_PATH${NC}"
+        echo "Please run the script again with a valid path."
+        exit 1
+    fi
     echo ""
     
     echo "Hazard archive directory:"
@@ -1236,6 +1519,16 @@ collect_config_parameters() {
     echo ""
     read -p "[$DEFAULT_HAZARD]: " HAZARD_PATH
     HAZARD_PATH=${HAZARD_PATH:-$DEFAULT_HAZARD}
+    
+    # Validate hazard path
+    if ! validate_directory_path "$HAZARD_PATH" "Hazard archive directory"; then
+        echo -e "${RED}❌ Invalid hazard archive directory path: $HAZARD_PATH${NC}"
+        echo "Please run the script again with a valid path."
+        exit 1
+    fi
+    
+    # Ask about directory creation policy after all paths are collected
+    ask_directory_creation_policy
     
     # Scanning configuration
     echo ""
@@ -1339,6 +1632,13 @@ collect_config_parameters() {
     read -p "Admin email (leave blank to skip): " ADMIN_EMAIL
     echo ""
     
+    # Validate admin email if provided
+    if [[ -n "$ADMIN_EMAIL" ]] && ! validate_email_address "$ADMIN_EMAIL" "Admin email"; then
+        echo -e "${RED}❌ Invalid email address: $ADMIN_EMAIL${NC}"
+        echo "Please run the script again with a valid email address."
+        exit 1
+    fi
+    
     if [[ -n "$ADMIN_EMAIL" ]]; then
         echo "SMTP server configuration:"
         echo ""
@@ -1347,6 +1647,13 @@ collect_config_parameters() {
         echo "Hostname or IP address of your email server."
         echo ""
         read -p "SMTP server: " SMTP_SERVER
+        
+        # Validate SMTP server
+        if [[ -z "$SMTP_SERVER" ]] || ! validate_hostname_or_ip "$SMTP_SERVER" "SMTP server"; then
+            echo -e "${RED}❌ Invalid SMTP server: $SMTP_SERVER${NC}"
+            echo "Please run the script again with a valid hostname or IP address."
+            exit 1
+        fi
         echo ""
         
         echo "SMTP port:"
@@ -1354,6 +1661,13 @@ collect_config_parameters() {
         echo ""
         read -p "[587]: " SMTP_PORT
         SMTP_PORT=${SMTP_PORT:-587}
+        
+        # Validate SMTP port
+        if ! validate_port_number "$SMTP_PORT" "SMTP port"; then
+            echo -e "${RED}❌ Invalid SMTP port: $SMTP_PORT${NC}"
+            echo "Please run the script again with a valid port number (1-65535)."
+            exit 1
+        fi
         echo ""
         
         echo "SMTP username:"
@@ -1448,12 +1762,133 @@ collect_config_parameters() {
     USER_USE_TLS_CHOICE="$USE_TLS"
     USER_DELETE_SOURCE_CHOICE="$DELETE_SOURCE"
     USER_LEDGER_PATH_CHOICE="$LEDGER_PATH"
+    
+    # In wizard mode, create the config files immediately
+    echo ""
+    echo "🔧 Creating configuration files..."
+    
+    # Export environment variables needed by 07_setup_config.py
+    export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
+    export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
+    export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
+    
+    # Build config arguments
+    CONFIG_ARGS=(
+        "--create-config"
+        "--source-path" "$SOURCE_PATH"
+        "--destination-path" "$DEST_PATH"
+        "--quarantine-path" "$QUARANTINE_PATH"
+        "--log-path" "$LOG_PATH"
+        "--hazard-archive-path" "$HAZARD_PATH"
+        "--ledger-file-path" "$LEDGER_PATH"
+        "--log-level" "$LOG_LEVEL"
+        "--max-scan-threads" "$SCAN_THREADS"
+        "--throttle-free-space-mb" "$MIN_FREE_SPACE"
+        "--hazard-encryption-key-path" "$GPG_KEY_PATH"
+    )
+    
+    # Add scanning options
+    if [[ "$USE_CLAMAV" == "y" ]]; then
+        CONFIG_ARGS+=("--on-demand-clam-av")
+    fi
+    
+    if [[ "$USE_DEFENDER" != "n" ]]; then
+        CONFIG_ARGS+=("--on-demand-defender")
+    else
+        CONFIG_ARGS+=("--no-on-demand-defender")
+    fi
+    
+    # Add file processing options
+    if [[ "$DELETE_SOURCE" == "Y" ]]; then
+        CONFIG_ARGS+=("--delete-source-files-after-copying")
+    else
+        CONFIG_ARGS+=("--no-delete-source-files-after-copying")
+    fi
+    
+    # Add notification options
+    if [[ -n "$ADMIN_EMAIL" ]]; then
+        CONFIG_ARGS+=(
+            "--notify"
+            "--notify-recipient-email" "$ADMIN_EMAIL"
+            "--notify-smtp-server" "$SMTP_SERVER"
+            "--notify-smtp-port" "$SMTP_PORT"
+            "--notify-username" "$SMTP_USERNAME"
+            "--notify-password" "$SMTP_PASSWORD"
+        )
+        if [[ "$USE_TLS" == "Y" ]]; then
+            CONFIG_ARGS+=("--notify-use-tls")
+        fi
+    fi
+    
+    # Create main config file
+    if check_config_file_overwrite "$CONFIG_PATH" "configuration file"; then
+        python3 "$DEPLOYMENT_DIR/07_setup_config.py" "${CONFIG_ARGS[@]}"
+        if [[ $? -ne 0 ]]; then
+            echo -e "${RED}❌ Failed to create configuration file${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ Main configuration created${NC}"
+    else
+        echo -e "${GREEN}✅ Using existing main configuration${NC}"
+    fi
+    
+    # Create test config file
+    TEST_CONFIG_FILE="$TEST_WORK_DIR/test_config.conf"
+    if check_config_file_overwrite "$TEST_CONFIG_FILE" "test configuration file"; then
+        python3 "$DEPLOYMENT_DIR/07_setup_config.py" --create-test-config
+        if [[ $? -ne 0 ]]; then
+            echo -e "${RED}❌ Failed to create test configuration${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ Test configuration created${NC}"
+    else
+        echo -e "${GREEN}✅ Using existing test configuration${NC}"
+    fi
+    
+    # Create ledger file
+    LEDGER_PATH="$(dirname "$CONFIG_PATH")/ledger/ledger.yaml"
+    if check_config_file_overwrite "$LEDGER_PATH" "ledger file"; then
+        python3 "$DEPLOYMENT_DIR/07_setup_config.py" --create-ledger
+        if [[ $? -ne 0 ]]; then
+            echo -e "${RED}❌ Failed to create ledger file${NC}"
+            exit 1
+        fi
+        echo -e "${GREEN}✅ Ledger file created${NC}"
+    else
+        echo -e "${GREEN}✅ Using existing ledger file${NC}"
+    fi
 }
 
 # 8. Execute Installation
 execute_installation() {
     echo "=== Installation Execution ==="
     echo ""
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo -e "${BLUE}[DRY RUN] Installation preview - no changes will be made${NC}"
+        echo ""
+    fi
+    
+    # Check sudo access if we'll need it for system package installation
+    if [[ "$INSTALL_BASIC_DEPS" == "true" ]] || [[ "$INSTALL_PYTHON" == "true" ]] || [[ "$INSTALL_CLAMAV" == "true" ]]; then
+        if [[ "$DRY_RUN" == "true" ]]; then
+            echo -e "${BLUE}[DRY RUN] Would check sudo access for system package installation${NC}"
+        else
+            echo "🔐 System package installation requires sudo privileges"
+            if ! check_sudo_access; then
+                echo ""
+                echo -e "${RED}❌ Cannot proceed without sudo access${NC}"
+                echo "Please either:"
+                echo "  1. Run this script as a user with sudo privileges"
+                echo "  2. Ask your system administrator to install the missing packages"
+                echo "  3. Install the packages manually and run this script again"
+                echo "  4. Re-run in wizard mode and choose not to install system packages"
+                exit 1
+            fi
+            echo -e "${GREEN}✅ Sudo access confirmed${NC}"
+            echo ""
+        fi
+    fi
     
     # Set environment variables for script duration
     export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
@@ -1544,6 +1979,54 @@ execute_installation() {
     
     echo -e "${GREEN}✅ Environment and virtual environment setup complete${NC}"
     
+    # Phase 2.5: Check and Create Directories Based on Individual Choices
+    echo ""
+    echo "📁 Phase 2.5: Checking and creating directories based on individual choices"
+    
+    # Read paths from config file to get the actual paths that will be used
+    if [[ -f "$CONFIG_PATH" ]]; then
+        # Extract paths from config file with validation
+        CONFIG_SOURCE_PATH=$(grep "^source_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
+        CONFIG_DEST_PATH=$(grep "^destination_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
+        CONFIG_QUARANTINE_PATH=$(grep "^quarantine_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
+        CONFIG_LOG_PATH=$(grep "^log_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
+        CONFIG_HAZARD_PATH=$(grep "^hazard_archive_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
+        
+        # Validate extracted paths from config file
+        if [[ -n "$CONFIG_SOURCE_PATH" ]] && ! validate_directory_path "$CONFIG_SOURCE_PATH" "Config source path"; then
+            echo -e "${RED}❌ Invalid source path in config file: $CONFIG_SOURCE_PATH${NC}"
+            exit 1
+        fi
+        if [[ -n "$CONFIG_DEST_PATH" ]] && ! validate_directory_path "$CONFIG_DEST_PATH" "Config destination path"; then
+            echo -e "${RED}❌ Invalid destination path in config file: $CONFIG_DEST_PATH${NC}"
+            exit 1
+        fi
+        if [[ -n "$CONFIG_QUARANTINE_PATH" ]] && ! validate_directory_path "$CONFIG_QUARANTINE_PATH" "Config quarantine path"; then
+            echo -e "${RED}❌ Invalid quarantine path in config file: $CONFIG_QUARANTINE_PATH${NC}"
+            exit 1
+        fi
+        if [[ -n "$CONFIG_LOG_PATH" ]] && ! validate_directory_path "$CONFIG_LOG_PATH" "Config log path"; then
+            echo -e "${RED}❌ Invalid log path in config file: $CONFIG_LOG_PATH${NC}"
+            exit 1
+        fi
+        if [[ -n "$CONFIG_HAZARD_PATH" ]] && ! validate_directory_path "$CONFIG_HAZARD_PATH" "Config hazard path"; then
+            echo -e "${RED}❌ Invalid hazard path in config file: $CONFIG_HAZARD_PATH${NC}"
+            exit 1
+        fi
+        
+        # Check and create each directory using individual choices
+        echo "Checking directories from configuration file..."
+        check_and_create_directory_if_choice_allows "$CONFIG_SOURCE_PATH" "source" "$CREATE_SOURCE_DIR"
+        check_and_create_directory_if_choice_allows "$CONFIG_DEST_PATH" "destination" "$CREATE_DEST_DIR"
+        check_and_create_directory_if_choice_allows "$CONFIG_QUARANTINE_PATH" "quarantine" "$CREATE_QUARANTINE_DIR"
+        check_and_create_directory_if_choice_allows "$CONFIG_LOG_PATH" "log" "$CREATE_LOG_DIR"
+        check_and_create_directory_if_choice_allows "$CONFIG_HAZARD_PATH" "hazard archive" "$CREATE_HAZARD_DIR"
+    else
+        echo -e "${YELLOW}⚠️  Config file not found - skipping directory creation${NC}"
+    fi
+    
+    echo -e "${GREEN}✅ Directory checking phase complete${NC}"
+    
     # Phase 3: Python Dependencies
     echo ""
     echo "📚 Phase 3: Installing Python dependencies"
@@ -1571,67 +2054,8 @@ execute_installation() {
     
     # Phase 4: Configuration
     echo ""
-    echo "⚙️  Phase 4: Generating configuration"
-    
-    # Build config arguments
-    # Use the ledger path specified by user during configuration
-    
-    CONFIG_ARGS=(
-        "--source-path" "$SOURCE_PATH"
-        "--destination-path" "$DEST_PATH"
-        "--quarantine-path" "$QUARANTINE_PATH"
-        "--log-path" "$LOG_PATH"
-        "--hazard-archive-path" "$HAZARD_PATH"
-        "--ledger-file-path" "$LEDGER_PATH"
-        "--log-level" "$LOG_LEVEL"
-        "--max-scan-threads" "$SCAN_THREADS"
-        "--throttle-free-space-mb" "$MIN_FREE_SPACE"
-    )
-    
-    # Add scanning options
-    if [[ "$USE_CLAMAV" == "y" ]]; then
-        CONFIG_ARGS+=("--on-demand-clam-av")
-    fi
-    
-    if [[ "$USE_DEFENDER" != "n" ]]; then
-        CONFIG_ARGS+=("--on-demand-defender")
-    else
-        CONFIG_ARGS+=("--no-on-demand-defender")
-    fi
-    
-    # Add file processing options
-    if [[ "$DELETE_SOURCE" == "Y" ]]; then
-        CONFIG_ARGS+=("--delete-source-files-after-copying")
-    else
-        CONFIG_ARGS+=("--no-delete-source-files-after-copying")
-    fi
-    
-    # Add GPG key path
-    CONFIG_ARGS+=("--hazard-encryption-key-path" "$GPG_KEY_PATH")
-    
-    # Add notification options
-    if [[ -n "$ADMIN_EMAIL" ]]; then
-        CONFIG_ARGS+=(
-            "--notify"
-            "--notify-recipient-email" "$ADMIN_EMAIL"
-            "--notify-smtp-server" "$SMTP_SERVER"
-            "--notify-smtp-port" "$SMTP_PORT"
-            "--notify-username" "$SMTP_USERNAME"
-            "--notify-password" "$SMTP_PASSWORD"
-        )
-        if [[ "$USE_TLS" == "Y" ]]; then
-            CONFIG_ARGS+=("--notify-use-tls")
-        fi
-    fi
-    
-    # Run configuration script
-    echo "Generating configuration file..."
-    python3 "$DEPLOYMENT_DIR/07_setup_config.py" "${CONFIG_ARGS[@]}"
-    if [[ $? -ne 0 ]]; then
-        echo -e "${RED}❌ Failed to generate configuration${NC}"
-        exit 1
-    fi
-    echo -e "${GREEN}✅ Configuration generated${NC}"
+    echo "⚙️  Phase 4: Configuration already created"
+    echo -e "${GREEN}✅ Using configuration files created during wizard${NC}"
     
     # Phase 5: Module Installation
     echo ""
@@ -1696,6 +2120,259 @@ execute_installation() {
     
     echo ""
     echo -e "${GREEN}🎉 Installation completed successfully!${NC}"
+}
+
+# Helper function to check if config file exists and ask for overwrite permission
+check_config_file_overwrite() {
+    local config_file="$1"
+    local file_description="$2"
+    
+    if [[ -f "$config_file" ]]; then
+        echo -e "${YELLOW}⚠️  $file_description already exists: $config_file${NC}"
+        echo ""
+        read -p "Overwrite existing $file_description? (Default: No) [y/N/x]: " OVERWRITE_CONFIG
+        case $OVERWRITE_CONFIG in
+            [Yy])
+                echo "Overwriting existing $file_description..."
+                return 0  # OK to proceed
+                ;;
+            [Xx])
+                echo "Installation cancelled by user."
+                exit 0
+                ;;
+            *)
+                echo "$file_description not overwritten - keeping existing file."
+                return 1  # Don't proceed with creation
+                ;;
+        esac
+        echo ""
+    fi
+    return 0  # File doesn't exist or user agreed to overwrite
+}
+
+# Function to save installation instructions to YAML file
+save_installation_instructions() {
+    local instructions_file="$1"
+    
+    echo ""
+    echo "📝 Saving installation instructions to: $instructions_file"
+    
+    # Check if file already exists and ask for confirmation
+    if [[ -f "$instructions_file" ]]; then
+        echo -e "${YELLOW}⚠️  Instructions file already exists: $instructions_file${NC}"
+        echo ""
+        read -p "Overwrite existing instructions file? (Default: No) [y/N/x]: " OVERWRITE_INSTRUCTIONS
+        case $OVERWRITE_INSTRUCTIONS in
+            [Yy])
+                echo "Overwriting existing instructions file..."
+                ;;
+            [Xx])
+                echo "Installation cancelled by user."
+                exit 0
+                ;;
+            *)
+                echo "Instructions file not saved - keeping existing file."
+                return 1
+                ;;
+        esac
+        echo ""
+    fi
+    
+    # Ensure directory exists
+    local instructions_dir=$(dirname "$instructions_file")
+    if [[ ! -d "$instructions_dir" ]]; then
+        mkdir -p "$instructions_dir" || {
+            echo -e "${RED}❌ Failed to create directory: $instructions_dir${NC}"
+            return 1
+        }
+    fi
+    
+    # Convert bash boolean values to Python booleans
+    local py_register_kernel="False"
+    if [[ "${USER_REGISTER_KERNEL_CHOICE}" == "true" ]]; then
+        py_register_kernel="True"
+    fi
+    
+    local py_install_basic="False"
+    if [[ "${USER_INSTALL_BASIC_DEPS_CHOICE}" == "true" ]]; then
+        py_install_basic="True"
+    fi
+    
+    local py_install_python="False"
+    if [[ "${USER_INSTALL_PYTHON_CHOICE}" == "true" ]]; then
+        py_install_python="True"
+    fi
+    
+    local py_install_clamav="False"
+    if [[ "${USER_INSTALL_CLAMAV_CHOICE}" == "true" ]]; then
+        py_install_clamav="True"
+    fi
+    
+    local py_check_defender="False"
+    if [[ "${USER_CHECK_DEFENDER_CHOICE}" == "true" ]]; then
+        py_check_defender="True"
+    fi
+    
+    local py_create_source_dir="False"
+    if [[ "${USER_CREATE_SOURCE_DIR_CHOICE}" == "true" ]]; then
+        py_create_source_dir="True"
+    fi
+    
+    local py_create_dest_dir="False"
+    if [[ "${USER_CREATE_DEST_DIR_CHOICE}" == "true" ]]; then
+        py_create_dest_dir="True"
+    fi
+    
+    local py_create_quarantine_dir="False"
+    if [[ "${USER_CREATE_QUARANTINE_DIR_CHOICE}" == "true" ]]; then
+        py_create_quarantine_dir="True"
+    fi
+    
+    local py_create_log_dir="False"
+    if [[ "${USER_CREATE_LOG_DIR_CHOICE}" == "true" ]]; then
+        py_create_log_dir="True"
+    fi
+    
+    local py_create_hazard_dir="False"
+    if [[ "${USER_CREATE_HAZARD_DIR_CHOICE}" == "true" ]]; then
+        py_create_hazard_dir="True"
+    fi
+    
+    # Create YAML content using Python
+    python3 -c "
+import yaml
+import datetime
+
+# Build instructions data structure - minimal format with only user choices
+instructions = {
+    'version': '1.0',
+    'metadata': {
+        'description': 'Shuttle Installation Instructions',
+        'created': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    },
+    'installation': {
+        'venv_choice': '$USER_VENV_CHOICE',
+        'install_mode': '$USER_INSTALL_MODE_CHOICE',
+        'register_jupyter_kernel': $py_register_kernel,
+        'install_basic_deps': $py_install_basic,
+        'install_python': $py_install_python,
+        'install_clamav': $py_install_clamav,
+        'check_defender': $py_check_defender
+    },
+    'directory_creation': {
+        'create_source_dir': $py_create_source_dir,
+        'create_dest_dir': $py_create_dest_dir,
+        'create_quarantine_dir': $py_create_quarantine_dir,
+        'create_log_dir': $py_create_log_dir,
+        'create_hazard_dir': $py_create_hazard_dir
+    },
+    'paths': {
+        'config_path': '$USER_CONFIG_PATH_CHOICE',
+        'test_work_dir': '$USER_TEST_WORK_DIR_CHOICE'
+    }
+}
+
+# Write YAML file
+with open('$instructions_file', 'w') as f:
+    yaml.dump(instructions, f, default_flow_style=False, sort_keys=False)
+"
+    
+    if [[ $? -eq 0 ]]; then
+        echo -e "${GREEN}✅ Instructions saved successfully${NC}"
+        return 0
+    else
+        echo -e "${RED}❌ Failed to save instructions${NC}"
+        return 1
+    fi
+}
+
+# Function to handle wizard completion options
+wizard_completion_options() {
+    echo ""
+    echo "=== Configuration Review ==="
+    echo ""
+    echo "Installation mode: $INSTALL_MODE"
+    echo "Virtual environment: $VENV_TYPE"
+    echo "Config path: $CONFIG_PATH"
+    echo "Working directory: $TEST_WORK_DIR"
+    echo ""
+    echo "What would you like to do?"
+    echo ""
+    echo "1) Continue with installation"
+    echo "2) Save instructions and continue"
+    echo "3) Save instructions only (exit without installing)"
+    echo "4) Exit without saving"
+    echo ""
+    
+    while true; do
+        read -p "Select an option [1-4] (Default: 1): " WIZARD_CHOICE
+        WIZARD_CHOICE=${WIZARD_CHOICE:-1}
+        
+        case $WIZARD_CHOICE in
+            1)
+                # Continue with installation
+                execute_installation
+                show_next_steps
+                break
+                ;;
+            2)
+                # Save instructions and continue
+                # Default to config/install_inputs.yaml
+                DEFAULT_INSTRUCTIONS_FILE="config/install_inputs.yaml"
+                read -p "Instructions file name (Default: $DEFAULT_INSTRUCTIONS_FILE): " INSTRUCTIONS_FILE
+                INSTRUCTIONS_FILE=${INSTRUCTIONS_FILE:-$DEFAULT_INSTRUCTIONS_FILE}
+                
+                # Make path absolute if relative
+                if [[ "$INSTRUCTIONS_FILE" != /* ]]; then
+                    INSTRUCTIONS_FILE="$PROJECT_ROOT/$INSTRUCTIONS_FILE"
+                fi
+                
+                if save_installation_instructions "$INSTRUCTIONS_FILE"; then
+                    echo -e "${GREEN}✅ Instructions saved to: $INSTRUCTIONS_FILE${NC}"
+                    echo ""
+                    echo "You can rerun this installation later with:"
+                    echo -e "${BLUE}$0 --instructions $INSTRUCTIONS_FILE${NC}"
+                    echo ""
+                    read -p "Press Enter to continue with installation..."
+                    execute_installation
+                    show_next_steps
+                fi
+                break
+                ;;
+            3)
+                # Save instructions only
+                # Default to config/install_inputs.yaml
+                DEFAULT_INSTRUCTIONS_FILE="config/install_inputs.yaml"
+                read -p "Instructions file name (Default: $DEFAULT_INSTRUCTIONS_FILE): " INSTRUCTIONS_FILE
+                INSTRUCTIONS_FILE=${INSTRUCTIONS_FILE:-$DEFAULT_INSTRUCTIONS_FILE}
+                
+                # Make path absolute if relative
+                if [[ "$INSTRUCTIONS_FILE" != /* ]]; then
+                    INSTRUCTIONS_FILE="$PROJECT_ROOT/$INSTRUCTIONS_FILE"
+                fi
+                
+                if save_installation_instructions "$INSTRUCTIONS_FILE"; then
+                    echo -e "${GREEN}✅ Instructions saved to: $INSTRUCTIONS_FILE${NC}"
+                    echo ""
+                    echo "You can run this installation later with:"
+                    echo -e "${BLUE}$0 --instructions $INSTRUCTIONS_FILE${NC}"
+                    echo ""
+                    echo "Installation saved but not executed."
+                    exit 0
+                else
+                    exit 1
+                fi
+                ;;
+            4)
+                # Exit without saving
+                echo "Installation cancelled."
+                exit 0
+                ;;
+            *)
+                echo -e "${RED}Invalid option. Please select 1-4.${NC}"
+                ;;
+        esac
+    done
 }
 
 # 8. Show Next Steps
@@ -1767,9 +2444,22 @@ show_next_steps() {
     # GPG keys reminder
     if [[ ! -f "$PROJECT_ROOT/shuttle_public.gpg" ]]; then
         echo ""
-        echo -e "${YELLOW}⚠️  IMPORTANT: Generate GPG keys before using Shuttle:${NC}"
+        echo -e "${YELLOW}⚠️  IMPORTANT: GPG Key Security Requirements:${NC}"
+        echo ""
+        echo -e "${RED}🔐 SECURITY WARNING: GPG Key Management${NC}"
+        echo -e "   ${YELLOW}Generate GPG keys on a SEPARATE, SECURE machine - NOT on this server!${NC}"
+        echo ""
+        echo -e "   ${BLUE}Key Generation (do this on a secure workstation):${NC}"
         echo -e "   ${BLUE}./scripts/0_key_generation/00_generate_shuttle_keys.sh${NC}"
-        echo -e "   ${BLUE}cp shuttle_public.gpg $CONFIG_DIR/${NC}"
+        echo ""
+        echo -e "   ${BLUE}Copy ONLY the public key to this server:${NC}"
+        echo -e "   ${BLUE}scp shuttle_public.gpg user@server:$CONFIG_DIR/${NC}"
+        echo ""
+        echo -e "${RED}⚠️  CRITICAL: Store the PRIVATE key securely offline!${NC}"
+        echo -e "   ${YELLOW}• If the private key is lost, encrypted malware files cannot be decrypted${NC}"
+        echo -e "   ${YELLOW}• NEVER store the private key on a production server${NC}"
+        echo -e "   ${YELLOW}• If this server is compromised, attackers could decrypt malware${NC}"
+        echo -e "   ${YELLOW}• Use hardware security modules or offline storage for private keys${NC}"
     fi
     
     # Testing
@@ -1851,12 +2541,14 @@ Usage: $0 [options]
 Options:
   --instructions <file> Path to YAML installation instructions file (default: wizard mode)
   --wizard              Run installation wizard (default when no options provided)
+  --dry-run            Show what would be done without making changes
   --help               Show this help message
 
 Examples:
   $0                                    # Interactive wizard mode (default)
   $0 --wizard                          # Explicit wizard mode
-  $0 --instructions install_instructions.yaml   # Use saved installation instructions
+  $0 --instructions config/install_inputs.yaml   # Use saved installation instructions
+  $0 --instructions config/install_inputs.yaml --dry-run  # Preview installation without changes
 
 Installation Instructions File:
   The YAML file defines installation settings including paths, environment,
@@ -1868,17 +2560,31 @@ EOF
 parse_arguments() {
     INSTALL_INSTRUCTIONS_FILE=""
     RUN_WIZARD=false
+    DRY_RUN=false
     local INSTALL_INSTRUCTIONS_SPECIFIED=false
     
     while [[ $# -gt 0 ]]; do
         case $1 in
             --instructions)
+                if [[ -z "$2" ]]; then
+                    echo -e "${RED}❌ --instructions requires a file path${NC}" >&2
+                    show_usage
+                    exit 1
+                fi
+                if ! validate_file_path "$2" "Instructions file"; then
+                    echo -e "${RED}❌ Invalid instructions file path: $2${NC}" >&2
+                    exit 1
+                fi
                 INSTALL_INSTRUCTIONS_FILE="$2"
                 INSTALL_INSTRUCTIONS_SPECIFIED=true
                 shift 2
                 ;;
             --wizard)
                 RUN_WIZARD=true
+                shift
+                ;;
+            --dry-run)
+                DRY_RUN=true
                 shift
                 ;;
             --help|-h)
@@ -1901,10 +2607,32 @@ parse_arguments() {
 
 # Main function
 main() {
+    # Show banner with dry-run mode if applicable
+    show_banner
+    
     # Load installation constants first
     if ! load_installation_constants_for_install; then
         echo "Failed to initialize installation system" >&2
         exit 1
+    fi
+    
+    # If running from instructions file, load it now
+    if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
+        echo "📋 Loading installation instructions from: $INSTALL_INSTRUCTIONS_FILE"
+        echo ""
+        
+        # Load instructions reader
+        source_setup_lib "installation_instructions_reader" "$SCRIPT_DIR" || { 
+            echo "Failed to load instructions reader" >&2
+            exit 1
+        }
+        
+        # Read instructions file
+        if ! read_installation_instructions "$INSTALL_INSTRUCTIONS_FILE"; then
+            echo "Failed to read instructions file. Run in wizard mode: $0 --wizard" >&2
+            exit 1
+        fi
+        echo ""
     fi
     
     # Step 1: Check virtual environment status FIRST
@@ -1931,34 +2659,14 @@ main() {
     # Step 7: Collect configuration parameters
     collect_config_parameters
     
-    # Step 8: Confirm settings
-    echo ""
-    echo "=== Configuration Review ==="
-    echo ""
-    echo "Installation mode: $INSTALL_MODE"
-    echo "Virtual environment: $VENV_TYPE"
-    echo "Config path: $CONFIG_PATH"
-    echo "Working directory: $TEST_WORK_DIR"
-    echo ""
-    read -p "Proceed with installation? (Default: Yes) [Y/n/x]: " CONFIRM
-    case $CONFIRM in
-        [Nn]) 
-            echo "Installation cancelled."
-            exit 0 
-            ;;
-        [Xx]) 
-            echo "Installation cancelled by user."
-            exit 0 
-            ;;
-        *) # Default is Yes - continue
-            ;;
-    esac
-    
-    # Step 9: Execute installation
-    execute_installation
-    
-    # Step 10: Show next steps
-    show_next_steps
+    # Step 8: Wizard completion options (only in wizard mode)
+    if [[ "$RUN_WIZARD" == "true" ]]; then
+        wizard_completion_options
+    else
+        # In instructions mode, proceed directly to installation
+        execute_installation
+        show_next_steps
+    fi
 }
 
 # Parse arguments and run main function

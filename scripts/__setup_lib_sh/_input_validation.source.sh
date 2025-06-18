@@ -132,8 +132,8 @@ validate_path() {
         return $VALIDATION_ERROR
     fi
     
-    # Check for null bytes
-    if [[ "$path" =~ $'\0' ]]; then
+    # Check for null bytes (only if path is not empty)
+    if [[ -n "$path" && "$path" != "${path%$'\0'*}" ]]; then
         validation_log "ERROR" "Invalid $context '$path': contains null bytes"
         return $VALIDATION_ERROR
     fi
@@ -261,7 +261,7 @@ validate_comment() {
     fi
     
     # Check for null bytes
-    if [[ "$comment" =~ $'\0' ]]; then
+    if [[ "$comment" != "${comment%$'\0'*}" ]]; then
         validation_log "ERROR" "Invalid $context: contains null bytes"
         return $VALIDATION_ERROR
     fi
@@ -376,4 +376,98 @@ Comments:
 - No null bytes
 - Maximum 256 characters
 EOF
+}
+
+# Convenience aliases for specific path types
+validate_file_path() {
+    local path="$1"
+    local context="${2:-file path}"
+    validate_path "$path" "$context" false
+}
+
+validate_directory_path() {
+    local path="$1"
+    local context="${2:-directory path}"
+    validate_path "$path" "$context" false
+}
+
+# Validate email address
+validate_email_address() {
+    local email="$1"
+    local context="${2:-email address}"
+    
+    if [[ -z "$email" ]]; then
+        validation_log "ERROR" "Empty $context provided"
+        return $VALIDATION_ERROR
+    fi
+    
+    # Basic email validation - must contain @ and basic structure
+    if [[ ! "$email" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        validation_log "ERROR" "Invalid $context '$email': must be valid email format"
+        return $VALIDATION_ERROR
+    fi
+    
+    validation_log "INFO" "Successfully validated $context: '$email'"
+    return $VALIDATION_SUCCESS
+}
+
+# Validate hostname or IP address
+validate_hostname_or_ip() {
+    local host="$1"
+    local context="${2:-hostname/IP}"
+    
+    if [[ -z "$host" ]]; then
+        validation_log "ERROR" "Empty $context provided"
+        return $VALIDATION_ERROR
+    fi
+    
+    # Allow alphanumeric, dots, hyphens for hostnames/IPs
+    if [[ ! "$host" =~ ^[a-zA-Z0-9.-]+$ ]]; then
+        validation_log "ERROR" "Invalid $context '$host': contains forbidden characters"
+        return $VALIDATION_ERROR
+    fi
+    
+    # Basic length check
+    if [[ ${#host} -gt 253 ]]; then
+        validation_log "ERROR" "Invalid $context '$host': exceeds maximum length"
+        return $VALIDATION_ERROR
+    fi
+    
+    validation_log "INFO" "Successfully validated $context: '$host'"
+    return $VALIDATION_SUCCESS
+}
+
+# Validate port number
+validate_port_number() {
+    local port="$1"
+    local context="${2:-port number}"
+    
+    if [[ -z "$port" ]]; then
+        validation_log "ERROR" "Empty $context provided"
+        return $VALIDATION_ERROR
+    fi
+    
+    # Must be numeric
+    if [[ ! "$port" =~ ^[0-9]+$ ]]; then
+        validation_log "ERROR" "Invalid $context '$port': must be numeric"
+        return $VALIDATION_ERROR
+    fi
+    
+    # Must be in valid port range
+    if [[ "$port" -lt 1 || "$port" -gt 65535 ]]; then
+        validation_log "ERROR" "Invalid $context '$port': must be between 1 and 65535"
+        return $VALIDATION_ERROR
+    fi
+    
+    validation_log "INFO" "Successfully validated $context: '$port'"
+    return $VALIDATION_SUCCESS
+}
+
+# Validate safe text input (for choices and general text)
+validate_safe_text() {
+    local text="$1"
+    local context="${2:-text input}"
+    
+    # Use existing validate_comment function which has proper security checks
+    validate_comment "$text" "$context"
 }
