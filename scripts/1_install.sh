@@ -1988,11 +1988,12 @@ execute_installation() {
     # Read paths from config file to get the actual paths that will be used
     if [[ -f "$CONFIG_PATH" ]]; then
         # Extract paths from config file with validation
-        CONFIG_SOURCE_PATH=$(grep "^source_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
-        CONFIG_DEST_PATH=$(grep "^destination_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
-        CONFIG_QUARANTINE_PATH=$(grep "^quarantine_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
-        CONFIG_LOG_PATH=$(grep "^log_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
-        CONFIG_HAZARD_PATH=$(grep "^hazard_archive_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' ')
+        # Strip both spaces and carriage returns to handle Windows line endings
+        CONFIG_SOURCE_PATH=$(grep "^source_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' \r')
+        CONFIG_DEST_PATH=$(grep "^destination_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' \r')
+        CONFIG_QUARANTINE_PATH=$(grep "^quarantine_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' \r')
+        CONFIG_LOG_PATH=$(grep "^log_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' \r')
+        CONFIG_HAZARD_PATH=$(grep "^hazard_archive_path" "$CONFIG_PATH" | cut -d'=' -f2 | tr -d ' \r')
         
         # Validate extracted paths from config file
         if [[ -n "$CONFIG_SOURCE_PATH" ]] && ! validate_directory_path "$CONFIG_SOURCE_PATH" "Config source path"; then
