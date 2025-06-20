@@ -109,10 +109,9 @@ def create_directories(work_dir, config_dir, args):
 def create_config_file(config_path, args, paths, config_dir):
     """Create main Shuttle configuration file"""
     if os.path.exists(config_path):
-        print(f"Configuration file already exists: {config_path}")
-        return False
-        
-    print("Creating new config file")
+        print(f"Overwriting existing configuration file: {config_path}")
+    else:
+        print("Creating new config file")
     config = configparser.ConfigParser()
     
     hazard_encryption_key_path = args.hazard_encryption_key_path or os.path.join(config_dir, "public-key.gpg")
@@ -165,10 +164,9 @@ def create_config_file(config_path, args, paths, config_dir):
 def create_ledger_file(ledger_file_path):
     """Create default ledger.yaml file"""
     if os.path.exists(ledger_file_path):
-        print(f"Ledger file already exists: {ledger_file_path}")
-        return False
-        
-    print("Creating default ledger.yaml file...")
+        print(f"Overwriting existing ledger file: {ledger_file_path}")
+    else:
+        print("Creating default ledger.yaml file...")
     
     # Create YAML structure with empty tested_versions list
     status_data = {
@@ -221,14 +219,13 @@ def create_test_config_file(test_config_path, config_dir):
         print("SHUTTLE_TEST_CONFIG_PATH not set, skipping test config creation")
         return False
         
-    if os.path.exists(test_config_path):
-        print(f"Test config file already exists: {test_config_path}")
-        return False
-        
     test_config_dir = os.path.dirname(test_config_path)
     os.makedirs(test_config_dir, exist_ok=True)
     
-    print("Creating test configuration file...")
+    if os.path.exists(test_config_path):
+        print(f"Overwriting existing test config file: {test_config_path}")
+    else:
+        print("Creating test configuration file...")
     
     # Generate test keys for encryption
     test_area_dir = os.path.dirname(test_config_path)  # Should be test_area

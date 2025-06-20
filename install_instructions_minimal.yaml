@@ -1,0 +1,15 @@
+version: '1.0'
+metadata:
+  description: Shuttle Installation Instructions
+  created: '2025-01-18 18:30:00'
+installation:
+  venv_choice: existing
+  install_mode: dev
+  register_jupyter_kernel: false
+  install_basic_deps: false
+  install_python: false
+  install_clamav: false
+  check_defender: true
+paths:
+  config_path: /home/mathew/shuttle/config/config.conf
+  test_work_dir: /home/mathew/shuttle/test_area
