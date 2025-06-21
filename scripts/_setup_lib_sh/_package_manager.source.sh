@@ -106,9 +106,9 @@ install_packages() {
         return 0
     fi
     
-    # Validate package names
+    # Validate package names using safe text validation
     for package in "${packages[@]}"; do
-        if ! validate_linux_package_name "$package" "package installation"; then
+        if ! validate_safe_text "$package" "package name"; then
             log ERROR "Invalid package name: $package"
             return 1
         fi

@@ -951,10 +951,9 @@ def main():
             temp_filename = f.name
             yaml.dump_all(config, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
         
-        # Write just the filename (not full path) for consistency
-        temp_basename = os.path.basename(temp_filename)
+        # Write the absolute path directly for temporary files
         with open('/tmp/wizard_config_filename', 'w') as f:
-            f.write(f"../../../{temp_filename}")  # Relative path from config dir
+            f.write(temp_filename)  # Absolute path for temp files
         
         print(f"\nTemporary configuration created: {temp_filename}")
         print("Configuration will be applied without saving to config directory.")

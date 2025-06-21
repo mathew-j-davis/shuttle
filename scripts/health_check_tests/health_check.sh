@@ -111,13 +111,38 @@ fi
 
 # Check system packages for security updates
 echo "Checking system packages for security updates..."
-sudo apt-get update -qq
-SECURITY_UPDATES=$(apt list --upgradable 2>/dev/null | grep -i security)
-if [ -n "$SECURITY_UPDATES" ]; then
-    echo "WARNING: Security updates are available:"
-    echo "$SECURITY_UPDATES"
+
+# Detect package manager and check for security updates
+if command -v apt-get &>/dev/null; then
+    sudo apt-get update -qq
+    SECURITY_UPDATES=$(apt list --upgradable 2>/dev/null | grep -i security)
+elif command -v dnf &>/dev/null; then
+    sudo dnf check-update --security -q
+    SECURITY_UPDATES=$?
+elif command -v yum &>/dev/null; then
+    sudo yum check-update --security -q
+    SECURITY_UPDATES=$?
 else
-    echo "No security updates available."
+    echo "Package manager not supported for security update checks (supported: apt, dnf, yum)"
+    SECURITY_UPDATES=""
+fi
+
+# Handle results based on package manager
+if command -v apt-get &>/dev/null; then
+    if [ -n "$SECURITY_UPDATES" ]; then
+        echo "WARNING: Security updates are available:"
+        echo "$SECURITY_UPDATES"
+    else
+        echo "No security updates available."
+    fi
+elif command -v dnf &>/dev/null || command -v yum &>/dev/null; then
+    if [ $SECURITY_UPDATES -eq 100 ]; then
+        echo "WARNING: Security updates are available"
+    elif [ $SECURITY_UPDATES -eq 0 ]; then
+        echo "No security updates available."
+    else
+        echo "Error checking for security updates"
+    fi
 fi
 
 echo "All health checks passed!" 

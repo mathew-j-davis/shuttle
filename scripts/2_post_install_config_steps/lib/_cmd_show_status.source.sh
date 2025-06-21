@@ -126,8 +126,10 @@ show_status_core() {
         echo "Status: UNPROTECTED"
         echo ""
         echo "Recommendations:"
-        echo "• Install and enable ufw: sudo apt install ufw && sudo ufw enable"
-        echo "• Or install firewalld: sudo apt install firewalld && sudo systemctl enable --now firewalld"
+        echo "• Install and enable ufw (Debian/Ubuntu): sudo apt install ufw && sudo ufw enable"
+        echo "• Install and enable ufw (RHEL/Fedora): sudo dnf install ufw && sudo ufw enable"
+        echo "• Or install firewalld (Debian/Ubuntu): sudo apt install firewalld && sudo systemctl enable --now firewalld"
+        echo "• Or install firewalld (RHEL/Fedora): sudo dnf install firewalld && sudo systemctl enable --now firewalld"
         echo "• Or configure iptables with custom rules"
         return 0
     else

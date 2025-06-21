@@ -2,7 +2,7 @@
 
 # Tool Installation Script
 # Installs Samba (winbind) and ACL tools required for user/group management
-# Usage: ./11_install_tools.sh [options]
+# Refactored to use centralized package management library
 
 set -euo pipefail
 
@@ -36,7 +36,8 @@ Options:
   --help, -h            Show this help message
 
 Default Packages:
-  Samba/Winbind:        samba, winbind, libnss-winbind, libpam-winbind
+  Samba/Winbind:        samba, winbind, libnss-winbind, libpam-winbind (Debian/Ubuntu)
+                        samba, samba-winbind, samba-winbind-clients (RHEL/Fedora)
   ACL Tools:            acl, attr
 
 Examples:
@@ -50,180 +51,11 @@ Examples:
   $SCRIPT_NAME --dry-run
 
 Notes:
-  - Requires sudo privileges for package installation
+  - Automatically detects package manager (apt, dnf, yum, pacman, zypper, brew)
+  - Requires sudo privileges on most systems (except macOS with Homebrew)
   - Will update package cache unless --no-update specified
   - ACL tools are required for show-acl-on-path, add-acl-to-path, delete-acl-from-path commands
 EOF
-}
-
-# Function to detect package manager
-detect_package_manager() {
-    if execute "command -v apt-get >/dev/null 2>&1" \
-              "APT package manager found" \
-              "APT package manager not found" \
-              "Check if APT package manager is available for Debian/Ubuntu systems"; then
-        echo "apt"
-    elif execute "command -v dnf >/dev/null 2>&1" \
-                "DNF package manager found" \
-                "DNF package manager not found" \
-                "Check if DNF package manager is available for modern RPM systems"; then
-        echo "dnf"
-    elif execute "command -v yum >/dev/null 2>&1" \
-                "YUM package manager found" \
-                "YUM package manager not found" \
-                "Check if YUM package manager is available for older RPM systems"; then
-        echo "yum"
-    else
-        echo "unknown"
-    fi
-}
-
-# Function to update package cache
-update_package_cache() {
-    local pkg_manager="$1"
-    
-    if [[ "$UPDATE_PACKAGE_CACHE" != "true" ]]; then
-        log INFO "Skipping package cache update (--no-update specified)"
-        return 0
-    fi
-    
-    log INFO "Updating package cache..."
-    
-    case "$pkg_manager" in
-        "apt")
-            execute_or_dryrun "sudo apt-get update" "Package cache updated" "Failed to update package cache"
-            ;;
-        "dnf")
-            execute_or_dryrun "sudo dnf makecache" "Package cache updated" "Failed to update package cache"
-            ;;
-        "yum")
-            execute_or_dryrun "sudo yum makecache" "Package cache updated" "Failed to update package cache"
-            ;;
-        *)
-            log WARN "Unknown package manager, skipping cache update"
-            ;;
-    esac
-}
-
-# Function to install packages
-install_packages() {
-    local pkg_manager="$1"
-    shift
-    local packages=("$@")
-    
-    if [[ ${#packages[@]} -eq 0 ]]; then
-        log INFO "No packages to install"
-        return 0
-    fi
-    
-    local package_list="${packages[*]}"
-    log INFO "Installing packages: $package_list"
-    
-    local install_cmd=""
-    case "$pkg_manager" in
-        "apt")
-            install_cmd="sudo apt-get install -y $package_list"
-            ;;
-        "dnf")
-            install_cmd="sudo dnf install -y $package_list"
-            ;;
-        "yum")
-            install_cmd="sudo yum install -y $package_list"
-            ;;
-        *)
-            log ERROR "Unsupported package manager: $pkg_manager"
-            return 1
-            ;;
-    esac
-    
-    if [[ "$VERBOSE" == "true" ]]; then
-        execute_or_dryrun "$install_cmd" \
-                         "Installed packages: $package_list" \
-                         "Failed to install packages: $package_list" \
-                         "Installing system packages for Shuttle file sharing and permissions management"
-    else
-        # Only redirect stdout, keep stderr visible for sudo password prompts
-        execute_or_dryrun "$install_cmd >/dev/null" \
-                         "Installed packages: $package_list" \
-                         "Failed to install packages: $package_list" \
-                         "Installing system packages for Shuttle file sharing and permissions management"
-    fi
-}
-
-# Function to get Samba packages for different distributions
-get_samba_packages() {
-    local pkg_manager="$1"
-    
-    case "$pkg_manager" in
-        "apt")
-            echo "samba winbind libnss-winbind libpam-winbind"
-            ;;
-        "dnf"|"yum")
-            echo "samba samba-winbind samba-winbind-clients"
-            ;;
-        *)
-            echo "samba"
-            ;;
-    esac
-}
-
-# Function to get ACL packages for different distributions
-get_acl_packages() {
-    local pkg_manager="$1"
-    
-    case "$pkg_manager" in
-        "apt")
-            echo "acl attr"
-            ;;
-        "dnf"|"yum")
-            echo "acl attr"
-            ;;
-        *)
-            echo "acl"
-            ;;
-    esac
-}
-
-# Function to check if packages are already installed
-check_package_installed() {
-    local pkg_manager="$1"
-    local package="$2"
-    
-    case "$pkg_manager" in
-        "apt")
-            execute "dpkg -l \"$package\" >/dev/null 2>&1" \
-                   "Package $package is installed" \
-                   "Package $package is not installed" \
-                   "Check if package is installed on Debian/Ubuntu system using dpkg"
-            ;;
-        "dnf"|"yum")
-            execute "rpm -q \"$package\" >/dev/null 2>&1" \
-                   "Package $package is installed" \
-                   "Package $package is not installed" \
-                   "Check if package is installed on RPM-based system using rpm"
-            ;;
-        *)
-            return 1
-            ;;
-    esac
-}
-
-# Function to filter already installed packages
-filter_uninstalled_packages() {
-    local pkg_manager="$1"
-    shift
-    local packages=("$@")
-    local uninstalled=()
-    
-    for package in "${packages[@]}"; do
-        if check_package_installed "$pkg_manager" "$package"; then
-            log INFO "Package already installed: $package" >&2
-        else
-            uninstalled+=("$package")
-        fi
-    done
-    
-    echo "${uninstalled[@]}"
 }
 
 # Main installation function
@@ -263,74 +95,102 @@ main() {
         esac
     done
     
-    log INFO "Starting tool installation script"
+    log INFO "Installing Tools for User/Group Management"
     
-    # Detect package manager
-    local pkg_manager
-    pkg_manager=$(detect_package_manager)
+    # Show package manager info using standardized function
+    show_package_manager_info
     
-    if [[ "$pkg_manager" == "unknown" ]]; then
-        log ERROR "Could not detect supported package manager"
-        log ERROR "Supported: apt-get (Debian/Ubuntu), dnf/yum (RHEL/Fedora)"
-        exit 1
-    fi
-    
-    log INFO "Detected package manager: $pkg_manager"
-    
-    # Check if running as root or can sudo
-    if [[ $EUID -eq 0 ]]; then
-        log INFO "Running as root"
-    elif command -v sudo >/dev/null 2>&1; then
-        log INFO "Will use sudo for package installation"
+    # Update package cache using standardized function
+    if [[ "$UPDATE_PACKAGE_CACHE" == "true" ]]; then
+        update_package_cache
     else
-        log ERROR "Neither running as root nor sudo available"
-        exit 1
+        log INFO "Skipping package cache update (--no-update specified)"
     fi
     
-    # Update package cache
-    update_package_cache "$pkg_manager"
-    
-    # Install Samba packages
+    # Install Samba packages using standardized library
     if [[ "$INSTALL_SAMBA" == "true" ]]; then
-        local samba_packages
-        samba_packages=$(get_samba_packages "$pkg_manager")
-        read -ra samba_array <<< "$samba_packages"
+        log INFO "Installing Samba/Winbind packages..."
         
-        local uninstalled_samba
-        uninstalled_samba=$(filter_uninstalled_packages "$pkg_manager" "${samba_array[@]}")
-        read -ra uninstalled_samba_array <<< "$uninstalled_samba"
+        # Define package mapping for Samba tools
+        declare -A samba_packages
+        samba_packages[apt]="samba winbind libnss-winbind libpam-winbind"
+        samba_packages[dnf]="samba samba-winbind samba-winbind-clients"
+        samba_packages[yum]="samba samba-winbind samba-winbind-clients"
+        samba_packages[pacman]="samba"
+        samba_packages[zypper]="samba samba-winbind"
+        samba_packages[brew]="samba"
+        samba_packages[default]="samba"  # Fallback
         
-        if [[ ${#uninstalled_samba_array[@]} -gt 0 && -n "${uninstalled_samba_array[0]}" ]]; then
-            log INFO "Installing Samba/Winbind packages..."
-            install_packages "$pkg_manager" "${uninstalled_samba_array[@]}"
+        if [[ "$VERBOSE" == "true" ]]; then
+            install_packages_from_map "Samba/Winbind" samba_packages
         else
-            log INFO "All Samba/Winbind packages already installed"
+            install_packages_from_map "Samba/Winbind" samba_packages >/dev/null
         fi
     else
         log INFO "Skipping Samba/Winbind installation (--no-samba specified)"
     fi
     
-    # Install ACL packages
+    # Install ACL packages using standardized library
     if [[ "$INSTALL_ACL" == "true" ]]; then
-        local acl_packages
-        acl_packages=$(get_acl_packages "$pkg_manager")
-        read -ra acl_array <<< "$acl_packages"
+        log INFO "Installing ACL packages..."
         
-        local uninstalled_acl
-        uninstalled_acl=$(filter_uninstalled_packages "$pkg_manager" "${acl_array[@]}")
-        read -ra uninstalled_acl_array <<< "$uninstalled_acl"
+        # Define package mapping for ACL tools
+        declare -A acl_packages
+        acl_packages[apt]="acl attr"
+        acl_packages[dnf]="acl attr"
+        acl_packages[yum]="acl attr"
+        acl_packages[pacman]="acl attr"
+        acl_packages[zypper]="acl attr"
+        acl_packages[brew]="acl"  # attr not available on macOS
+        acl_packages[default]="acl"  # Fallback
         
-        if [[ ${#uninstalled_acl_array[@]} -gt 0 && -n "${uninstalled_acl_array[0]}" ]]; then
-            log INFO "Installing ACL packages..."
-            install_packages "$pkg_manager" "${uninstalled_acl_array[@]}"
+        if [[ "$VERBOSE" == "true" ]]; then
+            install_packages_from_map "ACL tools" acl_packages
         else
-            log INFO "All ACL packages already installed"
+            install_packages_from_map "ACL tools" acl_packages >/dev/null
         fi
     else
         log INFO "Skipping ACL tools installation (--no-acl specified)"
     fi
     
-    log INFO "Tool installation completed successfully"
+    # Verify installations using direct tool checking
+    local all_tools_ok=true
+    
+    if [[ "$INSTALL_SAMBA" == "true" ]]; then
+        log INFO "Verifying Samba tools installation..."
+        if ! check_tool_with_version "smbpasswd" "none" "Samba password tool"; then
+            all_tools_ok=false
+        fi
+        if ! check_tool_with_version "smbd" "smbd -V" "Samba daemon"; then
+            all_tools_ok=false
+        fi
+        if ! check_tool_with_version "net" "net --version" "Samba net tool"; then
+            all_tools_ok=false
+        fi
+        if ! check_tool_with_version "winbindd" "winbindd -V" "Winbind daemon"; then
+            all_tools_ok=false
+        fi
+    fi
+    
+    if [[ "$INSTALL_ACL" == "true" ]]; then
+        log INFO "Verifying ACL tools installation..."
+        if ! check_tool_with_version "getfacl" "getfacl --version" "Get file ACL tool"; then
+            all_tools_ok=false
+        fi
+        if ! check_tool_with_version "setfacl" "setfacl --version" "Set file ACL tool"; then
+            all_tools_ok=false
+        fi
+        if ! check_tool_with_version "getfattr" "getfattr --version" "Get file attributes tool"; then
+            all_tools_ok=false
+        fi
+    fi
+    
+    if [[ "$all_tools_ok" == "true" ]]; then
+        log INFO "All requested tools installed and verified successfully!"
+    else
+        log WARN "Some tools may not be available in PATH or have version check issues"
+        log INFO "This might be normal if they're installed in system locations"
+    fi
     
     # Show next steps
     echo ""
@@ -347,37 +207,6 @@ main() {
     
     return 0
 }
-
-# Default log function if not available from common functions
-if ! command -v log >/dev/null 2>&1; then
-    log() {
-        local level="$1"
-        shift
-        echo "[$level] $*"
-    }
-fi
-
-# Default execute_or_dryrun function if not available from common functions
-if ! command -v execute_or_dryrun >/dev/null 2>&1; then
-    execute_or_dryrun() {
-        local cmd="$1"
-        local success_msg="$2"
-        local error_msg="$3"
-        
-        if [[ "$DRY_RUN" == "true" ]]; then
-            echo "[DRY RUN] Would execute: $cmd"
-            return 0
-        else
-            if eval "$cmd"; then
-                echo "$success_msg"
-                return 0
-            else
-                echo "$error_msg"
-                return 1
-            fi
-        fi
-    }
-fi
 
 # Execute main function
 main "$@"

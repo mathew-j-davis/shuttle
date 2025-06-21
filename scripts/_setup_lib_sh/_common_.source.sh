@@ -17,7 +17,20 @@ show_saved_config_usage() {
     echo ""
     
     if [[ "$continue_option" == "true" ]]; then
-        echo "Press Enter to continue with ${config_type%s}, or Ctrl+C to exit..."
+        read -p "Proceed with ${config_type%s}? (Default: Yes) [Y/n/x]: " CONFIRM
+        case $CONFIRM in
+            [Nn])
+                echo "${config_type^} cancelled."
+                exit 0
+                ;;
+            [Xx])
+                echo "${config_type^} cancelled by user."
+                exit 0
+                ;;
+            *)
+                # Continue (default Yes)
+                ;;
+        esac
     else
         echo "${config_type^} saved but not executed."
     fi

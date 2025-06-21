@@ -564,7 +564,13 @@ run_configuration_wizard() {
         if [[ -f /tmp/wizard_config_filename ]]; then
             config_filename=$(cat /tmp/wizard_config_filename)
             rm -f /tmp/wizard_config_filename
-            config_filename="$PROJECT_ROOT/config/$config_filename"
+            # Check if config_filename is already an absolute path
+            if [[ "$config_filename" = /* ]]; then
+                # Already absolute path, use as-is
+                config_filename="$config_filename"
+            else
+                config_filename="$PROJECT_ROOT/config/$config_filename"
+            fi
         else
             # Try to find the most recently generated config file
             local latest_config=$(ls -t $CONFIG_GLOB_PATTERN 2>/dev/null | head -1)
@@ -589,7 +595,12 @@ run_configuration_wizard() {
     if [[ -f /tmp/wizard_config_filename ]]; then
         local wizard_filename=$(cat /tmp/wizard_config_filename)
         rm -f /tmp/wizard_config_filename
-        CONFIG_FILE="$PROJECT_ROOT/config/$wizard_filename"
+        # Check if wizard_filename is already an absolute path
+        if [[ "$wizard_filename" = /* ]]; then
+            CONFIG_FILE="$wizard_filename"
+        else
+            CONFIG_FILE="$PROJECT_ROOT/config/$wizard_filename"
+        fi
         echo ""
         print_success "Using wizard-generated configuration: $CONFIG_FILE"
         echo ""

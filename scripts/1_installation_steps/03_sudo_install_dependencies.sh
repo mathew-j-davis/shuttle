@@ -1,90 +1,98 @@
 #!/bin/bash
 # 03_sudo_install_dependencies.sh - Install basic system dependencies
+# Refactored to use centralized package management library
 
-set -e  # Exit on error
+set -euo pipefail
 
-# Parse command line arguments for dry-run
+# Script identification
+SCRIPT_NAME="$(basename "$0")"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Source required libraries - simple and direct
+source "$SCRIPT_DIR/_sources.sh"
+
+# Global variables
 DRY_RUN=false
-for arg in "$@"; do
-  if [ "$arg" = "--dry-run" ]; then
-    DRY_RUN=true
-  fi
-done
 
-echo "=== Installing System Dependencies ==="
-echo ""
+# Function to show usage
+show_usage() {
+    cat << EOF
+Usage: $SCRIPT_NAME [options]
 
-# Check if we're on a Debian-based system
-if ! command -v apt-get >/dev/null 2>&1; then
-    echo "❌ This script requires apt-get (Debian/Ubuntu)"
-    echo "For other distributions, please install these packages manually:"
-    echo "  - lsof"
-    echo "  - gnupg"
+Install basic system dependencies required for Shuttle operation.
 
-    exit 1
-fi
+Options:
+  --dry-run             Show what would be installed without making changes
+  --help, -h            Show this help message
 
-# Function to check if package is installed
-is_installed() {
-    dpkg -l "$1" 2>/dev/null | grep -q "^ii"
+Dependencies Installed:
+  - lsof (for checking open files)
+  - gnupg (for GPG encryption/decryption)
+
+Examples:
+  # Install all system dependencies
+  $SCRIPT_NAME
+  
+  # Dry run to see what would be installed
+  $SCRIPT_NAME --dry-run
+
+Notes:
+  - Automatically detects package manager (apt, dnf, yum, pacman, zypper, brew)
+  - Requires sudo privileges on most systems (except macOS with Homebrew)
+  - Skips packages that are already installed
+EOF
 }
 
-# List of packages to install
-PACKAGES=(
-    "lsof"      # For checking open files
-    "gnupg"     # For GPG encryption
-)
-
-# Check which packages need installation
-TO_INSTALL=()
-for pkg in "${PACKAGES[@]}"; do
-    if ! is_installed "$pkg"; then
-        TO_INSTALL+=("$pkg")
-    fi
-done
-
-if [[ ${#TO_INSTALL[@]} -eq 0 ]]; then
-    echo "✅ All required packages are already installed"
-    exit 0
-fi
-
-echo "📦 Need to install: ${TO_INSTALL[*]}"
-echo ""
-
-if [[ "$DRY_RUN" == "true" ]]; then
-    echo "[DRY RUN] Would update package lists:"
-    echo "[DRY RUN]   sudo apt-get update"
-    echo ""
-    echo "[DRY RUN] Would install packages:"
-    echo "[DRY RUN]   sudo apt-get install -y ${TO_INSTALL[*]}"
-else
-    # Update package lists
-    echo "Updating package lists..."
-    if ! sudo apt-get update; then
-        echo "❌ Failed to update package lists"
-        echo "Please check your internet connection and apt sources"
-        exit 1
-    fi
-
-    # Install packages
-    echo ""
-    echo "Installing packages..."
-    if ! sudo apt-get install -y "${TO_INSTALL[@]}"; then
-        echo "❌ Failed to install some packages"
-        exit 1
-    fi
-fi
-
-echo ""
-echo "✅ All system dependencies installed successfully!"
-
-# Verify installations
-echo ""
-echo "Verifying installations:"
-for pkg in "${PACKAGES[@]}"; do
-    if command -v "$pkg" >/dev/null 2>&1 || is_installed "$pkg"; then
-        echo "  ✓ $pkg"
+# Main function
+main() {
+    # Parse command line arguments
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --dry-run)
+                DRY_RUN=true
+                shift
+                ;;
+            --help|-h)
+                show_usage
+                exit 0
+                ;;
+            *)
+                echo "Unknown option: $1"
+                show_usage
+                exit 1
+                ;;
+        esac
+    done
+    
+    log INFO "Installing System Dependencies"
+    
+    # Show package manager info
+    show_package_manager_info
+    
+    # Define package mapping for basic system tools
+    declare -A system_packages
+    system_packages[apt]="lsof gnupg"
+    system_packages[dnf]="lsof gnupg2"
+    system_packages[yum]="lsof gnupg2"
+    system_packages[pacman]="lsof gnupg"
+    system_packages[zypper]="lsof gpg2"
+    system_packages[brew]="lsof gnupg"
+    system_packages[default]="lsof gnupg"  # Fallback
+    
+    install_packages_from_map "System dependencies" system_packages
+    
+    # Verify installation using standardized tool checking
+    # Use 'none' for tools that don't have --version flag
+    if check_tools_installation "system dependencies" "lsof:lsof -v 2>&1" "gpg:gpg --version"; then
+        log INFO "All system dependencies installed successfully!"
     else
-        echo "  ✗ $pkg (warning: command not found in PATH)"
+        log WARN "Some dependencies may not be available in PATH"
+        log INFO "This might be normal if they're installed in system locations"
     fi
-done
+    
+    return 0
+}
+
+
+# Execute main function
+main "$@"
