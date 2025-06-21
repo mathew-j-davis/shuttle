@@ -11,11 +11,8 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 DEPLOYMENT_DIR="$SCRIPT_DIR/1_installation_steps"
 
-# Source required libraries (provides colors, logging, and user checks)
-source "$SCRIPT_DIR/__setup_lib_sh/_setup_lib_loader.source.sh"
-source "$SCRIPT_DIR/__setup_lib_sh/_common_.source.sh"
-source "$SCRIPT_DIR/__setup_lib_sh/_check_active_user.source.sh"
-source "$SCRIPT_DIR/__setup_lib_sh/_input_validation.source.sh"
+# Source required libraries - simple and direct
+source "$SCRIPT_DIR/_sources.sh"
 
 # Change to project root
 cd "$PROJECT_ROOT"
@@ -180,10 +177,14 @@ validate_install_mode_instructions() {
             echo "- Writing to /etc/shuttle/ and /opt/shuttle/"
             echo "- Creating system users and groups"
             echo ""
-            read -p "Continue with service mode? [y/N]: " confirm
+            read -p "Continue with service mode? (Default: No) [y/N/x]: " confirm
             case "$confirm" in
                 [Yy])
                     echo "Proceeding with service mode - you may be prompted for sudo later"
+                    ;;
+                [Xx])
+                    echo "Installation cancelled by user."
+                    exit 0
                     ;;
                 *)
                     echo "Installation cancelled. Run in wizard mode: $0 --wizard"
@@ -243,8 +244,10 @@ interactive_install_mode_choice() {
     echo "   - Uses /etc/shuttle/, /opt/shuttle/, /var/lib/shuttle/"
     echo "   - Requires elevated permissions for some steps"
     echo ""
+    echo "x) Exit - Quit the installer"
+    echo ""
     
-    read -p "Installation mode [1]: " INSTALL_MODE_CHOICE
+    read -p "Installation mode (Default: 1): " INSTALL_MODE_CHOICE
     INSTALL_MODE_CHOICE=${INSTALL_MODE_CHOICE:-1}
     
     # Validate installation mode choice
@@ -273,6 +276,10 @@ interactive_install_mode_choice() {
             USER_INSTALL_MODE_CHOICE="$INSTALL_MODE_SERVICE"
             echo -e "${GREEN}Selected: Service account mode${NC}"
             ;;
+        [Xx])
+            echo "Installation cancelled by user."
+            exit 0
+            ;;
         *) 
             INSTALL_MODE="$INSTALL_MODE_DEV"
             ENV_FLAG=$(get_env_flag_for_mode "$INSTALL_MODE")
@@ -300,21 +307,11 @@ select_installation_mode() {
 
 # Load installation constants for consistent choice handling
 load_installation_constants_for_install() {
-    # Load the constants library
-    SETUP_LIB_SH_DIR="$SCRIPT_DIR/__setup_lib_sh"
-    local loader_path="$SETUP_LIB_SH_DIR/_setup_lib_loader.source.sh"
-    
-    if [[ -f "$loader_path" ]]; then
-        source "$loader_path"
-        # Pass explicit directory to ensure correct path resolution
-        load_installation_constants_lib "$SCRIPT_DIR" || {
-            echo "ERROR: Failed to load installation constants from $SCRIPT_DIR" >&2
-            return 1
-        }
-    else
-        echo "ERROR: Setup library loader not found at: $loader_path" >&2
+    # Constants are already loaded via _sources.sh
+    load_installation_constants || {
+        echo "Failed to initialize installation constants" >&2
         return 1
-    fi
+    }
 }
 
 # Detect current virtual environment state (always runs)
@@ -387,13 +384,17 @@ validate_venv_instructions() {
                 echo "but you currently have a virtual environment active: $CURRENT_VENV_PATH"
                 echo ""
                 echo "Global installation will ignore the virtual environment."
-                read -p "Continue with global install? [y/N]: " confirm
+                read -p "Continue with global install? (Default: No) [y/N/x]: " confirm
                 case "$confirm" in
                     [Yy])
                         CREATE_VENV=false
                         VENV_TYPE="$VENV_TYPE_GLOBAL"
                         IN_VENV=false
                         echo -e "${GREEN}✅ Using global Python installation as instructed${NC}"
+                        ;;
+                    [Xx])
+                        echo "Installation cancelled by user."
+                        exit 0
                         ;;
                     *)
                         echo "Installation cancelled. Run in wizard mode: $0 --wizard"
@@ -446,14 +447,14 @@ interactive_venv_choice() {
     echo "   - Recommended for isolated installation"
     echo "   - Script will create and activate .venv"
     echo ""
-    echo "X) I'll set up my own virtual environment"
+    echo "3) I'll set up my own virtual environment"
     echo "   - Exit now to create and activate your venv"
     echo "   - Then run this script again"
     echo ""
     
     # Loop until we get a valid choice (avoids recursive calls)
     while true; do
-        read -p "Your choice [2]: " VENV_CHOICE
+        read -p "Your choice (Default: 2): " VENV_CHOICE
         VENV_CHOICE=${VENV_CHOICE:-2}
         
         case $VENV_CHOICE in
@@ -674,11 +675,15 @@ validate_gpg_instructions() {
         echo -e "  ${BLUE}./scripts/0_key_generation/00_generate_shuttle_keys.sh${NC}"
         echo -e "  ${BLUE}cp shuttle_public.gpg $saved_gpg_path${NC}"
         echo ""
-        read -p "Continue with this key path? [Y/n]: " confirm
+        read -p "Continue with this key path? (Default: Yes) [Y/n/x]: " confirm
         case "$confirm" in
             [Nn])
                 echo "Installation cancelled. Run in wizard mode: $0 --wizard"
                 exit 1
+                ;;
+            [Xx])
+                echo "Installation cancelled by user."
+                exit 0
                 ;;
         esac
     fi
@@ -1567,14 +1572,14 @@ collect_config_parameters() {
     echo "Scan threads:"
     echo "Number of parallel threads used for file scanning."
     echo ""
-    read -p "Threads [$DEFAULT_THREADS]: " SCAN_THREADS
+    read -p "Threads (Default: $DEFAULT_THREADS): " SCAN_THREADS
     SCAN_THREADS=${SCAN_THREADS:-$DEFAULT_THREADS}
     echo ""
     
     echo "Minimum free space:"
     echo "Minimum disk space (in MB) required before processing stops."
     echo ""
-    read -p "Min Space MB [100]: " MIN_FREE_SPACE
+    read -p "Min Space MB (Default: 100): " MIN_FREE_SPACE
     MIN_FREE_SPACE=${MIN_FREE_SPACE:-100}
     
     # Logging
@@ -1590,6 +1595,7 @@ collect_config_parameters() {
     echo "3) WARNING - Warning messages for potential issues"
     echo "4) ERROR   - Error messages for serious problems"
     echo "5) CRITICAL - Critical system failures only"
+    echo "x) Exit - Quit the installer"
     echo ""
     
     # Get numeric default for display
@@ -1602,7 +1608,7 @@ collect_config_parameters() {
         *) DEFAULT_LOG_NUM=2 ;;
     esac
     
-    read -p "Log level (Default: $DEFAULT_LOG_LEVEL) [$DEFAULT_LOG_NUM]: " LOG_LEVEL_INPUT
+    read -p "Log level (Default: $DEFAULT_LOG_NUM): " LOG_LEVEL_INPUT
     LOG_LEVEL_INPUT=${LOG_LEVEL_INPUT:-$DEFAULT_LOG_NUM}
     
     # Map number to log level name
@@ -1612,6 +1618,10 @@ collect_config_parameters() {
         3) LOG_LEVEL="WARNING" ;;
         4) LOG_LEVEL="ERROR" ;;
         5) LOG_LEVEL="CRITICAL" ;;
+        [Xx])
+            echo "Installation cancelled by user."
+            exit 0
+            ;;
         "DEBUG"|"INFO"|"WARNING"|"ERROR"|"CRITICAL") LOG_LEVEL="$LOG_LEVEL_INPUT" ;;
         *) LOG_LEVEL="$DEFAULT_LOG_LEVEL" ;;
     esac
@@ -1654,7 +1664,7 @@ collect_config_parameters() {
         echo "SMTP port:"
         echo "Port number for SMTP connection (typically 587 for TLS, 25 for standard)."
         echo ""
-        read -p "[587]: " SMTP_PORT
+        read -p "SMTP Port (Default: 587): " SMTP_PORT
         SMTP_PORT=${SMTP_PORT:-587}
         
         # Validate SMTP port
@@ -2309,11 +2319,11 @@ wizard_completion_options() {
     echo "1) Continue with installation"
     echo "2) Save instructions and continue"
     echo "3) Save instructions only (exit without installing)"
-    echo "4) Exit without saving"
+    echo "x) Exit without saving"
     echo ""
     
     while true; do
-        read -p "Select an option [1-4] (Default: 1): " WIZARD_CHOICE
+        read -p "Select an option [1-3/x] (Default: 1): " WIZARD_CHOICE
         WIZARD_CHOICE=${WIZARD_CHOICE:-1}
         
         case $WIZARD_CHOICE in
@@ -2326,7 +2336,7 @@ wizard_completion_options() {
             2)
                 # Save instructions and continue
                 # Default to config/install_inputs.yaml
-                DEFAULT_INSTRUCTIONS_FILE="config/install_inputs.yaml"
+                DEFAULT_INSTRUCTIONS_FILE="config/installation_steps.yaml"
                 read -p "Instructions file name (Default: $DEFAULT_INSTRUCTIONS_FILE): " INSTRUCTIONS_FILE
                 INSTRUCTIONS_FILE=${INSTRUCTIONS_FILE:-$DEFAULT_INSTRUCTIONS_FILE}
                 
@@ -2336,15 +2346,8 @@ wizard_completion_options() {
                 fi
                 
                 if save_installation_instructions "$INSTRUCTIONS_FILE"; then
-                    echo -e "${GREEN}✅ Instructions saved to: $INSTRUCTIONS_FILE${NC}"
-                    echo ""
-                    echo "You can rerun this installation later with:"
-                    echo -e "${BLUE}$0 --instructions $INSTRUCTIONS_FILE${NC}"
-                    echo ""
-                    echo "To perform a dry run of the installation (run through the process but make no changes) use --dry-run:"
-                    echo -e "${BLUE}$0 --instructions $INSTRUCTIONS_FILE --dry-run${NC}"
-                    echo ""
-                    read -p "Press Enter to continue with installation..."
+                    show_saved_config_usage "$0" "$INSTRUCTIONS_FILE" "instructions" "true"
+                    read -p ""  # Wait for Enter
                     execute_installation
                     show_next_steps
                 fi
@@ -2353,7 +2356,7 @@ wizard_completion_options() {
             3)
                 # Save instructions only
                 # Default to config/install_inputs.yaml
-                DEFAULT_INSTRUCTIONS_FILE="config/install_inputs.yaml"
+                DEFAULT_INSTRUCTIONS_FILE="config/installation_steps.yaml"
                 read -p "Instructions file name (Default: $DEFAULT_INSTRUCTIONS_FILE): " INSTRUCTIONS_FILE
                 INSTRUCTIONS_FILE=${INSTRUCTIONS_FILE:-$DEFAULT_INSTRUCTIONS_FILE}
                 
@@ -2363,27 +2366,19 @@ wizard_completion_options() {
                 fi
                 
                 if save_installation_instructions "$INSTRUCTIONS_FILE"; then
-                    echo -e "${GREEN}✅ Instructions saved to: $INSTRUCTIONS_FILE${NC}"
-                    echo ""
-                    echo "You can run this installation later with:"
-                    echo -e "${BLUE}$0 --instructions $INSTRUCTIONS_FILE${NC}"
-                    echo ""
-                    echo "To perform a dry run of the installation (run through the process but make no changes) use --dry-run:"
-                    echo -e "${BLUE}$0 --instructions $INSTRUCTIONS_FILE --dry-run${NC}"
-                    echo ""
-                    echo "Installation saved but not executed."
+                    show_saved_config_usage "$0" "$INSTRUCTIONS_FILE" "instructions" "false"
                     exit 0
                 else
                     exit 1
                 fi
                 ;;
-            4)
+            [Xx])
                 # Exit without saving
                 echo "Installation cancelled."
                 exit 0
                 ;;
             *)
-                echo -e "${RED}Invalid option. Please select 1-4.${NC}"
+                echo -e "${RED}Invalid option. Please select 1-3 or x.${NC}"
                 ;;
         esac
     done
@@ -2635,11 +2630,7 @@ main() {
         echo "📋 Loading installation instructions from: $INSTALL_INSTRUCTIONS_FILE"
         echo ""
         
-        # Load instructions reader
-        source_setup_lib "installation_instructions_reader" "$SCRIPT_DIR" || { 
-            echo "Failed to load instructions reader" >&2
-            exit 1
-        }
+        # Instructions reader already loaded via _sources.sh
         
         # Read instructions file
         if ! read_installation_instructions "$INSTALL_INSTRUCTIONS_FILE"; then

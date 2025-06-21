@@ -14,14 +14,14 @@ source_setup_lib() {
     
     # Try different possible locations for the shared library
     local possible_paths=(
-        # Same directory as calling script (for scripts already in __setup_lib_sh)
+        # Same directory as calling script (for scripts already in _setup_lib_sh)
         "$calling_script_dir/$lib_name"
         # Shared library from script directory
-        "$calling_script_dir/__setup_lib_sh/$lib_name"
+        "$calling_script_dir/_setup_lib_sh/$lib_name"
         # Shared library from parent directory (for scripts in subdirectories)
-        "$calling_script_dir/../__setup_lib_sh/$lib_name"
+        "$calling_script_dir/../_setup_lib_sh/$lib_name"
         # Shared library from project root
-        "$(dirname "$calling_script_dir")/__setup_lib_sh/$lib_name"
+        "$(dirname "$calling_script_dir")/_setup_lib_sh/$lib_name"
         # Legacy location (fallback)
         "$calling_script_dir/lib/$lib_name"
     )
@@ -69,6 +69,16 @@ load_installation_constants_lib() {
     return 0
 }
 
+# Load package manager library
+load_package_manager_lib() {
+    local calling_script_dir="${1:-$(dirname "$(readlink -f "${BASH_SOURCE[1]}")")}"
+    
+    # Load package manager library
+    source_setup_lib "_package_manager" "$calling_script_dir" || return 1
+    
+    return 0
+}
+
 # Alternative: Load all essential libraries at once
 load_all_setup_libs() {
     local calling_script_dir="${1:-$(dirname "$(readlink -f "${BASH_SOURCE[1]}")")}"
@@ -79,6 +89,7 @@ load_all_setup_libs() {
     source_setup_lib "_check_tool" "$calling_script_dir" || return 1
     source_setup_lib "_users_and_groups_inspect" "$calling_script_dir" || return 1
     source_setup_lib "_common_" "$calling_script_dir" || return 1
+    source_setup_lib "_package_manager" "$calling_script_dir" || return 1
     
     return 0
 }

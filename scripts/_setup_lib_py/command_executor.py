@@ -8,7 +8,7 @@ import subprocess
 from typing import List, Tuple
 
 
-def run_command(cmd_list: List[str], description: str, dry_run: bool = False) -> bool:
+def run_command(cmd_list: List[str], description: str, dry_run: bool = False, interactive: bool = False) -> bool:
     """
     Execute command or show what would be executed in dry run
     
@@ -16,6 +16,7 @@ def run_command(cmd_list: List[str], description: str, dry_run: bool = False) ->
         cmd_list: List of command arguments
         description: Human-readable description of the command
         dry_run: If True, only print what would be executed
+        interactive: If True, allow interactive input (don't capture output)
         
     Returns:
         True if successful, False otherwise
@@ -30,17 +31,26 @@ def run_command(cmd_list: List[str], description: str, dry_run: bool = False) ->
     else:
         print(f"Executing: {description}")
         try:
-            result = subprocess.run(cmd_list, check=True, capture_output=True, text=True)
-            if result.stdout.strip():
-                print(f"  Output: {result.stdout.strip()}")
-            print(f"✅ {description} completed")
+            if interactive:
+                # For interactive commands, don't capture output - let it go to terminal
+                result = subprocess.run(cmd_list, check=True)
+                print(f"✅ {description} completed")
+            else:
+                # For non-interactive commands, capture output as before
+                result = subprocess.run(cmd_list, check=True, capture_output=True, text=True)
+                if result.stdout.strip():
+                    print(f"  Output: {result.stdout.strip()}")
+                print(f"✅ {description} completed")
             return True
         except subprocess.CalledProcessError as e:
             print(f"❌ {description} failed")
-            if e.stdout and e.stdout.strip():
+            if hasattr(e, 'stdout') and e.stdout and e.stdout.strip():
                 print(f"  stdout: {e.stdout.strip()}")
-            if e.stderr and e.stderr.strip():
+            if hasattr(e, 'stderr') and e.stderr and e.stderr.strip():
                 print(f"  stderr: {e.stderr.strip()}")
+            # For interactive commands, the error was already shown to user
+            if interactive:
+                print(f"  Error: Command exited with status {e.returncode}")
             return False
         except Exception as e:
             print(f"❌ {description} failed with error: {e}")

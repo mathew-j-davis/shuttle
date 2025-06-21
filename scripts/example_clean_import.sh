@@ -18,7 +18,7 @@ SCRIPT_NAME="$(basename "$0")"
 #   fi
 
 # Use this clean pattern:
-SETUP_LIB_DIR="$(dirname "$SCRIPT_DIR")/__setup_lib_sh"
+SETUP_LIB_DIR="$(dirname "$SCRIPT_DIR")/_setup_lib_sh"
 if [[ -f "$SETUP_LIB_DIR/_setup_lib_loader.source.sh" ]]; then
     source "$SETUP_LIB_DIR/_setup_lib_loader.source.sh"
     

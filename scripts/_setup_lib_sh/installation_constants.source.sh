@@ -10,9 +10,10 @@
 # Helper function to run Python with correct path
 run_python_with_setup_path() {
     local script_dir="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-    local setup_lib_py_dir="$(dirname "$script_dir")/__setup_lib_py"
+    local scripts_dir="$(dirname "$script_dir")"
+    local setup_lib_py_dir="$scripts_dir/_setup_lib_py"
     
-    PYTHONPATH="$setup_lib_py_dir:${PYTHONPATH}" python3 "$@"
+    PYTHONPATH="$setup_lib_py_dir:${PYTHONPATH:-}" python3 "$@"
 }
 
 # Function to get all constants from Python and export them as shell variables

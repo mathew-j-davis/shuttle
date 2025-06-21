@@ -1,4 +1,28 @@
 
+# Show usage instructions for saved configuration files
+# Usage: show_saved_config_usage "script_name" "config_file" "config_type" [continue_option]
+show_saved_config_usage() {
+    local script_name="$1"
+    local config_file="$2" 
+    local config_type="${3:-instructions}"  # "instructions" or "configuration"
+    local continue_option="${4:-false}"     # true if offering to continue
+    
+    echo -e "${GREEN}✅ ${config_type^} saved to: $config_file${NC}"
+    echo ""
+    echo "You can run this ${config_type%s} later with:"
+    echo -e "${BLUE}$script_name --${config_type%s} $config_file${NC}"
+    echo ""
+    echo "To perform a dry run (show what would be done without making changes) use --dry-run:"
+    echo -e "${BLUE}$script_name --${config_type%s} $config_file --dry-run${NC}"
+    echo ""
+    
+    if [[ "$continue_option" == "true" ]]; then
+        echo "Press Enter to continue with ${config_type%s}, or Ctrl+C to exit..."
+    else
+        echo "${config_type^} saved but not executed."
+    fi
+}
+
 # Color constants for logging
 RED='\033[0;31m'
 GREEN='\033[0;32m'

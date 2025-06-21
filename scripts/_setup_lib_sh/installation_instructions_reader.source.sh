@@ -17,7 +17,7 @@ read_installation_instructions() {
     fi
     
     # Call Python reader to extract values
-    local reader_script="$SCRIPT_DIR/__setup_lib_py/installation_instructions_reader.py"
+    local reader_script="$SCRIPT_DIR/_setup_lib_py/installation_instructions_reader.py"
     if [[ ! -f "$reader_script" ]]; then
         echo "ERROR: Python reader script not found: $reader_script" >&2
         return 1

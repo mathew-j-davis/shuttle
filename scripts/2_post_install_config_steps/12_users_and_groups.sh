@@ -6,43 +6,33 @@
 
 set -euo pipefail
 
-# Script directory for sourcing libraries
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-LIB_DIR="$SCRIPT_DIR/lib"
+# Script identification
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Source shared setup libraries
-SETUP_LIB_DIR="$(dirname "$SCRIPT_DIR")/__setup_lib_sh"
-if [[ -f "$SETUP_LIB_DIR/_setup_lib_loader.source.sh" ]]; then
-    source "$SETUP_LIB_DIR/_setup_lib_loader.source.sh"
-    load_all_setup_libs || {
-        echo "ERROR: Failed to load required setup libraries" >&2
-        exit 1
-    }
-else
-    echo "ERROR: Setup library loader not found at $SETUP_LIB_DIR/_setup_lib_loader.source.sh" >&2
-    exit 1
-fi
-source "$LIB_DIR/_cmd_show_user.source.sh"
-source "$LIB_DIR/_cmd_list_users.source.sh"
-source "$LIB_DIR/_cmd_list_user_groups.source.sh"
-source "$LIB_DIR/_cmd_add_user.source.sh"
-source "$LIB_DIR/_cmd_delete_user.source.sh"
-source "$LIB_DIR/_cmd_modify_user.source.sh"
-source "$LIB_DIR/_cmd_add_group.source.sh"
-source "$LIB_DIR/_cmd_delete_group.source.sh"
-source "$LIB_DIR/_cmd_modify_group.source.sh"
-source "$LIB_DIR/_cmd_show_group.source.sh"
-source "$LIB_DIR/_cmd_list_groups.source.sh"
-source "$LIB_DIR/_cmd_list_group_users.source.sh"
-source "$LIB_DIR/_cmd_count_group_users.source.sh"
-source "$LIB_DIR/_cmd_add_user_to_group.source.sh"
-source "$LIB_DIR/_cmd_delete_user_from_group.source.sh"
-source "$LIB_DIR/_cmd_show_acl_on_path.source.sh"
-source "$LIB_DIR/_cmd_add_acl_to_path.source.sh"
-source "$LIB_DIR/_cmd_delete_acl_from_path.source.sh"
-source "$LIB_DIR/_cmd_show_path_owner_permissions_and_acl.source.sh"
-source "$LIB_DIR/_cmd_set_path_owner.source.sh"
-source "$LIB_DIR/_cmd_set_path_permissions.source.sh"
+# Source required libraries - simple and direct
+source "$SCRIPT_DIR/_sources.sh"
+
+source "$SCRIPT_DIR/lib/_cmd_show_user.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_list_users.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_list_user_groups.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_add_user.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_delete_user.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_modify_user.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_add_group.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_delete_group.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_modify_group.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_show_group.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_list_groups.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_list_group_users.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_count_group_users.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_add_user_to_group.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_delete_user_from_group.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_show_acl_on_path.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_add_acl_to_path.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_delete_acl_from_path.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_show_path_owner_permissions_and_acl.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_set_path_owner.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_set_path_permissions.source.sh"
 
 
 

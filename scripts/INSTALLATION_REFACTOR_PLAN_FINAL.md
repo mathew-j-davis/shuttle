@@ -104,7 +104,7 @@ parse_arguments() {
 ### Phase 2: Create Installation Config Infrastructure
 
 #### A. Installation Config Constants
-**File: `scripts/__setup_lib_py/installation_config_constants.py`**
+**File: `scripts/_setup_lib_py/installation_config_constants.py`**
 ```python
 # Installation configuration file naming
 INSTALL_CONFIG_PREFIX = "shuttle_installation_config"
@@ -117,14 +117,14 @@ def get_install_config_filename(environment=None):
 ```
 
 #### B. Installation Wizard
-**File: `scripts/__setup_lib_py/installation_wizard.py`**
+**File: `scripts/_setup_lib_py/installation_wizard.py`**
 - Interactive collection of installation settings
 - Generates installation config YAML
 - Generates shuttle application config
 - Same exit code pattern as post-install wizard
 
 #### C. Installation Executor  
-**File: `scripts/__setup_lib_py/installation_executor.py`**
+**File: `scripts/_setup_lib_py/installation_executor.py`**
 - Reads installation config YAML
 - Executes installation phases
 - Calls existing installation step scripts
@@ -172,7 +172,7 @@ shuttle_config:
 - **Email validation**: SMTP settings  
 - **Network validation**: Hostnames and ports
 - **Input sanitization**: Prevent command injection
-- **Shared libraries**: Use `__setup_lib_sh` validation functions
+- **Shared libraries**: Use `_setup_lib_sh` validation functions
 
 ### Validation Points for `1_install.sh`:
 1. **Config path** (line 547): `validate_parameter_path()`

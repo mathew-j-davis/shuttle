@@ -29,7 +29,7 @@ fi
 ### After (Clean Intelligent Loading)
 ```bash
 # New way - clean and robust
-SETUP_LIB_DIR="$(dirname "$SCRIPT_DIR")/__setup_lib_sh"
+SETUP_LIB_DIR="$(dirname "$SCRIPT_DIR")/_setup_lib_sh"
 if [[ -f "$SETUP_LIB_DIR/_setup_lib_loader.source.sh" ]]; then
     source "$SETUP_LIB_DIR/_setup_lib_loader.source.sh"
     load_common_libs || {

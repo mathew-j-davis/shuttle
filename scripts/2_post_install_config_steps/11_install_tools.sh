@@ -6,22 +6,12 @@
 
 set -euo pipefail
 
-# Script directory and common functions
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+# Script identification
 SCRIPT_NAME="$(basename "$0")"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Source shared setup libraries
-SETUP_LIB_DIR="$(dirname "$SCRIPT_DIR")/__setup_lib_sh"
-if [[ -f "$SETUP_LIB_DIR/_setup_lib_loader.source.sh" ]]; then
-    source "$SETUP_LIB_DIR/_setup_lib_loader.source.sh"
-    load_common_libs || {
-        echo "ERROR: Failed to load required setup libraries" >&2
-        exit 1
-    }
-else
-    echo "ERROR: Setup library loader not found at $SETUP_LIB_DIR/_setup_lib_loader.source.sh" >&2
-    exit 1
-fi
+# Source required libraries - simple and direct
+source "$SCRIPT_DIR/_sources.sh"
 
 # Global variables
 DRY_RUN=false

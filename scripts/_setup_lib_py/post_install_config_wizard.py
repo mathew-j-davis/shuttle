@@ -111,6 +111,9 @@ class ConfigWizard:
         # Environment selection
         self._select_environment()
         
+        # Interactive mode preference
+        self._select_interactive_mode()
+        
         # Component selection
         self._select_components()
         
@@ -137,34 +140,79 @@ class ConfigWizard:
         }
         self.config['metadata']['environment'] = env_map[choice]
     
+    def _select_interactive_mode(self):
+        """Select interactive mode preference for post-install configuration"""
+        print("\n2. Interactive Mode Preference")
+        print("-----------------------------")
+        print("How would you like to run the post-install configuration?")
+        print("")
+        print("1) Interactive mode - Answer questions as the script runs")
+        print("2) Non-interactive mode - Use defaults from this configuration file")
+        print("3) Mixed mode - Interactive for critical decisions, defaults for others")
+        
+        choice = self._get_choice("Select mode", ["1", "2", "3"], "1")
+        
+        mode_map = {
+            "1": "interactive",
+            "2": "non-interactive",
+            "3": "mixed"
+        }
+        self.config['settings']['interactive_mode'] = mode_map[choice]
+        
+        # Add additional settings based on mode
+        if choice == "1":
+            print("\nInteractive mode selected:")
+            print("- You will be prompted for all configuration decisions")
+            print("- Script will pause for your input at each step")
+            self.config['settings']['prompt_for_passwords'] = True
+            self.config['settings']['confirm_each_step'] = True
+        elif choice == "2":
+            print("\nNon-interactive mode selected:")
+            print("- Script will use defaults from this configuration")
+            print("- No prompts during execution (good for automation)")
+            self.config['settings']['prompt_for_passwords'] = False
+            self.config['settings']['confirm_each_step'] = False
+        else:
+            print("\nMixed mode selected:")
+            print("- Critical decisions will prompt for input")
+            print("- Non-critical steps will use defaults")
+            self.config['settings']['prompt_for_passwords'] = True
+            self.config['settings']['confirm_each_step'] = False
+        
+        # Ask about dry-run preference
+        if self._confirm("\nEnable dry-run by default? (show what would be done without making changes)", False):
+            self.config['settings']['dry_run_default'] = True
+        else:
+            self.config['settings']['dry_run_default'] = False
+    
     def _select_components(self):
         """Select which components to install and configure"""
-        print("\n2. Component Selection")
+        print("\n3. Component Selection")
         print("--------------------")
         print("Choose which components to install and configure:")
         print("")
         
         # Package installation
         print("Package Installation:")
-        self.config['components']['install_samba'] = self._confirm("  Install Samba? (Default: Yes)", True)
-        self.config['components']['install_acl'] = self._confirm("  Install ACL tools? (Default: Yes)", True)
+        self.config['components']['install_samba'] = self._confirm("  Install Samba?", True)
+        self.config['components']['install_acl'] = self._confirm("  Install ACL tools?", True)
         print("")
         
         # Configuration steps
         print("Configuration Steps:")
-        self.config['components']['configure_users_groups'] = self._confirm("  Configure users and groups? (Default: Yes)", True)
+        self.config['components']['configure_users_groups'] = self._confirm("  Configure users and groups?", True)
         
         if self.config['components']['install_samba']:
-            self.config['components']['configure_samba'] = self._confirm("  Configure Samba settings? (Default: Yes)", True)
+            self.config['components']['configure_samba'] = self._confirm("  Configure Samba settings?", True)
         else:
             self.config['components']['configure_samba'] = False
             
-        self.config['components']['configure_firewall'] = self._confirm("  Configure firewall? (Default: Yes)", True)
+        self.config['components']['configure_firewall'] = self._confirm("  Configure firewall?", True)
         print("")
     
     def _select_user_approach(self):
         """Select user configuration approach"""
-        print("\n3. User Configuration Approach")
+        print("\n4. User Configuration Approach")
         print("-----------------------------")
         print("1) Single user for all functions (simplest)")
         print("2) Separate users by function (most secure)")
@@ -181,7 +229,7 @@ class ConfigWizard:
     
     def _configure_single_user(self):
         """Configure single user for all functions"""
-        print("\n4. Single User Configuration")
+        print("\n5. Single User Configuration")
         print("---------------------------")
         
         # User source
@@ -195,18 +243,27 @@ class ConfigWizard:
         else:
             username = input("Enter username [shuttle_all]: ").strip() or "shuttle_all"
         
-        # Account type 
+        # Account type (only relevant for new users)
         account_type = "service"
         if self.config['metadata']['environment'] == 'development':
-            if user_source == "existing":
-                print(f"\nFor existing user '{username}', how will they use Samba?")
-                print("1) Interactive user - desktop/human file sharing")
-                print("2) Service account - programmatic/automated file access")
-                type_choice = self._get_choice("Select usage type", ["1", "2"], "1")
-                account_type = "interactive" if type_choice == "1" else "service"
-            else:
+            if user_source != "existing":
+                # Only ask for new users where it actually matters
+                print("\nAccount Type Selection")
+                print("======================")
+                print("Service accounts (recommended for Samba):")
+                print("  - No shell access (/usr/sbin/nologin)")
+                print("  - Can only connect via Samba from other machines")
+                print("  - More secure for file sharing only")
+                print("")
+                print("Interactive accounts:")
+                print("  - Full shell access (/bin/bash)")
+                print("  - Can log in directly to this server")
+                print("  - Needed only if user requires local login")
+                print("")
                 if self._confirm("Create interactive account with shell access?", False):
                     account_type = "interactive"
+                else:
+                    print("→ Creating service account (Samba access only)")
         
         # Create groups
         self.config['groups'] = {
@@ -246,7 +303,7 @@ class ConfigWizard:
         # Samba configuration
         print("\nEnable Samba Access for User")
         print("============================")
-        if self.config['components']['configure_samba'] and self._confirm("Enable Samba access for this user? (Default: Yes)", True):
+        if self.config['components']['configure_samba'] and self._confirm("Enable Samba access for this user?", True):
             user['samba'] = {'enabled': True}
             
             # Samba authentication method
@@ -338,7 +395,12 @@ class ConfigWizard:
         print(f"\n{user_role} Path Permissions")
         print("=" * (len(user_role) + 17))
         print("Select which paths this user should have access to:")
-        print("Options: y/yes = grant access, n/no = don't grant, x/- = skip (don't modify existing permissions)")
+        print("")
+        print("Options:")
+        print("  y/yes = Grant access")
+        print("  n/no  = Don't grant access")
+        print("  s/-   = Skip (don't modify existing permissions)")
+        print("  x     = Exit wizard")
         print("")
         
         permissions = {'read_write': [], 'read_only': []}
@@ -375,7 +437,7 @@ class ConfigWizard:
     
     def _configure_separate_users(self):
         """Configure separate users for each function"""
-        print("\n3. Separate Users Configuration")
+        print("\n5. Separate Users Configuration")
         print("-------------------------------")
         
         # Create groups
@@ -524,7 +586,7 @@ class ConfigWizard:
     
     def _configure_custom_users(self):
         """Configure custom users"""
-        print("\n3. Custom User Configuration")
+        print("\n5. Custom User Configuration")
         print("---------------------------")
         
         # Create default groups
@@ -644,24 +706,38 @@ class ConfigWizard:
     
     def _confirm(self, prompt: str, default: bool = True) -> bool:
         """Get yes/no confirmation"""
-        default_str = "Y/n" if default else "y/N"
+        # Always add default text for consistency
+        default_text = "Yes" if default else "No"
+        prompt = f"{prompt} (Default: {default_text})"
+        
+        default_str = "Y/n/x" if default else "y/N/x"
         response = input(f"{prompt} [{default_str}]: ").strip().lower()
         
         if not response:
             return default
+        elif response == 'x':
+            print("\nExiting wizard...")
+            sys.exit(3)  # Exit code 3 for user cancellation
         return response in ['y', 'yes']
     
     def _get_choice(self, prompt: str, valid_choices: List[str], default: str) -> str:
         """Get a choice from valid options"""
+        # Add exit option to the display
+        print("x) Exit - Quit the wizard")
+        print("")
+        
         while True:
-            choice = input(f"{prompt} [{default}]: ").strip() or default
+            choice = input(f"{prompt} (Default: {default}): ").strip() or default
+            if choice.lower() == 'x':
+                print("\nExiting wizard...")
+                sys.exit(3)  # Exit code 3 for user cancellation
             if choice in valid_choices:
                 return choice
-            print(f"Invalid choice. Please select from: {', '.join(valid_choices)}")
+            print(f"Invalid choice. Please select from: {', '.join(valid_choices)} or x to exit")
     
     def _get_permission_choice(self, prompt: str, default: bool = True) -> str:
-        """Get permission choice with skip option"""
-        default_str = "Y/n/x" if default else "y/N/x"
+        """Get permission choice with skip and exit options"""
+        default_str = "Y/n/s/x" if default else "y/N/s/x"
         
         while True:
             response = input(f"{prompt} [{default_str}]: ").strip().lower()
@@ -672,10 +748,14 @@ class ConfigWizard:
                 return "yes"
             elif response in ['n', 'no']:
                 return "no"
-            elif response in ['x', '-', 'skip']:
+            elif response in ['s', '-', 'skip']:
                 return "skip"
+            elif response == 'x':
+                print("\nExiting wizard...")
+                import sys
+                sys.exit(3)  # Exit code 3 for user cancellation
             else:
-                print("Invalid choice. Please enter: y/yes, n/no, or x/-/skip")
+                print("Invalid choice. Please enter: y/yes, n/no, s/-/skip, or x/exit")
     
     def _get_home_directory(self, username: str, account_type: str, user_source: str) -> str:
         """Determine appropriate home directory based on user type and source"""
@@ -852,30 +932,17 @@ def main():
     
     # Save options
     print("\nWhat would you like to do?")
-    print("1) Save configuration to file (review before applying)")
-    print("2) Apply configuration now")
-    print("3) Save and apply configuration")
-    print("4) Exit without saving")
+    print("")
+    print("1) Continue with configuration")
+    print("2) Save configuration and continue")
+    print("3) Save configuration only (exit without applying)")
+    print("x) Exit without saving")
+    print("")
     
-    choice = input("Select option [1]: ").strip() or "1"
+    choice = input("Select an option [1-3/x] (Default: 1): ").strip() or "1"
     
     if choice == "1":
-        # Save only - show commands and exit with special code
-        default_filename = get_default_filename(config)
-        filename = input(f"Save as [{default_filename}]: ").strip() or default_filename
-        
-        ensure_config_dir(filename)
-        save_config(config, filename)
-        
-        validate_yaml_config(filename)
-        
-        print_next_steps(filename)
-        print("")
-        print("Configuration wizard complete.")
-        sys.exit(2)  # Exit with code 2 to indicate "save only, don't continue"
-        
-    elif choice == "2":
-        # Apply now without saving to permanent location
+        # Continue with configuration (apply now without saving to permanent location)
         import tempfile
         
         # Create temporary file
@@ -896,8 +963,8 @@ def main():
         # Exit with code 0 to indicate "continue with apply"
         sys.exit(0)
         
-    elif choice == "3":
-        # Save and apply
+    elif choice == "2":
+        # Save configuration and continue
         default_filename = get_default_filename(config)
         filename = input(f"Save as [{default_filename}]: ").strip() or default_filename
         
@@ -912,7 +979,22 @@ def main():
         # Exit with code 0 to indicate "continue with apply"
         sys.exit(0)
         
-    elif choice == "4":
+    elif choice == "3":
+        # Save configuration only (exit without applying)
+        default_filename = get_default_filename(config)
+        filename = input(f"Save as [{default_filename}]: ").strip() or default_filename
+        
+        ensure_config_dir(filename)
+        save_config(config, filename)
+        
+        validate_yaml_config(filename)
+        
+        print_next_steps(filename)
+        print("")
+        print("Configuration wizard complete.")
+        sys.exit(2)  # Exit with code 2 to indicate "save only, don't continue"
+        
+    elif choice.lower() == "x":
         print("\nConfiguration not saved.")
 
 

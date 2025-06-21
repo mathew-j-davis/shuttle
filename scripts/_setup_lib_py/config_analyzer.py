@@ -55,6 +55,16 @@ def print_config_summary(config_file: str) -> None:
     
     print("Configuration Summary:")
     print(f"  Environment: {settings.get('metadata', {}).get('environment', 'Not specified')}")
+    
+    # Show interactive mode if configured
+    interactive_mode = settings.get('interactive_mode', '')
+    if interactive_mode:
+        print(f"  Interactive Mode: {interactive_mode}")
+    
+    # Show dry-run default if configured
+    if settings.get('dry_run_default', False):
+        print(f"  Dry-run Default: Enabled")
+    
     print(f"  Groups to create: {len(groups)}")
     
     for group_name, group_info in groups.items():

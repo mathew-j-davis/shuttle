@@ -19,7 +19,7 @@ scripts/1_install.sh [--wizard|--instructions <file>|--help]
 │
 ├── main()
 │   ├── load_installation_constants_for_install() ✅
-│   │   ├── source __setup_lib_sh/_setup_lib_loader.source.sh
+│   │   ├── source _setup_lib_sh/_setup_lib_loader.source.sh
 │   │   ├── load_installation_constants_lib()
 │   │   └── Export all constants: VENV_CHOICE_*, INSTALL_MODE_*, LOG_LEVEL_*, etc.
 │   │

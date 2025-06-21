@@ -18,7 +18,7 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 PRODUCTION_DIR="$SCRIPT_DIR/2_post_install_config_steps"
-SETUP_LIB_DIR="$SCRIPT_DIR/__setup_lib_py"
+SETUP_LIB_DIR="$SCRIPT_DIR/_setup_lib_py"
 LIB_DIR="$PRODUCTION_DIR/lib"
 
 # Add setup lib to Python path
@@ -38,18 +38,8 @@ export COMMAND_HISTORY_FILE="/tmp/${COMMAND_HISTORY_PREFIX}_$(date +%Y%m%d_%H%M%
 # Export DRY_RUN for use by all scripts and modules
 export DRY_RUN
 
-# Source shared setup libraries using clean import pattern
-SETUP_LIB_SH_DIR="$SCRIPT_DIR/__setup_lib_sh"
-if [[ -f "$SETUP_LIB_SH_DIR/_setup_lib_loader.source.sh" ]]; then
-    source "$SETUP_LIB_SH_DIR/_setup_lib_loader.source.sh"
-    load_common_libs || {
-        echo "ERROR: Failed to load required setup libraries" >&2
-        exit 1
-    }
-else
-    echo "ERROR: Setup library loader not found at $SETUP_LIB_SH_DIR/_setup_lib_loader.source.sh" >&2
-    exit 1
-fi
+# Source required libraries - simple and direct
+source "$SCRIPT_DIR/_sources.sh"
 
 # Output functions for main script
 print_info() {
@@ -78,16 +68,16 @@ print_fail() {
 
 # Import config filename constants
 if python3 -c "import post_install_config_constants" 2>/dev/null; then
-    CONFIG_DEFAULT_FILENAME=$(python3 -c "from post_install_config_constants import CONFIG_DEFAULT_FILENAME; print(CONFIG_DEFAULT_FILENAME)")
+    INSTRUCTIONS_DEFAULT_FILENAME=$(python3 -c "from post_install_config_constants import INSTRUCTIONS_DEFAULT_FILENAME; print(INSTRUCTIONS_DEFAULT_FILENAME)")
     CONFIG_GLOB_PATTERN=$(python3 -c "from post_install_config_constants import get_config_glob_pattern; print(get_config_glob_pattern())")
 else
     # Fallback if module not available
-    CONFIG_DEFAULT_FILENAME="shuttle_post_install_configuration.yaml"
-    CONFIG_GLOB_PATTERN="shuttle_post_install_config_*.yaml"
+    INSTRUCTIONS_DEFAULT_FILENAME="post_install_config_steps.yaml"
+    CONFIG_GLOB_PATTERN="post_install_config_steps*.yaml"
 fi
 
 # Default configuration file location
-DEFAULT_CONFIG="$PROJECT_ROOT/config/$CONFIG_DEFAULT_FILENAME"
+DEFAULT_CONFIG="$PROJECT_ROOT/config/$INSTRUCTIONS_DEFAULT_FILENAME"
 CONFIG_FILE=""
 INTERACTIVE_MODE=true
 DRY_RUN=false
@@ -112,7 +102,8 @@ Usage: $0 [options]
 
 Options:
   --instructions <file> Path to YAML instructions file (default: wizard mode)
-  --non-interactive     Run in non-interactive mode
+  --interactive         Force interactive mode (override config file setting)
+  --non-interactive     Force non-interactive mode (override config file setting)
   --dry-run             Show what would be done without making changes
   --wizard              Run configuration wizard to create YAML file first
   --help               Show this help message
@@ -120,8 +111,9 @@ Options:
 Examples:
   $0                                    # Interactive mode with default config
   $0 --wizard                          # Run wizard to create config, then apply
-  $0 --instructions /path/to/post_install_instructions.yaml     # Interactive mode with custom instructions
-  $0 --instructions post_install_instructions.yaml --non-interactive  # Automated mode
+  $0 --instructions /path/to/post_install_config_steps.yaml     # Use mode from config file
+  $0 --instructions post_install_config_steps.yaml --non-interactive  # Force automated mode
+  $0 --instructions post_install_config_steps.yaml --interactive      # Force interactive mode
   $0 --dry-run                          # Show what would be done
   $0 --wizard --dry-run                 # Create config with wizard, then dry run
 
@@ -141,10 +133,17 @@ parse_arguments() {
                 ;;
             --non-interactive)
                 INTERACTIVE_MODE=false
+                COMMAND_LINE_INTERACTIVE_SET=true
+                shift
+                ;;
+            --interactive)
+                INTERACTIVE_MODE=true
+                COMMAND_LINE_INTERACTIVE_SET=true
                 shift
                 ;;
             --dry-run)
                 DRY_RUN=true
+                COMMAND_LINE_DRY_RUN_SET=true
                 export DRY_RUN  # Export for child processes
                 shift
                 ;;
@@ -194,6 +193,75 @@ validate_config() {
     
     print_success "Configuration file validated: $CONFIG_FILE"
     echo ""
+}
+
+# Read interactive mode settings from configuration
+read_interactive_mode_settings() {
+    # Only read from config if not explicitly set via command line
+    if [[ "$INTERACTIVE_MODE" == "true" ]] && [[ -z "$COMMAND_LINE_INTERACTIVE_SET" ]]; then
+        local mode=$(python3 -c "
+import yaml
+import sys
+try:
+    with open('$CONFIG_FILE', 'r') as f:
+        docs = list(yaml.safe_load_all(f))
+    
+    for doc in docs:
+        if doc and 'settings' in doc:
+            mode = doc['settings'].get('interactive_mode', '')
+            if mode:
+                print(mode)
+                sys.exit(0)
+    print('')
+except:
+    print('')
+")
+        
+        if [[ -n "$mode" ]]; then
+            case "$mode" in
+                "non-interactive")
+                    print_info "Using non-interactive mode from configuration"
+                    INTERACTIVE_MODE=false
+                    ;;
+                "interactive")
+                    print_info "Using interactive mode from configuration"
+                    INTERACTIVE_MODE=true
+                    ;;
+                "mixed")
+                    print_info "Using mixed mode from configuration (critical prompts only)"
+                    INTERACTIVE_MODE=true
+                    # Set a flag for mixed mode that scripts can check
+                    export MIXED_MODE=true
+                    ;;
+            esac
+        fi
+    fi
+    
+    # Check for dry-run default in config
+    if [[ "$DRY_RUN" == "false" ]] && [[ -z "$COMMAND_LINE_DRY_RUN_SET" ]]; then
+        local dry_run_default=$(python3 -c "
+import yaml
+import sys
+try:
+    with open('$CONFIG_FILE', 'r') as f:
+        docs = list(yaml.safe_load_all(f))
+    
+    for doc in docs:
+        if doc and 'settings' in doc:
+            if doc['settings'].get('dry_run_default', False):
+                print('true')
+                sys.exit(0)
+    print('false')
+except:
+    print('false')
+")
+        
+        if [[ "$dry_run_default" == "true" ]]; then
+            print_info "Dry-run mode enabled by default from configuration"
+            DRY_RUN=true
+            export DRY_RUN
+        fi
+    fi
 }
 
 # Check prerequisites
@@ -291,10 +359,14 @@ interactive_setup() {
         echo ""
     fi
     
-    read -p "Proceed with configuration? [Y/n]: " CONFIRM
+    read -p "Proceed with configuration? (Default: Yes) [Y/n/x]: " CONFIRM
     case $CONFIRM in
         [Nn])
             echo "Configuration cancelled." >&2
+            exit 0
+            ;;
+        [Xx])
+            echo "Configuration cancelled by user." >&2
             exit 0
             ;;
         *)
@@ -420,7 +492,12 @@ phase_configure_samba() {
         dry_run_flag="--dry-run"
     fi
     
-    python3 -m samba_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag
+    local interactive_flag=""
+    if [[ "$INTERACTIVE_MODE" == "false" ]]; then
+        interactive_flag="--non-interactive"
+    fi
+    
+    python3 -m samba_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag $interactive_flag
 
     if [[ $? -ne 0 ]]; then
         print_warn "⚠️  Some Samba configuration may have failed"
@@ -477,9 +554,31 @@ run_configuration_wizard() {
     python3 -m post_install_config_wizard $wizard_args
     local wizard_exit_code=$?
     
-    if [[ $wizard_exit_code -eq 2 ]]; then
-        print_success "Configuration saved successfully"
-        echo "Exiting as requested - configuration saved but not applied."
+    if [[ $wizard_exit_code -eq 3 ]]; then
+        # User cancelled the wizard
+        print_info "Configuration wizard cancelled by user"
+        exit 0
+    elif [[ $wizard_exit_code -eq 2 ]]; then
+        # Configuration was saved but user chose not to continue
+        local config_filename=""
+        if [[ -f /tmp/wizard_config_filename ]]; then
+            config_filename=$(cat /tmp/wizard_config_filename)
+            rm -f /tmp/wizard_config_filename
+            config_filename="$PROJECT_ROOT/config/$config_filename"
+        else
+            # Try to find the most recently generated config file
+            local latest_config=$(ls -t $CONFIG_GLOB_PATTERN 2>/dev/null | head -1)
+            if [[ -n "$latest_config" ]]; then
+                config_filename="$PROJECT_ROOT/config/$latest_config"
+            fi
+        fi
+        
+        if [[ -n "$config_filename" ]]; then
+            show_saved_config_usage "$0" "$config_filename" "configuration" "false"
+        else
+            print_success "Configuration saved successfully"
+            echo "Exiting as requested - configuration saved but not applied."
+        fi
         exit 0
     elif [[ $wizard_exit_code -ne 0 ]]; then
         print_fail "Configuration wizard failed"
@@ -494,6 +593,11 @@ run_configuration_wizard() {
         echo ""
         print_success "Using wizard-generated configuration: $CONFIG_FILE"
         echo ""
+        # Show usage instructions for the saved configuration
+        show_saved_config_usage "$0" "$CONFIG_FILE" "configuration" "false"
+        echo ""
+        print_info "Continuing to apply configuration..."
+        echo ""
     else
         # Try to find the most recently generated config file
         local latest_config=$(ls -t $CONFIG_GLOB_PATTERN 2>/dev/null | head -1)
@@ -502,6 +606,11 @@ run_configuration_wizard() {
             CONFIG_FILE="$PROJECT_ROOT/config/$latest_config"
             echo ""
             print_success "Using generated configuration: $CONFIG_FILE"
+            echo ""
+            # Show usage instructions for the saved configuration
+            show_saved_config_usage "$0" "$CONFIG_FILE" "configuration" "false"
+            echo ""
+            print_info "Continuing to apply configuration..."
             echo ""
         else
             print_fail "Could not find generated configuration file"
@@ -562,6 +671,9 @@ main() {
     
     # Validate configuration
     validate_config
+    
+    # Read interactive mode settings from config
+    read_interactive_mode_settings
     
     # Interactive setup if needed
     interactive_setup

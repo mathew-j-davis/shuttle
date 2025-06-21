@@ -82,23 +82,8 @@ detect_firewall_core() {
     # Check for ufw
     local ufw_available=false
     local ufw_active=false
-    if execute "command -v ufw >/dev/null 2>&1" \
-              "UFW firewall available" \
-              "UFW firewall not available" \
-              "Check if UFW (Uncomplicated Firewall) is installed on the system"; then
+    if check_tool_with_version "ufw" "ufw --version" "UFW firewall check"; then
         ufw_available=true
-        echo "UFW: Available"
-        
-        if execute "ufw --version >/dev/null 2>&1" \
-                  "UFW version check successful" \
-                  "UFW version check failed" \
-                  "Get UFW version information for compatibility checking"; then
-            local ufw_ver=$(execute "ufw --version 2>/dev/null | head -1" \
-                                   "UFW version retrieved" \
-                                   "UFW version retrieval failed" \
-                                   "Extract UFW version string from command output")
-            echo "UFW Version: $ufw_ver"
-        fi
         
         # Check if ufw is active
         if execute "ufw status 2>/dev/null | grep -q \"Status: active\"" \
@@ -110,32 +95,15 @@ detect_firewall_core() {
             firewall_status="active"
             echo "UFW Status: Active"
         else
-            echo "UFW Status: Inactive"
+            log INFO "UFW Status: Inactive"
         fi
-    else
-        echo "UFW: Not installed"
     fi
     
     # Check for firewalld
     local firewalld_available=false
     local firewalld_active=false
-    if execute "command -v firewall-cmd >/dev/null 2>&1" \
-              "Firewalld available" \
-              "Firewalld not available" \
-              "Check if firewalld (dynamic firewall manager) is installed on the system"; then
+    if check_tool_with_version "firewall-cmd" "firewall-cmd --version" "firewalld check"; then
         firewalld_available=true
-        echo "Firewalld: Available"
-        
-        if execute "firewall-cmd --version >/dev/null 2>&1" \
-                  "Firewalld version check successful" \
-                  "Firewalld version check failed" \
-                  "Get firewalld version information for compatibility checking"; then
-            local firewalld_ver=$(execute "firewall-cmd --version 2>/dev/null" \
-                                          "Firewalld version retrieved" \
-                                          "Firewalld version retrieval failed" \
-                                          "Extract firewalld version string from command output")
-            echo "Firewalld Version: $firewalld_ver"
-        fi
         
         # Check if firewalld is active
         if execute "systemctl is-active firewalld >/dev/null 2>&1" \
@@ -149,21 +117,15 @@ detect_firewall_core() {
             fi
             echo "Firewalld Status: Active"
         else
-            echo "Firewalld Status: Inactive"
+            log INFO "Firewalld Status: Inactive"
         fi
-    else
-        echo "Firewalld: Not installed"
     fi
     
     # Check for iptables
     local iptables_available=false
     local iptables_rules=false
-    if execute "command -v iptables >/dev/null 2>&1" \
-              "Iptables available" \
-              "Iptables not available" \
-              "Check if iptables (Linux netfilter firewall) is installed on the system"; then
+    if check_tool_with_version "iptables" "iptables --version" "iptables check"; then
         iptables_available=true
-        echo "Iptables: Available"
         
         # Check if iptables has custom rules
         local rule_count=$(execute "iptables -L 2>/dev/null | grep -c \"^Chain\|^target\" || echo \"0\"" \
@@ -178,10 +140,8 @@ detect_firewall_core() {
             fi
             echo "Iptables Status: Has custom rules"
         else
-            echo "Iptables Status: Default rules only"
+            log INFO "Iptables Status: Default rules only"
         fi
-    else
-        echo "Iptables: Not available"
     fi
     
     echo ""

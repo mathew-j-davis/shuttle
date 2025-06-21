@@ -62,14 +62,14 @@ Apply the security validation patterns and cleanup patterns developed for `2_pos
 ## Security Patterns to Apply
 
 ### 1. Input Validation Functions
-From `__setup_lib_sh/_input_validation.source.sh`:
+From `_setup_lib_sh/_input_validation.source.sh`:
 - `validate_no_control_chars()` - Block command injection
 - `validate_alphanumeric_underscore()` - For identifiers
 - `validate_path_characters()` - For file paths
 - `validate_comment_text()` - For user descriptions
 
 ### 2. Specialized Validation Functions
-From `__setup_lib_sh/_common_.source.sh`:
+From `_setup_lib_sh/_common_.source.sh`:
 - `validate_parameter_user()` - Username validation
 - `validate_parameter_group()` - Group name validation
 - `validate_parameter_path()` - Path validation with existence checks
@@ -78,7 +78,7 @@ From `__setup_lib_sh/_common_.source.sh`:
 - `validate_parameter_hostname()` - Hostname/IP validation
 
 ### 3. Clean Import Pattern
-From `__setup_lib_sh/_setup_lib_loader.source.sh`:
+From `_setup_lib_sh/_setup_lib_loader.source.sh`:
 - Centralized library loading
 - Consistent error handling
 - No relative path confusion
@@ -87,7 +87,7 @@ From `__setup_lib_sh/_setup_lib_loader.source.sh`:
 
 ### Phase 1: Infrastructure Setup
 1. **Move validation libraries to shared location**
-   - Ensure `__setup_lib_sh/` is accessible to installation scripts
+   - Ensure `_setup_lib_sh/` is accessible to installation scripts
    - Already done in previous work
 
 2. **Update library loader**
@@ -209,7 +209,7 @@ SMTP_SERVER=$(validate_parameter_hostname "$SMTP_SERVER") || exit 1
 ```bash
 # At script start
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-SETUP_LIB_DIR="$(dirname "$SCRIPT_DIR")/__setup_lib_sh"
+SETUP_LIB_DIR="$(dirname "$SCRIPT_DIR")/_setup_lib_sh"
 source "$SETUP_LIB_DIR/_setup_lib_loader.source.sh"
 load_common_libs || exit 1
 

@@ -6,40 +6,30 @@
 
 set -euo pipefail
 
-# Script directory for sourcing libraries
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-LIB_DIR="$SCRIPT_DIR/lib"
+# Script identification
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Source shared setup libraries using clean import pattern
-SETUP_LIB_DIR="$(dirname "$SCRIPT_DIR")/__setup_lib_sh"
-if [[ -f "$SETUP_LIB_DIR/_setup_lib_loader.source.sh" ]]; then
-    source "$SETUP_LIB_DIR/_setup_lib_loader.source.sh"
-    load_common_libs || {
-        echo "ERROR: Failed to load required setup libraries" >&2
-        exit 1
-    }
-else
-    echo "ERROR: Setup library loader not found at $SETUP_LIB_DIR/_setup_lib_loader.source.sh" >&2
-    exit 1
-fi
-source "$LIB_DIR/_cmd_add_share.source.sh"
-source "$LIB_DIR/_cmd_remove_share.source.sh"
-source "$LIB_DIR/_cmd_list_shares.source.sh"
-source "$LIB_DIR/_cmd_show_share.source.sh"
-source "$LIB_DIR/_cmd_enable_share.source.sh"
-source "$LIB_DIR/_cmd_disable_share.source.sh"
-source "$LIB_DIR/_cmd_add_samba_user.source.sh"
-source "$LIB_DIR/_cmd_remove_samba_user.source.sh"
-source "$LIB_DIR/_cmd_list_samba_users.source.sh"
-source "$LIB_DIR/_cmd_enable_samba_user.source.sh"
-source "$LIB_DIR/_cmd_disable_samba_user.source.sh"
-source "$LIB_DIR/_cmd_set_samba_password.source.sh"
-source "$LIB_DIR/_cmd_start_samba.source.sh"
-source "$LIB_DIR/_cmd_stop_samba.source.sh"
-source "$LIB_DIR/_cmd_restart_samba.source.sh"
-source "$LIB_DIR/_cmd_reload_samba.source.sh"
-source "$LIB_DIR/_cmd_status_samba.source.sh"
-source "$LIB_DIR/_cmd_test_config.source.sh"
+# Source required libraries - simple and direct
+source "$SCRIPT_DIR/_sources.sh"
+
+source "$SCRIPT_DIR/lib/_cmd_add_share.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_remove_share.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_list_shares.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_show_share.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_enable_share.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_disable_share.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_add_samba_user.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_remove_samba_user.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_list_samba_users.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_enable_samba_user.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_disable_samba_user.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_set_samba_password.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_start_samba.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_stop_samba.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_restart_samba.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_reload_samba.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_status_samba.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_test_config.source.sh"
 
 # Global variables
 SCRIPT_NAME="$(basename "$0")"
