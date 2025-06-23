@@ -40,6 +40,10 @@ SKIP_MODULES=false
 # Set command history file for this installation session
 export COMMAND_HISTORY_FILE="/tmp/shuttle_install_command_history_$(date +%Y%m%d_%H%M%S).log"
 
+# Export DRY_RUN and VERBOSE for use by all scripts and modules
+export DRY_RUN
+export VERBOSE
+
 show_banner() {
     echo "========================================="
     if [[ "$DRY_RUN" == "true" ]]; then
@@ -112,11 +116,21 @@ validate_user_choice() {
     return 0
 }
 
-# Helper function to add dry-run flag to script calls
+# Helper function to add dry-run and verbose flags to script calls
 add_dry_run_flag() {
     local cmd="$1"
+    local flags=""
+    
     if [[ "$DRY_RUN" == "true" ]]; then
-        echo "$cmd --dry-run"
+        flags="$flags --dry-run"
+    fi
+    
+    if [[ "$VERBOSE" == "true" ]]; then
+        flags="$flags --verbose"
+    fi
+    
+    if [[ -n "$flags" ]]; then
+        echo "$cmd$flags"
     else
         echo "$cmd"
     fi
@@ -2551,6 +2565,7 @@ Options:
   --instructions <file> Path to YAML installation instructions file (default: wizard mode)
   --wizard              Run installation wizard (default when no options provided)
   --dry-run            Show what would be done without making changes
+  --verbose            Show detailed command execution information
   --help               Show this help message
 
 Examples:
@@ -2570,6 +2585,7 @@ parse_arguments() {
     INSTALL_INSTRUCTIONS_FILE=""
     RUN_WIZARD=false
     DRY_RUN=false
+    VERBOSE=false
     local INSTALL_INSTRUCTIONS_SPECIFIED=false
     
     while [[ $# -gt 0 ]]; do
@@ -2594,6 +2610,10 @@ parse_arguments() {
                 ;;
             --dry-run)
                 DRY_RUN=true
+                shift
+                ;;
+            --verbose)
+                VERBOSE=true
                 shift
                 ;;
             --help|-h)

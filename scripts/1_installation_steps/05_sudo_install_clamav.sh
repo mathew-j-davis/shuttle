@@ -15,6 +15,7 @@ source "$SCRIPT_DIR/_sources.sh"
 DRY_RUN=false
 START_SERVICES=true
 UPDATE_DEFINITIONS=true
+VERBOSE=false
 
 # Function to show usage
 show_usage() {
@@ -27,6 +28,7 @@ Options:
   --dry-run             Show what would be installed without making changes
   --no-services         Skip starting/enabling ClamAV services
   --no-update          Skip updating virus definitions
+  --verbose             Show detailed output
   --help, -h            Show this help message
 
 Components Installed:
@@ -156,6 +158,10 @@ main() {
                 ;;
             --no-update)
                 UPDATE_DEFINITIONS=false
+                shift
+                ;;
+            --verbose)
+                VERBOSE=true
                 shift
                 ;;
             --help|-h)

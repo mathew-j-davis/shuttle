@@ -13,6 +13,7 @@ source "$SCRIPT_DIR/_sources.sh"
 
 # Global variables
 DRY_RUN=false
+VERBOSE=false
 
 # Function to show usage
 show_usage() {
@@ -23,6 +24,7 @@ Install Python3 and development tools using the appropriate package manager.
 
 Options:
   --dry-run             Show what would be installed without making changes
+  --verbose            Show detailed command execution information
   --help, -h            Show this help message
 
 Packages Installed:
@@ -52,6 +54,10 @@ main() {
         case "$1" in
             --dry-run)
                 DRY_RUN=true
+                shift
+                ;;
+            --verbose)
+                VERBOSE=true
                 shift
                 ;;
             --help|-h)

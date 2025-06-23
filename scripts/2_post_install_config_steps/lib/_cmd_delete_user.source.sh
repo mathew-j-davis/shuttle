@@ -99,6 +99,10 @@ cmd_delete_user() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_delete_user
                 return 0

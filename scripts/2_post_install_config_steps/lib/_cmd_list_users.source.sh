@@ -131,6 +131,10 @@ cmd_list_users() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_list_users
                 return 0

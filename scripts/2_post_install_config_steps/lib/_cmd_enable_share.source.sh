@@ -42,6 +42,10 @@ cmd_enable_share() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_enable_share
                 return 0

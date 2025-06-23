@@ -4,11 +4,14 @@ set -e
 # Parse command line arguments
 dev_mode=""
 dry_run=false
+VERBOSE=false
 for arg in "$@"; do
   if [ "$arg" = "-e" ] || [ "$arg" = "--editable" ]; then
     dev_mode="-e"
   elif [ "$arg" = "--dry-run" ]; then
     dry_run=true
+  elif [ "$arg" = "--verbose" ]; then
+    VERBOSE=true
   fi
 done
 

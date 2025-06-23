@@ -121,6 +121,10 @@ cmd_set_path_permissions() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_set_path_permissions
                 return 0

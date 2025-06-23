@@ -61,6 +61,10 @@ cmd_modify_group() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_modify_group
                 return 0

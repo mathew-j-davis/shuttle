@@ -2,9 +2,12 @@
 
 # Parse command line arguments for dry-run
 DRY_RUN=false
+VERBOSE=false
 for arg in "$@"; do
   if [ "$arg" = "--dry-run" ]; then
     DRY_RUN=true
+  elif [ "$arg" = "--verbose" ]; then
+    VERBOSE=true
   fi
 done
 

@@ -72,6 +72,10 @@ cmd_show_acl_on_path() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_show_acl_on_path
                 return 0

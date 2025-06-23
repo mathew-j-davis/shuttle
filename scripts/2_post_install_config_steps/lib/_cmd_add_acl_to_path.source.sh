@@ -79,6 +79,10 @@ cmd_add_acl_to_path() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_add_acl_to_path
                 return 0

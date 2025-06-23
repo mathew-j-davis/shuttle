@@ -41,6 +41,10 @@ cmd_stop_samba() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_stop_samba
                 return 0

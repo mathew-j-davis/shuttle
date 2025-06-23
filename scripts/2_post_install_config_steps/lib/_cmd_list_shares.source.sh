@@ -82,6 +82,10 @@ cmd_list_shares() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_list_shares
                 return 0

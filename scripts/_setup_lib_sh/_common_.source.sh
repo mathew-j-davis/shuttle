@@ -7,13 +7,21 @@ show_saved_config_usage() {
     local config_type="${3:-instructions}"  # "instructions" or "configuration"
     local continue_option="${4:-false}"     # true if offering to continue
     
-    echo -e "${GREEN}✅ ${config_type^} saved to: $config_file${NC}"
+    # Convert to absolute paths for display
+    local abs_config_file
+    if [[ "$config_file" = /* ]]; then
+        abs_config_file="$config_file"
+    else
+        abs_config_file="$(cd "$(dirname "$config_file")" && pwd)/$(basename "$config_file")"
+    fi
+    
+    echo -e "${GREEN}✅ ${config_type^} saved to: $abs_config_file${NC}"
     echo ""
     echo "You can run this ${config_type%s} later with:"
-    echo -e "${BLUE}$script_name --${config_type%s} $config_file${NC}"
+    echo -e "${BLUE}$script_name --instructions $abs_config_file${NC}"
     echo ""
     echo "To perform a dry run (show what would be done without making changes) use --dry-run:"
-    echo -e "${BLUE}$script_name --${config_type%s} $config_file --dry-run${NC}"
+    echo -e "${BLUE}$script_name --instructions $abs_config_file --dry-run${NC}"
     echo ""
     
     if [[ "$continue_option" == "true" ]]; then
@@ -573,7 +581,10 @@ execute_or_dryrun() {
         return 0
     fi
     
-    # log DEBUG "Executing: $cmd"
+    # Log command when verbose
+    if [[ "${VERBOSE:-false}" == "true" ]]; then
+        log DEBUG "Executing: $cmd"
+    fi
     
     if eval "$cmd"; then
         log INFO "$success_msg"
@@ -598,7 +609,10 @@ execute() {
         log INFO "Explanation: $explanation"
     fi
     
-    # log DEBUG "Executing (read-only): $cmd"
+    # Log command when verbose
+    if [[ "${VERBOSE:-false}" == "true" ]]; then
+        log DEBUG "Executing (read-only): $cmd"
+    fi
     
     if eval "$cmd"; then
         log INFO "$success_msg"
@@ -631,6 +645,11 @@ execute_or_execute_dryrun() {
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         # Append --dry-run to our own scripts
         actual_cmd="$cmd --dry-run"
+    fi
+    
+    # Log command when verbose
+    if [[ "${VERBOSE:-false}" == "true" ]]; then
+        log DEBUG "Executing script: $actual_cmd"
     fi
     
     if eval "$actual_cmd"; then

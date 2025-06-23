@@ -53,6 +53,10 @@ cmd_add_user_to_group() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_add_user_to_group
                 return 0

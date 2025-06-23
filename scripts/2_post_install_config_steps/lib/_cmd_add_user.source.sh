@@ -190,6 +190,10 @@ cmd_add_user() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_add_user
                 return 0

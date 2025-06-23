@@ -6,9 +6,10 @@
 #   ./02_env_and_venv.sh -e                 # Use development defaults
 #   ./02_env_and_venv.sh -u                 # Use user production defaults
 #   ./02_env_and_venv.sh --do-not-create-venv  # Skip venv creation (any mode)
+#   ./02_env_and_venv.sh --verbose          # Show detailed output
 #   ./02_env_and_venv.sh [config] [venv] [work]  # Use custom paths
 #
-# Flags can be combined: ./02_env_and_venv.sh -e --do-not-create-venv
+# Flags can be combined: ./02_env_and_venv.sh -e --do-not-create-venv --verbose
 
 # Get home directory and project root
 HOME_DIR=$(eval echo ~$USER)
@@ -20,6 +21,7 @@ DEV_MODE=false
 USER_MODE=false
 CREATE_VENV=true
 DRY_RUN=false
+VERBOSE=false
 
 # Parse flags
 REMAINING_ARGS=()
@@ -39,6 +41,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dry-run)
             DRY_RUN=true
+            shift
+            ;;
+        --verbose)
+            VERBOSE=true
             shift
             ;;
         *)

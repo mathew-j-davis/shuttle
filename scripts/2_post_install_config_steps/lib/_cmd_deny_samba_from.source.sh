@@ -110,6 +110,10 @@ cmd_deny_samba_from() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_deny_samba_from
                 return 0

@@ -35,6 +35,7 @@ source "$SCRIPT_DIR/lib/_cmd_test_config.source.sh"
 SCRIPT_NAME="$(basename "$0")"
 COMMAND=""
 DRY_RUN=false
+VERBOSE=false
 
 # Show usage information
 show_usage() {
@@ -72,6 +73,7 @@ Service Management:
 
 GLOBAL OPTIONS:
   --dry-run                   Show what would be done without making changes
+  --verbose                   Show detailed output
   --help, -h                  Show help for specific command
 
 EXAMPLES:
@@ -132,11 +134,12 @@ main() {
     COMMAND="$1"
     shift # Remove command from parameters, leaving only command arguments
     
-    # Check for --dry-run flag in remaining parameters
+    # Check for --dry-run and --verbose flags in remaining parameters
     for arg in "$@"; do
         if [[ "$arg" == "--dry-run" ]]; then
             DRY_RUN=true
-            break
+        elif [[ "$arg" == "--verbose" ]]; then
+            VERBOSE=true
         fi
     done
     

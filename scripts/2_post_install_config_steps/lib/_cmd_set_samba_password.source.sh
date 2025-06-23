@@ -55,6 +55,10 @@ cmd_set_samba_password() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_set_samba_password
                 return 0

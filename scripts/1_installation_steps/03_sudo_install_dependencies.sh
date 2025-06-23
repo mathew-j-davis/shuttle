@@ -13,6 +13,7 @@ source "$SCRIPT_DIR/_sources.sh"
 
 # Global variables
 DRY_RUN=false
+VERBOSE=false
 
 # Function to show usage
 show_usage() {
@@ -23,6 +24,7 @@ Install basic system dependencies required for Shuttle operation.
 
 Options:
   --dry-run             Show what would be installed without making changes
+  --verbose             Show detailed output
   --help, -h            Show this help message
 
 Dependencies Installed:
@@ -50,6 +52,10 @@ main() {
         case "$1" in
             --dry-run)
                 DRY_RUN=true
+                shift
+                ;;
+            --verbose)
+                VERBOSE=true
                 shift
                 ;;
             --help|-h)

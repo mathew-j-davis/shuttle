@@ -87,6 +87,10 @@ cmd_show_path_owner_permissions_and_acl() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_show_path_owner_permissions_and_acl
                 return 0

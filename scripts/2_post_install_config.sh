@@ -35,8 +35,9 @@ fi
 # Set command history file for this configuration session
 export COMMAND_HISTORY_FILE="/tmp/${COMMAND_HISTORY_PREFIX}_$(date +%Y%m%d_%H%M%S).log"
 
-# Export DRY_RUN for use by all scripts and modules
+# Export DRY_RUN and VERBOSE for use by all scripts and modules
 export DRY_RUN
+export VERBOSE
 
 # Source required libraries - simple and direct
 source "$SCRIPT_DIR/_sources.sh"
@@ -82,6 +83,7 @@ CONFIG_FILE=""
 INTERACTIVE_MODE=true
 DRY_RUN=false
 RUN_WIZARD=false
+VERBOSE=false
 
 echo "=========================================" >&2
 echo "  Shuttle Post-Install Environment Configuration  " >&2
@@ -105,6 +107,7 @@ Options:
   --interactive         Force interactive mode (override config file setting)
   --non-interactive     Force non-interactive mode (override config file setting)
   --dry-run             Show what would be done without making changes
+  --verbose            Show detailed command execution information
   --wizard              Run configuration wizard to create YAML file first
   --help               Show this help message
 
@@ -145,6 +148,11 @@ parse_arguments() {
                 DRY_RUN=true
                 COMMAND_LINE_DRY_RUN_SET=true
                 export DRY_RUN  # Export for child processes
+                shift
+                ;;
+            --verbose)
+                VERBOSE=true
+                export VERBOSE  # Export for child processes
                 shift
                 ;;
             --wizard)

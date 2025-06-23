@@ -809,20 +809,40 @@ def ensure_config_dir(filename: str):
 
 
 def print_next_steps(filename: str):
-    """Print the next steps instructions"""
-    print(f"{'='*60}")
-    print("NEXT STEPS")
-    print("="*60)
-    print("From the project root directory, you can:")
-    print("")
-    print("To review the configuration:")
-    print(f"  cat config/{filename}")
-    print("")
-    print("To test what would be applied (dry run):")
-    print(f"  ./scripts/2_post_install_config.sh --config config/{filename} --dry-run")
-    print("")
-    print("To apply the configuration:")
-    print(f"  ./scripts/2_post_install_config.sh --config config/{filename}")
+    """Print the next steps instructions using the shared shell function"""
+    import subprocess
+    
+    # Get absolute paths - we're in scripts/_setup_lib_py/
+    script_dir = os.path.dirname(os.path.abspath(__file__))  # _setup_lib_py
+    scripts_dir = os.path.dirname(script_dir)  # scripts
+    project_root = os.path.dirname(scripts_dir)  # project root
+    config_path = os.path.join(project_root, "config", filename)
+    script_path = os.path.join(project_root, "scripts", "2_post_install_config.sh")
+    
+    # Use the shared shell function for consistency
+    # Create a small shell script that sources the common library and calls the function
+    shell_cmd = f'''
+source "{scripts_dir}/_setup_lib_sh/_common_.source.sh"
+show_saved_config_usage "{script_path}" "{config_path}" "configuration" "false"
+'''
+    
+    try:
+        subprocess.run(['bash', '-c', shell_cmd], check=True)
+    except subprocess.CalledProcessError:
+        # Fallback to Python implementation if shell function fails
+        print(f"{'='*60}")
+        print("NEXT STEPS")
+        print("="*60)
+        print("You can run these commands from any directory:")
+        print("")
+        print("To review the configuration:")
+        print(f"  cat {config_path}")
+        print("")
+        print("To test what would be applied (dry run):")
+        print(f"  {script_path} --instructions {config_path} --dry-run")
+        print("")
+        print("To apply the configuration:")
+        print(f"  {script_path} --instructions {config_path}")
 
 
 def validate_yaml_config(filename: str) -> bool:

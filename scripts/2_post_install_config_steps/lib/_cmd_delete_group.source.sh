@@ -51,6 +51,10 @@ cmd_delete_group() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_delete_group
                 return 0

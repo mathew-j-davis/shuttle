@@ -50,6 +50,10 @@ cmd_remove_samba_user() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_remove_samba_user
                 return 0

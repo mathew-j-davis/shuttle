@@ -99,6 +99,10 @@ cmd_list_group_users() {
                 DRY_RUN=true
                 shift
                 ;;
+            --verbose)
+                VERBOSE=true
+                shift
+                ;;
             --help|-h)
                 show_help_list_group_users
                 return 0
