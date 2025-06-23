@@ -43,6 +43,18 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Log command execution with parameters
+# Usage: log_command_call "command_name" "$@" or log_command_call "command_name" "$original_params"
+log_command_call() {
+    local command_name="$1"
+    shift
+    if [[ $# -eq 0 || -z "$*" ]]; then
+        log DEBUG "$command_name command called with no parameters"
+    else
+        log DEBUG "$command_name command called with parameters: $*"
+    fi
+}
+
 # Capability flags
 #IS_ROOT_USER=false
 # HAS_SUDO_ACCESS=false
