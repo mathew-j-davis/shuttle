@@ -42,7 +42,7 @@ cmd_start_samba() {
         esac
     done
     
-    echo "start-samba command called with parameters: $original_params"
+    log_command_call "start-samba" "$original_params"
     
     # Call the core function
     start_samba_core

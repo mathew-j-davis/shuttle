@@ -146,7 +146,7 @@ cmd_deny_samba_from() {
         fi
     fi
     
-    echo "deny-samba-from command called with parameters: $original_params"
+    log_command_call "deny-samba-from" "$original_params"
     
     # Call the core function
     deny_samba_from_core "$source" "$comment" "$ports" "$protocol" "$priority"

@@ -98,7 +98,7 @@ cmd_count_group_users() {
         error_exit "Cannot specify both --primary-only and --members-only"
     fi
     
-    echo "count-group-users command called with parameters: $original_params"
+    log_command_call "count-group-users" "$original_params"
     
     # Check if group exists
     if ! group_exists "$groupname"; then

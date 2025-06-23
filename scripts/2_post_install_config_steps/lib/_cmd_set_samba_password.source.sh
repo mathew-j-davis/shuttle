@@ -72,7 +72,7 @@ cmd_set_samba_password() {
         error_exit "Username is required"
     fi
     
-    echo "set-samba-password command called with parameters: $original_params"
+    log_command_call "set-samba-password" "$original_params"
     
     # Call the core function
     set_samba_password_core "$username" "$password"

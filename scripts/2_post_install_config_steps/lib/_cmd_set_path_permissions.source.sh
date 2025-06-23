@@ -173,7 +173,7 @@ cmd_set_path_permissions() {
         fi
     fi
     
-    echo "set-path-permissions command called with parameters: $original_params"
+    log_command_call "set-path-permissions" "$original_params"
     
     # Input validation for security
     if ! validate_input "path" "$path" "path"; then

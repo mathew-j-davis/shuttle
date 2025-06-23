@@ -59,7 +59,7 @@ cmd_detect_firewall() {
         esac
     done
     
-    echo "detect-firewall command called with parameters: $original_params"
+    log_command_call "detect-firewall" "$original_params"
     
     # Call the core function
     detect_firewall_core "$verbose"

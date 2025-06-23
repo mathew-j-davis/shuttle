@@ -52,7 +52,7 @@ cmd_stop_samba() {
         esac
     done
     
-    echo "stop-samba command called with parameters: $original_params"
+    log_command_call "stop-samba" "$original_params"
     
     # Call the core function
     stop_samba_core "$force"

@@ -71,7 +71,7 @@ cmd_status_samba() {
         esac
     done
     
-    echo "status-samba command called with parameters: $original_params"
+    log_command_call "status-samba" "$original_params"
     
     # Call the core function
     status_samba_core "$verbose" "$format"

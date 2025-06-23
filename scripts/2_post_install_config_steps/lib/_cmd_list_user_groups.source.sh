@@ -138,7 +138,7 @@ cmd_list_user_groups() {
         error_exit "Cannot specify both --primary-only and --member-only"
     fi
     
-    echo "list-user-groups command called with parameters: $original_params"
+    log_command_call "list-user-groups" "$original_params"
     
     # Call the core function
     list_user_groups_core "$username" "$format" "$primary_only" "$member_only" "$sort_field" "$reverse_sort" "$check_domain"

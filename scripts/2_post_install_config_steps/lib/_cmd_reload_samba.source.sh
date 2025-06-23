@@ -43,7 +43,7 @@ cmd_reload_samba() {
         esac
     done
     
-    echo "reload-samba command called with parameters: $original_params"
+    log_command_call "reload-samba" "$original_params"
     
     # Call the core function
     reload_samba_core

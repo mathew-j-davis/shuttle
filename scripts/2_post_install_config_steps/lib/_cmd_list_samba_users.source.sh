@@ -102,7 +102,7 @@ cmd_list_samba_users() {
         esac
     done
     
-    echo "list-samba-users command called with parameters: $original_params"
+    log_command_call "list-samba-users" "$original_params"
     
     # Call the core function
     list_samba_users_core "$format" "$filter" "$sort_field" "$reverse_sort"

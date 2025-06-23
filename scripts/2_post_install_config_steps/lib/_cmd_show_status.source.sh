@@ -80,7 +80,7 @@ cmd_show_status() {
         esac
     done
     
-    echo "show-status command called with parameters: $original_params"
+    log_command_call "show-status" "$original_params"
     
     # Call the core function
     show_status_core "$verbose" "$rules" "$samba_only"

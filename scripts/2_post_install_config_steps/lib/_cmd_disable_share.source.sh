@@ -68,7 +68,7 @@ cmd_disable_share() {
         error_exit "Share name is required"
     fi
     
-    echo "disable-share command called with parameters: $original_params"
+    log_command_call "disable-share" "$original_params"
     
     # Call the core function
     disable_share_core "$sharename" "$force"

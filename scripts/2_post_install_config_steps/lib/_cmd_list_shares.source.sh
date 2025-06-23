@@ -93,7 +93,7 @@ cmd_list_shares() {
         esac
     done
     
-    echo "list-shares command called with parameters: $original_params"
+    log_command_call "list-shares" "$original_params"
     
     # Call the core function
     list_shares_core "$format" "$include_defaults" "$sort_field" "$reverse_sort"

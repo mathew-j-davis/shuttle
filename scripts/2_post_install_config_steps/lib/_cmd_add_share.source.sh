@@ -141,7 +141,7 @@ cmd_add_share() {
         error_exit "Directory path is required"
     fi
     
-    echo "add-share command called with parameters: $original_params"
+    log_command_call "add-share" "$original_params"
     
     # Call the core function
     add_share_core "$sharename" "$path" "$comment" "$browseable" "$read_only" "$guest_ok" "$valid_users" "$admin_users" "$create_mask" "$directory_mask" "$force_user" "$force_group"

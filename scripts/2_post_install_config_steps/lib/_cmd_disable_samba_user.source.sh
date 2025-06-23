@@ -68,7 +68,7 @@ cmd_disable_samba_user() {
         error_exit "Username is required"
     fi
     
-    echo "disable-samba-user command called with parameters: $original_params"
+    log_command_call "disable-samba-user" "$original_params"
     
     # Call the core function
     disable_samba_user_core "$username" "$force"

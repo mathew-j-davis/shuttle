@@ -145,7 +145,7 @@ cmd_list_groups() {
         fi
     fi
     
-    echo "list-groups command called with parameters: $original_params"
+    log_command_call "list-groups" "$original_params"
     
     # Call the core function
     list_groups_core "$format" "$filter" "$sort_field" "$reverse_sort" "$min_gid" "$max_gid" "$name_pattern"

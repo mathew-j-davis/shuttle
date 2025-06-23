@@ -104,7 +104,7 @@ cmd_show_path_owner_permissions_and_acl() {
         error_exit "Path is required"
     fi
     
-    echo "show-path-owner-permissions-and-acl command called with parameters: $original_params"
+    log_command_call "show-path-owner-permissions-and-acl" "$original_params"
     
     # Check tool availability for ACLs
     check_tool_permission_or_error_exit "getfacl" "read ACLs" "getfacl not available - install acl package (ACL information will be skipped)"

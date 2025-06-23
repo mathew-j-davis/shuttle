@@ -150,7 +150,7 @@ cmd_list_users() {
         fi
     fi
     
-    echo "list-users command called with parameters: $original_params"
+    log_command_call "list-users" "$original_params"
     
     # Call the core function
     list_users_core "$format" "$filter" "$sort_field" "$reverse_sort" "$min_uid" "$max_uid" "$shell_filter" "$home_pattern"

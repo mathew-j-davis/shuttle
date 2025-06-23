@@ -59,7 +59,7 @@ cmd_enable_share() {
         error_exit "Share name is required"
     fi
     
-    echo "enable-share command called with parameters: $original_params"
+    log_command_call "enable-share" "$original_params"
     
     # Call the core function
     enable_share_core "$sharename"

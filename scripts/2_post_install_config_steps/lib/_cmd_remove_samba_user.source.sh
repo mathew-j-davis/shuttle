@@ -67,7 +67,7 @@ cmd_remove_samba_user() {
         error_exit "Username is required"
     fi
     
-    echo "remove-samba-user command called with parameters: $original_params"
+    log_command_call "remove-samba-user" "$original_params"
     
     # Call the core function
     remove_samba_user_core "$username" "$force"

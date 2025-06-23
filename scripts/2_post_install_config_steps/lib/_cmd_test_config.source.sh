@@ -68,7 +68,7 @@ cmd_test_config() {
         esac
     done
     
-    echo "test-config command called with parameters: $original_params"
+    log_command_call "test-config" "$original_params"
     
     # Call the core function
     test_config_core "$verbose" "$show_config"

@@ -101,7 +101,7 @@ cmd_add_acl_to_path() {
         error_exit "ACL entry is required"
     fi
     
-    echo "add-acl-to-path command called with parameters: $original_params"
+    log_command_call "add-acl-to-path" "$original_params"
     
     # Check tool availability
     check_tool_permission_or_error_exit "setfacl" "modify ACLs" "setfacl not available - install acl package"

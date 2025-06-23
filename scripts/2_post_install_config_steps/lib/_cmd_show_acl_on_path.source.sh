@@ -89,7 +89,7 @@ cmd_show_acl_on_path() {
         error_exit "Path is required"
     fi
     
-    echo "show-acl-on-path command called with parameters: $original_params"
+    log_command_call "show-acl-on-path" "$original_params"
     
     # Check tool availability
     check_tool_permission_or_error_exit "getfacl" "read ACLs" "getfacl not available - install acl package"

@@ -82,7 +82,7 @@ cmd_show_group() {
         error_exit "Group name is required"
     fi
     
-    echo "show-group command called with parameters: $original_params"
+    log_command_call "show-group" "$original_params"
     
     # Check if group exists
     if ! group_exists "$groupname"; then

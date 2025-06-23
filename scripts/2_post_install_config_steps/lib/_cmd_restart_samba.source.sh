@@ -43,7 +43,7 @@ cmd_restart_samba() {
         esac
     done
     
-    echo "restart-samba command called with parameters: $original_params"
+    log_command_call "restart-samba" "$original_params"
     
     # Call the core function
     restart_samba_core

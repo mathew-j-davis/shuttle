@@ -58,7 +58,7 @@ cmd_enable_samba_user() {
         error_exit "Username is required"
     fi
     
-    echo "enable-samba-user command called with parameters: $original_params"
+    log_command_call "enable-samba-user" "$original_params"
     
     # Call the core function
     enable_samba_user_core "$username"

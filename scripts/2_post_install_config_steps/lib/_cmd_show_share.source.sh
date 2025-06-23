@@ -74,7 +74,7 @@ cmd_show_share() {
         error_exit "Share name is required"
     fi
     
-    echo "show-share command called with parameters: $original_params"
+    log_command_call "show-share" "$original_params"
     
     # Call the core function
     show_share_core "$sharename" "$verbose"

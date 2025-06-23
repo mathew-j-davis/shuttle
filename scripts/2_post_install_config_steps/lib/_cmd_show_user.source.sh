@@ -100,7 +100,7 @@ cmd_show_user_info() {
         error_exit "Username is required"
     fi
     
-    echo "show-user command called with parameters: $original_params"
+    log_command_call "show-user" "$original_params"
     
     # Call the core function
     show_user_info_core "$username" "$show_groups" "$show_files" "$verbose" "$check_domain"

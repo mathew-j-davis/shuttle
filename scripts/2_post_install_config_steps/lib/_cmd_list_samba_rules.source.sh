@@ -109,7 +109,7 @@ cmd_list_samba_rules() {
         esac
     done
     
-    echo "list-samba-rules command called with parameters: $original_params"
+    log_command_call "list-samba-rules" "$original_params"
     
     # Call the core function
     list_samba_rules_core "$format" "$source_filter" "$port_filter" "$protocol_filter" "$verbose"

@@ -67,7 +67,7 @@ cmd_remove_share() {
         error_exit "Share name is required"
     fi
     
-    echo "remove-share command called with parameters: $original_params"
+    log_command_call "remove-share" "$original_params"
     
     # Call the core function
     remove_share_core "$sharename" "$force"

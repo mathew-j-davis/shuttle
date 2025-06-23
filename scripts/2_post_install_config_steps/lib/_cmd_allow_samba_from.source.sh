@@ -105,7 +105,7 @@ cmd_allow_samba_from() {
         error_exit "Source IP/network is required"
     fi
     
-    echo "allow-samba-from command called with parameters: $original_params"
+    log_command_call "allow-samba-from" "$original_params"
     
     # Call the core function
     allow_samba_from_core "$source" "$comment" "$ports" "$protocol"
