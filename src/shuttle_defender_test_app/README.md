@@ -59,7 +59,7 @@ python -m shuttle_defender_test
 If installed with pip, a command-line entry point is available:
 
 ```bash
-run-defender-test
+run-shuttle-defender-test
 ```
 
 ### 3. Using the Wrapper Script
@@ -75,7 +75,7 @@ The defender test uses configuration settings that can be specified via:
 1. Command-line arguments
 2. Configuration file
 
-See the usage output (`run-defender-test --help`) for more information on available options.
+See the usage output (`run-shuttle-defender-test --help`) for more information on available options.
 
 ## Development
 

@@ -1,12 +1,6 @@
 # Shuttle Installation Flow Diagram
 
-## Current Implementation Status
-
-✅ = Fully implemented with our new pattern  
-🔧 = Partially implemented (needs instructions file integration)  
-📋 = Planned but not yet implemented  
-
----
+This document describes the complete installation flow for Shuttle, including both wizard and instructions file modes.
 
 ## Overall Flow
 
@@ -18,34 +12,45 @@ scripts/1_install.sh [--wizard|--instructions <file>|--help]
 │   └── --help → show_usage() → exit
 │
 ├── main()
-│   ├── load_installation_constants_for_install() ✅
+│   ├── load_installation_constants_for_install()
 │   │   ├── source _setup_lib_sh/_setup_lib_loader.source.sh
 │   │   ├── load_installation_constants_lib()
 │   │   └── Export all constants: VENV_CHOICE_*, INSTALL_MODE_*, LOG_LEVEL_*, etc.
 │   │
-│   ├── STEP 1: check_venv_status() ✅
-│   ├── STEP 2: select_installation_mode() ✅  
-│   ├── STEP 3: select_venv_ide_options() ✅
-│   ├── STEP 4: collect_config_path() ✅
-│   ├── STEP 5: check_prerequisites() ✅
-│   ├── STEP 6: check_and_install_system_deps() ✅
-│   ├── STEP 7: collect_environment_variables() ✅
-│   ├── STEP 8: collect_config_parameters() 🔧
-│   ├── STEP 9: execute_installation()
-│   └── STEP 10: show_next_steps()
+│   ├── Wizard Phase: Configuration Collection
+│   │   ├── check_venv_status()
+│   │   ├── select_installation_mode()
+│   │   ├── select_venv_ide_options()
+│   │   ├── collect_config_path()
+│   │   ├── check_prerequisites()
+│   │   ├── check_and_install_system_deps()
+│   │   ├── collect_environment_variables()
+│   │   └── collect_config_parameters()
+│   │
+│   └── Installation Phase: Execute Scripts
+│       ├── 01_sudo_install_python.sh
+│       ├── 02_env_and_venv.sh
+│       ├── 03_sudo_install_dependencies.sh
+│       ├── 04_check_defender_is_installed.sh
+│       ├── 05_sudo_install_clamav.sh
+│       ├── 06_install_python_dev_dependencies.sh
+│       ├── 07_setup_config.py
+│       ├── 08_install_shared.sh
+│       ├── 09_install_defender_test.sh
+│       └── 10_install_shuttle.sh
 ```
 
 ---
 
-## Step-by-Step Breakdown
+## Wizard Phase Details
 
-### STEP 1: Virtual Environment Status ✅
+### Virtual Environment Status
 
 ```
 check_venv_status()
 ├── detect_venv_state() → Sets CURRENT_VENV_ACTIVE, CURRENT_VENV_PATH
 ├── IF INSTALL_INSTRUCTIONS_FILE set:
-│   └── validate_venv_instructions(saved_choice) 📋
+│   └── validate_venv_instructions(saved_choice)
 │       ├── Check saved choice vs current state
 │       ├── Handle conflicts (error with clear message)
 │       └── Set: VENV_TYPE, CREATE_VENV, IN_VENV, USER_VENV_CHOICE
@@ -57,12 +62,12 @@ check_venv_status()
         └── Set: VENV_TYPE, CREATE_VENV, IN_VENV, USER_VENV_CHOICE, EXPECTED_VENV_ACTIVE
 ```
 
-### STEP 2: Installation Mode Selection ✅
+### Installation Mode Selection
 
 ```
 select_installation_mode()
 ├── IF INSTALL_INSTRUCTIONS_FILE set:
-│   └── validate_install_mode_instructions(saved_mode) 📋
+│   └── validate_install_mode_instructions(saved_mode)
 │       ├── Validate mode is valid
 │       ├── Check permissions for service mode
 │       └── Set: INSTALL_MODE, ENV_FLAG, USER_INSTALL_MODE_CHOICE
@@ -74,13 +79,13 @@ select_installation_mode()
         └── Set: INSTALL_MODE, ENV_FLAG, USER_INSTALL_MODE_CHOICE
 ```
 
-### STEP 3: IDE Integration Options ✅
+### IDE Integration Options
 
 ```
 select_venv_ide_options()
 ├── detect_ide_state() → Sets DETECTED_IDES array
 ├── IF INSTALL_INSTRUCTIONS_FILE set:
-│   └── validate_ide_instructions(saved_register_kernel) 📋
+│   └── validate_ide_instructions(saved_register_kernel)
 │       ├── Check prerequisites (dev mode + creating venv)
 │       ├── Apply or warn about conflicts
 │       └── Set: REGISTER_KERNEL, USER_REGISTER_KERNEL_CHOICE
@@ -92,12 +97,12 @@ select_venv_ide_options()
         └── Set: REGISTER_KERNEL, USER_REGISTER_KERNEL_CHOICE
 ```
 
-### STEP 4: Configuration File Path ✅
+### Configuration File Path
 
 ```
 collect_config_path()
 ├── IF INSTALL_INSTRUCTIONS_FILE set:
-│   └── validate_config_path_instructions(saved_path) 📋
+│   └── validate_config_path_instructions(saved_path)
 │       ├── Validate path not empty
 │       ├── Check parent directory existence/permissions
 │       └── Set: CONFIG_PATH, USER_CONFIG_PATH_CHOICE
@@ -108,12 +113,12 @@ collect_config_path()
         └── Set: CONFIG_PATH, USER_CONFIG_PATH_CHOICE
 ```
 
-### STEP 5: Prerequisites (GPG Keys) ✅
+### Prerequisites (GPG Keys)
 
 ```
 check_prerequisites()
 ├── IF INSTALL_INSTRUCTIONS_FILE set:
-│   └── validate_gpg_instructions(saved_gpg_path) 📋
+│   └── validate_gpg_instructions(saved_gpg_path)
 │       ├── Validate path not empty
 │       ├── Check if key file exists
 │       ├── Show generation instructions if missing
@@ -127,7 +132,7 @@ check_prerequisites()
         └── Set: GPG_KEY_PATH, USER_GPG_KEY_PATH_CHOICE
 ```
 
-### STEP 6: System Dependencies ✅
+### System Dependencies Detection
 
 ```
 check_and_install_system_deps()
@@ -135,7 +140,7 @@ check_and_install_system_deps()
 │   ├── Check: lsof, gnupg, python3, pip3, clamscan, mdatp
 │   └── Set: MISSING_BASIC_DEPS[], MISSING_PYTHON, MISSING_CLAMAV, MISSING_DEFENDER, NEED_SUDO
 ├── IF INSTALL_INSTRUCTIONS_FILE set:
-│   └── validate_system_deps_instructions(saved_choices) 📋
+│   └── validate_system_deps_instructions(saved_choices)
 │       ├── Check conflicts (e.g., Python required but instructions say don't install)
 │       ├── Validate sudo access if needed
 │       └── Set: INSTALL_BASIC_DEPS, INSTALL_PYTHON, INSTALL_CLAMAV, CHECK_DEFENDER
@@ -149,12 +154,12 @@ check_and_install_system_deps()
         └── Set: INSTALL_BASIC_DEPS, INSTALL_PYTHON, INSTALL_CLAMAV, CHECK_DEFENDER + USER_*_CHOICE
 ```
 
-### STEP 7: Environment Variables ✅
+### Environment Variables Collection
 
 ```
 collect_environment_variables()
 ├── IF INSTALL_INSTRUCTIONS_FILE set:
-│   └── validate_environment_paths_instructions(saved_venv_path, saved_test_dir) 📋
+│   └── validate_environment_paths_instructions(saved_venv_path, saved_test_dir)
 │       ├── Validate paths not empty
 │       ├── Check parent directories
 │       └── Set: VENV_PATH, TEST_WORK_DIR, CONFIG_DIR, USER_*_CHOICE
@@ -166,14 +171,14 @@ collect_environment_variables()
         └── Set: VENV_PATH, TEST_WORK_DIR, CONFIG_DIR, USER_*_CHOICE
 ```
 
-### STEP 8: Configuration Parameters 🔧
+### Shuttle Configuration Parameters
 
 ```
 collect_config_parameters()
-├── IF INSTALL_INSTRUCTIONS_FILE set: 📋
+├── IF INSTALL_INSTRUCTIONS_FILE set:
 │   └── Skip entirely - config already exists
-└── ELSE (wizard mode): 🔧
-    └── Current implementation (needs modularization):
+└── ELSE (wizard mode):
+    └── Current implementation:
         ├── Set defaults based on INSTALL_MODE (using constants)
         ├── Collect all shuttle config parameters:
         │   ├── File paths: source, dest, quarantine, logs, hazard
@@ -183,12 +188,12 @@ collect_config_parameters()
         │   ├── Email: SMTP settings (if admin email provided)
         │   └── Processing: delete source files, ledger path
         ├── Set all USER_*_CHOICE variables for 18+ parameters
-        └── PLANNED: Call 07_setup_config.py to create files immediately
+        └── Call 07_setup_config.py to create files immediately
 ```
 
 ---
 
-## STEP 8 Planned Refactoring 📋
+## Configuration File Creation
 
 ### Wizard Mode (Create Real Files):
 ```
@@ -211,7 +216,7 @@ collect_config_parameters() [instructions mode]
 
 ---
 
-## Wizard Completion Flow 📋
+## Wizard Completion Flow
 
 ```
 wizard_completion_options() [After step 8]
@@ -229,29 +234,67 @@ wizard_completion_options() [After step 8]
 
 ---
 
-## STEP 9: Execute Installation
+## Installation Scripts Execution
 
-```
-execute_installation()
-├── Set environment variables for session
-├── PHASE 1: System Dependencies (sudo required)
-│   ├── IF INSTALL_BASIC_DEPS → ./1_installation_steps/03_sudo_install_dependencies.sh
-│   ├── IF INSTALL_PYTHON → ./1_installation_steps/01_sudo_install_python.sh  
-│   └── IF INSTALL_CLAMAV → ./1_installation_steps/05_sudo_install_clamav.sh
-├── PHASE 2: Environment Setup
-│   └── ./1_installation_steps/02_env_and_venv.sh $ENV_FLAG [--do-not-create-venv]
-├── PHASE 3: Python Dependencies  
-│   └── ./1_installation_steps/06_install_python_dev_dependencies.sh
-├── PHASE 4: Configuration (CHANGED) 🔧
-│   └── Skip - config already created in step 8
-├── PHASE 5: Module Installation
-│   ├── ./1_installation_steps/08_install_shared.sh [$MODULE_FLAG]
-│   ├── ./1_installation_steps/09_install_defender_test.sh [$MODULE_FLAG]  
-│   └── ./1_installation_steps/10_install_shuttle.sh [$MODULE_FLAG]
-└── PHASE 6: Final Setup
-    ├── Register Jupyter kernel if requested
-    └── Copy GPG key if needed
-```
+The actual installation is performed by running scripts from `1_installation_steps/` in sequence:
+
+### 01_sudo_install_python.sh
+- **Purpose**: Install Python 3 and development tools
+- **Requires**: sudo privileges
+- **Runs if**: INSTALL_PYTHON=true or Python is missing
+- **Installs**: python3, python3-pip, python3-venv, python3-dev
+- **Supports**: apt, dnf, yum, pacman, zypper, brew
+
+### 02_env_and_venv.sh
+- **Purpose**: Set up virtual environment
+- **Parameters**: `$ENV_FLAG` (--dev/--user/--service) and optionally `--do-not-create-venv`
+- **Creates**: Virtual environment at $VENV_PATH
+- **Configures**: Environment-specific settings
+
+### 03_sudo_install_dependencies.sh
+- **Purpose**: Install system dependencies
+- **Requires**: sudo privileges
+- **Runs if**: INSTALL_BASIC_DEPS=true
+- **Installs**: lsof, gnupg
+
+### 04_check_defender_is_installed.sh
+- **Purpose**: Verify Microsoft Defender installation
+- **Runs if**: CHECK_DEFENDER=true
+- **Validates**: mdatp installation and configuration
+
+### 05_sudo_install_clamav.sh
+- **Purpose**: Install ClamAV antivirus
+- **Requires**: sudo privileges
+- **Runs if**: INSTALL_CLAMAV=true
+- **Installs**: clamav, clamav-daemon, clamav-freshclam
+- **Configures**: Service settings based on installation mode
+
+### 06_install_python_dev_dependencies.sh
+- **Purpose**: Install Python development dependencies
+- **Installs**: Packages from requirements.txt
+- **Activates**: Virtual environment before installation
+
+### 07_setup_config.py
+- **Purpose**: Create configuration files
+- **Creates**: config.conf, test_config.conf, ledger.yaml
+- **Generates**: GPG keys for testing
+- **Note**: Already run during wizard phase
+
+### 08_install_shared.sh
+- **Purpose**: Install shuttle_common module
+- **Parameters**: Optional `-e` flag for editable install
+- **Location**: src/shared_library/
+
+### 09_install_defender_test.sh
+- **Purpose**: Install shuttle_defender_test module
+- **Parameters**: Optional `-e` flag for editable install
+- **Location**: src/shuttle_defender_test_app/
+
+### 10_install_shuttle.sh
+- **Purpose**: Install main shuttle application
+- **Parameters**: Optional `-e` flag for editable install
+- **Location**: src/shuttle_app/
+- **Creates**: Command-line entry points
 
 ---
 
@@ -280,7 +323,7 @@ execute_installation()
 
 ---
 
-## Instructions File Format 📋
+## Instructions File Format
 
 ```yaml
 version: '1.0'
@@ -313,13 +356,3 @@ paths:
   test_work_dir: "/path/to/test_area"
 ```
 
----
-
-## Next Implementation Steps 📋
-
-1. **Refactor 07_setup_config.py** → Make modular for individual file creation
-2. **Implement instructions file save/load** → YAML generation and parsing
-3. **Add wizard completion options** → Save/Continue/Exit choices
-4. **Update step 8** → Call modular config creation in wizard mode
-5. **Add environment variable generation** → Create shell scripts
-6. **Integration testing** → Full wizard → instructions → install workflow

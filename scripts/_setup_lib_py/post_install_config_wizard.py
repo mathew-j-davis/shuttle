@@ -295,7 +295,7 @@ class ConfigWizard:
                 'secondary': ['shuttle_config_readers']
             },
             'capabilities': {
-                'executables': ['run-shuttle', 'run-defender-test']
+                'executables': ['run-shuttle', 'run-shuttle-defender-test']
             },
             'permissions': self._configure_path_permissions("Single User")
         })
@@ -561,7 +561,7 @@ class ConfigWizard:
                 'secondary': ['shuttle_config_readers', 'shuttle_ledger_writers']
             },
             'capabilities': {
-                'executables': ['run-defender-test']
+                'executables': ['run-shuttle-defender-test']
             },
             'permissions': {
                 'read_write': [
@@ -648,7 +648,7 @@ class ConfigWizard:
         if self._confirm("Can run shuttle?", False):
             user['capabilities']['executables'].append('run-shuttle')
         if self._confirm("Can run defender tests?", False):
-            user['capabilities']['executables'].append('run-defender-test')
+            user['capabilities']['executables'].append('run-shuttle-defender-test')
         
         # Permissions (simplified)
         if self._confirm("Read/write access to source directory?", False):

@@ -26,11 +26,11 @@
          ┌─────────────────────────────────┐
          │                                 │
          │    DailyProcessingTracker       │
-         │ (File & Volume Tracking)        │
+         │   (File & Volume Tracking)      │
          │                                 │
-         └──────────┬─────────────┬────────┘
-                    │             │
-                    ▼             ▼
+         └─────────────────┬───────────────┘
+                           │             
+                           ▼             
          ┌─────────────────────────────────┐
          │                                 │
          │          Malware Scan           │
@@ -61,35 +61,62 @@
 
 ## Overview
 
-WARNING THIS SOFTWARE IS EXPERIMENTAL FOR MY PERSONAL USE, INFORMATION AND CODE HERE ARE MY PERSONAL NOTES
-THEY ARE NOT ADVICE OR RECOMMENDATIONS
+WARNING THIS SOFTWARE IS EXPERIMENTAL 
 THIS IS UNTESTED, NO GUARANTEES OR WARRANTEES
 YOU ARE RESPONSIBLE FOR YOUR OWN ACTIONS
 
-Shuttle is a secure file transfer and scanning utility designed to safely move files between directories while performing malware scanning. It features:
+Shuttle is a secure file transfer and scanning utility designed to safely move files between directories while performing malware scanning. It is intended to be deployed on a hardened, locked-down machine that functions as a security intermediary between untrusted systems and protected networks.
+
+### Primary Use Case
+Shuttle addresses the critical security challenge of transferring data files from equipment running old, unpatched operating systems (such as industrial control systems, legacy medical devices, or aging infrastructure) to secure networks without risking the integrity of the protected environment. By providing a controlled, monitored, and scanned transfer point, Shuttle helps organizations maintain security while dealing with the reality of legacy systems that cannot be updated.
+
+ It features. 
 
 - On-demand malware scanning using Microsoft Defender and ClamAV
-- Disk space monitoring and throttling to prevent filling up disks
-- Secure handling of suspect files (quarantine and encrypted archiving)
+- Disk space monitoring and throttling to prevent filling drives
+- Secure encryption and handling of suspect files 
 - Configurable notification system for errors and status updates
-- Proper file integrity verification during transfers
-- Comprehensive file tracking and metrics reporting
-- Parallel processing for improved performance (experimental - not ready for use)
+- File integrity verification during transfers
+- Parallel processing for improved performance 
 
-**Note:** This project is under active development. When using with Microsoft Defender, it's recommended to limit to a single processing thread.
+**Note:** This project is under active development. When using with Microsoft Defender, you may experience stability issues if scanning with multiple threads.
+
+## System Requirements
+
+- **Operating System**: Linux-based (Ubuntu, Debian, RHEL, Fedora, etc.)
+- **Python**: Version 3.6 or higher (can be installed via provided scripts)
+- **Malware Scanner** (at least one):
+  - ClamAV
+  - Microsoft Defender for Linux
+- **Encryption**: GPG/GnuPG for suspect file encryption
+- **Disk Space**: Sufficient space for:
+  - Quarantine directory (temporary file storage)
+  - Hazard archive (encrypted suspect files)
+  - Log files and tracking database
+- **Network**: SMTP access for email notifications (optional)
+- **Permissions**: Ability to install system packages and create service accounts
+
+**Important**: The installation and configuration scripts can install Python, ClamAV, and other required system tools automatically based on your selections.
+
+**Disclaimer**: This software is provided as-is without any warranties. Users are responsible for evaluating the suitability of this software for their specific security requirements and compliance obligations. Always test thoroughly in a non-production environment before deployment.
 
 ## Core Components
 
-The project is organized into several key components:
+The project is organized into:
 
-1. **Main Shuttle Application** (`shuttle_app`) - The primary file transfer and scanning utility
+- Three modules:
+
+1. **Main Shuttle Application** (`shuttle_app`) - The primary file transfer and scanning orchestration system.
 2. **Defender Test App** (`shuttle_defender_test_app`) - A standalone utility to test Microsoft Defender integration
 3. **Common Library** (`shuttle_common`) - Shared utilities used by both applications
+
+- Extensive installation and environment configuration utilities.
+- Extensive configurable automated tests
 
 ## Key Features
 
 ### Secure File Transfer
-Files are safely moved between source and destination directories with proper integrity checks. The process ensures files are stable (not being written to) before processing, and verifies integrity using file hashes.
+Files are safely moved between source and destination directories with integrity checks. The process ensures files are stable (not being written to) before processing, and verifies integrity using file hashes.
 
 ### Malware Scanning
 Files are scanned using configurable scanners:
@@ -101,17 +128,15 @@ When both scanners are enabled, files must pass both scans to be considered clea
 ### File Tracking and Metrics
 The DailyProcessingTracker component:
 - Tracks every processed file with unique hash identifiers
-- Maintains comprehensive metrics by outcome category (success/failure/suspect)
-- Provides detailed reporting capabilities for operational insights
-- Handles persistence of tracking data with transaction safety
-- Supports proper shutdown with pending file handling
+- Maintains metrics by outcome category (success/failure/suspect)
+- Provides detailed reporting of number and volume of files transferred
 
 ### Suspect File Handling
 When a file is identified as suspicious:
 1. **Microsoft Defender Handling** (if configured):
    - Defender automatically quarantines the file according to its settings
    - The script verifies Defender has removed the file
-2. **Manual Handling**:
+2. **Fallback Handling**:
    - Files are encrypted using GPG with a public key
    - Encrypted files are moved to a hazard archive directory
    - Original filenames and timestamps are preserved
@@ -129,35 +154,125 @@ Throttling system monitors available disk space in all relevant directories and 
 - Uses `ProcessPoolExecutor` for parallel file processing
 - Enforces single instance operation via lock file mechanism
 
+## Installation
+
+Shuttle provides interactive installation scripts for easy setup:
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd shuttle
+
+# Run the interactive installation wizard
+./scripts/1_install.sh
+
+# Configure users, groups, permissions, and services
+./scripts/2_post_install_config.sh
+```
+
+The installation wizard will guide you through:
+- Choosing installation type (development, user, or service)
+- Installing Python and system dependencies
+- Setting up virtual environments
+- Installing scanner software (ClamAV/Defender)
+- Configuring file paths and permissions
+
+## Quick Start
+
+1. **Clone and Install**
+   ```bash
+   git clone <repository-url>
+   cd shuttle
+   ./scripts/1_install.sh
+   ```
+
+2. **Configure Environment**
+   ```bash
+   ./scripts/2_post_install_config.sh
+   ```
+
+3. **Set Up Configuration**
+   - Copy and edit the example configuration file
+   - Set source, destination, and quarantine paths
+   - Configure scanner preferences
+   - Set up email notifications (optional)
+
+4. **Test Scanner Integration** (if using Microsoft Defender)
+   ```bash
+   run-shuttle-defender-test
+   ```
+
+5. **Start Processing Files**
+   ```bash
+   run-shuttle
+   ```
+
 ## Running the Application
 
 ### Activating the Environment
 
 ```bash
-# For virtual environment activation, use the generated activation script:
-source /path/to/config/shuttle_activate_virtual_environment.sh
-# or use the environment script first:
+# activate your virtual environment
+source /path/to/venv/bin/activate
+# set environment variables
 source /path/to/config/shuttle_env.sh
 ```
 
 ### Execution Methods
 
-1. **Module Method**:
+If using Microsoft Defender, run the defender test first to validate that your defender configuration is compatible with shuttle.
+
+This test will use an [EICAR file](https://en.wikipedia.org/wiki/EICAR_test_file), a safe simulation of a malware file to trigger a positive detection by Defender. 
+
+Shuttle will not run unless a test has been run on the current configuration of defender on your system. 
+
+1. **Run defender test first**:
    ```bash
-   python3 -m shuttle.shuttle
+   run-shuttle-defender-test
    ```
 
-2. **Command-line Tool** (when installed via pip):
+2. **Command-line Tool** :
    ```bash
    run-shuttle
    ```
 
-3. **Direct Script Execution**:
-   ```bash
-   python3 /path/to/bin/run_shuttle.py
-   ```
 
 You don't need to provide parameters if they're configured in the settings file.
+
+### Basic Configuration Example
+
+```ini
+# ~/.config/shuttle/shuttle_config.ini
+[paths]
+source_path = /var/shuttle/source
+destination_path = /var/shuttle/destination
+quarantine_path = /var/shuttle/quarantine
+hazard_archive_path = /var/shuttle/hazard
+
+[scanning]
+scanner_type = clamav
+enable_parallel_scanning = true
+max_threads = 4
+
+[notifications]
+smtp_server = smtp.example.com
+sender_email = shuttle@example.com
+recipient_email = admin@example.com
+```
+
+See the [Configuration Guide](docs/readme_configuration.md) for all available options.
+
+## Troubleshooting
+
+Common issues and solutions:
+
+- **Single instance lock**: If Shuttle reports it's already running, check for stale lock files in the tracking directory
+- **Scanner not found**: Ensure the scanner is installed and accessible in PATH
+- **Permission denied**: Verify the service account has appropriate permissions on all configured directories
+- **Email notifications failing**: Check SMTP configuration and network connectivity
+- **Defender test failing**: Review Defender configuration and ensure real-time protection is enabled
+
+For detailed troubleshooting, check the logs in your configured tracking directory.
 
 ## Documentation Index
 

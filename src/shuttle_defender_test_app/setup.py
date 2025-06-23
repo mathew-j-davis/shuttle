@@ -14,7 +14,7 @@ setup(
     # Entry points for command-line scripts
     entry_points={
         'console_scripts': [
-            'run-defender-test=shuttle_defender_test.shuttle_defender_test:main',
+            'run-shuttle-defender-test=shuttle_defender_test.shuttle_defender_test:main',
         ],
     },
     # Add classifiers for better package metadata

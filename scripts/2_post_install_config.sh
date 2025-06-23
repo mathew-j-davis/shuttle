@@ -674,11 +674,11 @@ show_completion_summary() {
 
 # Main execution function
 main() {
+    # Parse command line arguments first (before banner, in case of --help)
+    parse_arguments "$@"
+    
     echo "Starting production environment configuration..." >&2
     echo "" >&2
-    
-    # Parse command line arguments
-    parse_arguments "$@"
     
     # Run wizard if requested
     if [[ "$RUN_WIZARD" == "true" ]]; then

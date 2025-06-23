@@ -189,10 +189,10 @@ class UserGroupManager:
             if 'shuttle_app_users' not in user.get('groups', {}).get('secondary', []):
                 print(f"    Note: Consider adding {user_name} to shuttle_app_users group for run-shuttle access")
         
-        # Example: If user needs run-defender-test, add them to shuttle_test_users group  
-        if 'run-defender-test' in executables:
+        # Example: If user needs run-shuttle-defender-test, add them to shuttle_test_users group  
+        if 'run-shuttle-defender-test' in executables:
             if 'shuttle_test_users' not in user.get('groups', {}).get('secondary', []):
-                print(f"    Note: Consider adding {user_name} to shuttle_test_users group for run-defender-test access")
+                print(f"    Note: Consider adding {user_name} to shuttle_test_users group for run-shuttle-defender-test access")
         
         return True
 

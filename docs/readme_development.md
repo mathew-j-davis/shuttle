@@ -480,7 +480,7 @@ The project provides two main command-line tools that are installed when the pac
    - Maps to `shuttle.shuttle:main`
    - Handles file transfer, scanning, and processing
 
-2. **run-defender-test** - Defender compatibility testing tool
+2. **run-shuttle-defender-test** - Defender compatibility testing tool
    - Installed via the entry point in shuttle_defender_test_app/setup.py
    - Maps to `shuttle_defender_test.shuttle_defender_test:main`
    - Tests Microsoft Defender's pattern matching compatibility
