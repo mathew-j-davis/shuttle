@@ -65,10 +65,18 @@ WARNING THIS SOFTWARE IS EXPERIMENTAL
 THIS IS UNTESTED, NO GUARANTEES OR WARRANTEES
 YOU ARE RESPONSIBLE FOR YOUR OWN ACTIONS
 
-Shuttle is a secure file transfer and scanning utility designed to safely move files between directories while performing malware scanning. It is intended to be deployed on a hardened, locked-down machine that functions as a security intermediary between untrusted systems and protected networks.
+Shuttle is a secure file transfer and scanning utility designed to safely move files between directories while performing malware scanning. It is intended to be deployed as part of a hardened, locked-down system that functions as a security intermediary between untrusted systems and protected networks.
+
+**Important**: Shuttle is a utility that enhances the security of file transfers but does not, by itself, secure the host system. It must be deployed within an already-secured environment with appropriate security controls, access restrictions, and system hardening in place.
 
 ### Primary Use Case
 Shuttle addresses the critical security challenge of transferring data files from equipment running old, unpatched operating systems (such as industrial control systems, legacy medical devices, or aging infrastructure) to secure networks without risking the integrity of the protected environment. By providing a controlled, monitored, and scanned transfer point, Shuttle helps organizations maintain security while dealing with the reality of legacy systems that cannot be updated.
+
+The configuration tools included with Shuttle are designed to help integrate the utility with your existing security infrastructure, including:
+- User and group management aligned with security policies
+- File permissions and access controls
+- Network share configuration with authentication
+- Integration points for existing security tools
 
  It features. 
 
