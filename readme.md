@@ -175,7 +175,10 @@ cd shuttle
 ./scripts/1_install.sh
 
 # Configure users, groups, permissions, and services
-./scripts/2_post_install_config.sh
+# configure your environment manually, the configuration scripts are still in early development
+ 
+#./scripts/2_post_install_config_steps/*
+#./scripts/2_post_install_config.sh
 ```
 
 The installation wizard will guide you through:
