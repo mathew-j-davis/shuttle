@@ -317,6 +317,11 @@ set_path_permissions_core() {
             log INFO "Applying changes recursively"
         fi
         
+        # Safety check before executing chmod command
+        if ! check_path_safety "$path" "change permissions"; then
+            return 1
+        fi
+        
         # Execute chmod command
         execute_or_dryrun "$chmod_cmd" "Changed permissions of '$path' to '$mode'" "Failed to change permissions of '$path'" \
                          "Modify file or directory permissions to control access (read/write/execute) for owner/group/others" || return 1

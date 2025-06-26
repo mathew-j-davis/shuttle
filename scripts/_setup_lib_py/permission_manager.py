@@ -11,12 +11,8 @@ from typing import Dict, List, Any
 # Handle both relative and absolute imports
 try:
     from .command_executor import run_command
-    from .config_analyzer import analyze_config
-    from .path_resolver import resolve_path
 except ImportError:
     from command_executor import run_command
-    from config_analyzer import analyze_config
-    from path_resolver import resolve_path
 
 
 class PermissionManager:
@@ -44,8 +40,7 @@ class PermissionManager:
         Returns:
             True if successful, False otherwise
         """
-        # Analyze configuration
-        groups, users, settings = analyze_config(config_file)
+        users = self._parse_yaml_users(config_file)
         
         # Set permissions for each user
         permission_count = 0
@@ -60,6 +55,22 @@ class PermissionManager:
         
         print("File permissions configuration complete")
         return True
+    
+    def _parse_yaml_users(self, config_file: str) -> List[Dict[str, Any]]:
+        """Parse YAML file and extract user definitions"""
+        try:
+            with open(config_file, 'r') as f:
+                docs = list(yaml.safe_load_all(f))
+            
+            users = []
+            for doc in docs:
+                if doc and doc.get('type') == 'user':
+                    users.append(doc['user'])
+            
+            return users
+        except Exception as e:
+            print(f"Error parsing YAML file {config_file}: {e}")
+            return []
     
     def _set_user_permissions(self, user: Dict[str, Any]) -> int:
         """Set permissions for a single user"""
@@ -87,8 +98,8 @@ class PermissionManager:
     def _set_single_permission(self, perm: Dict[str, Any], user_name: str, 
                               perm_type: str, default_mode: str) -> bool:
         """Set a single permission entry"""
-        # Resolve symbolic path to actual path
-        actual_path = resolve_path(perm['path'])
+        # Use the path directly from YAML (no resolution needed)
+        actual_path = perm['path']
         mode = perm.get('mode', default_mode)
         success = True
         
@@ -133,28 +144,17 @@ class PermissionManager:
 
 def main():
     """Main entry point for standalone execution"""
-    if len(sys.argv) < 3:
-        print(f"Usage: {sys.argv[0]} <config_file> <production_dir> [--dry-run] [--shuttle-config-path=PATH]")
-        sys.exit(1)
+    import argparse
     
-    config_file = sys.argv[1]
-    production_dir = sys.argv[2]
-    dry_run = "--dry-run" in sys.argv
+    parser = argparse.ArgumentParser(description='Manage file and directory permissions from YAML configuration')
+    parser.add_argument('config_file', help='Path to YAML configuration file')
+    parser.add_argument('production_dir', help='Path to production scripts directory')
+    parser.add_argument('--dry-run', action='store_true', help='Show what would be done without making changes')
     
-    # Extract shuttle config path if provided
-    shuttle_config_path = None
-    for arg in sys.argv:
-        if arg.startswith("--shuttle-config-path="):
-            shuttle_config_path = arg.split("=", 1)[1]
-            break
+    args = parser.parse_args()
     
-    # Set environment variable for path resolution if provided
-    if shuttle_config_path:
-        import os
-        os.environ['SHUTTLE_CONFIG_PATH'] = shuttle_config_path
-    
-    manager = PermissionManager(production_dir, dry_run)
-    success = manager.process_config(config_file)
+    manager = PermissionManager(args.production_dir, args.dry_run)
+    success = manager.process_config(args.config_file)
     sys.exit(0 if success else 1)
 
 

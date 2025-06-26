@@ -296,6 +296,11 @@ set_path_owner_core() {
         log INFO "Only changing files currently owned by: $from_owner"
     fi
     
+    # Safety check before executing chown command
+    if ! check_path_safety "$path" "change ownership"; then
+        return 1
+    fi
+    
     # Execute chown command
     execute_or_dryrun "$chown_cmd" "Changed ownership of '$path' to '$ownership_string'" "Failed to change ownership of '$path'" \
                      "Change file or directory ownership to control which user and group can access the resource" || return 1

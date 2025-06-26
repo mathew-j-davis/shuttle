@@ -77,9 +77,9 @@ else
     CONFIG_GLOB_PATTERN="post_install_config_steps*.yaml"
 fi
 
-# Default configuration file location
-DEFAULT_CONFIG="$PROJECT_ROOT/config/$INSTRUCTIONS_DEFAULT_FILENAME"
-CONFIG_FILE=""
+# Default instructions file location
+DEFAULT_INSTRUCTIONS_PATH="$PROJECT_ROOT/config/$INSTRUCTIONS_DEFAULT_FILENAME"
+INSTRUCTIONS_FILE=""
 INTERACTIVE_MODE=true
 DRY_RUN=false
 RUN_WIZARD=false
@@ -131,7 +131,7 @@ parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case $1 in
             --instructions)
-                CONFIG_FILE="$2"
+                INSTRUCTIONS_FILE="$2"
                 shift 2
                 ;;
             --non-interactive)
@@ -172,7 +172,7 @@ parse_arguments() {
     done
     
     # If no --instructions specified and no --wizard, default to wizard
-    if [[ -z "$CONFIG_FILE" && "$RUN_WIZARD" == "false" ]]; then
+    if [[ -z "$INSTRUCTIONS_FILE" && "$RUN_WIZARD" == "false" ]]; then
         RUN_WIZARD=true
     fi
 }
@@ -182,8 +182,8 @@ validate_config() {
     echo "=== Configuration Validation ===" >&2
     echo "" >&2
     
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        print_fail "Configuration file not found: $CONFIG_FILE"
+    if [[ ! -f "$INSTRUCTIONS_FILE" ]]; then
+        print_fail "Configuration file not found: $INSTRUCTIONS_FILE"
         echo "" >&2
         echo "Create a YAML configuration file defining users and groups." >&2
         echo "See yaml_user_setup_design.md for examples and documentation." >&2
@@ -192,14 +192,14 @@ validate_config() {
     
     # Basic YAML validation using Python
     echo "Validating YAML syntax..."
-    if ! python3 -c "import yaml; list(yaml.safe_load_all(open('$CONFIG_FILE')))" 2>/dev/null; then
+    if ! python3 -c "import yaml; list(yaml.safe_load_all(open('$INSTRUCTIONS_FILE')))" 2>/dev/null; then
         print_fail "Invalid YAML configuration file"
         echo "" >&2
         echo "Please check your YAML syntax and try again." >&2
         exit 1
     fi
     
-    print_success "Configuration file validated: $CONFIG_FILE"
+    print_success "Configuration file validated: $INSTRUCTIONS_FILE"
     echo ""
 }
 
@@ -211,7 +211,7 @@ read_interactive_mode_settings() {
 import yaml
 import sys
 try:
-    with open('$CONFIG_FILE', 'r') as f:
+    with open('$INSTRUCTIONS_FILE', 'r') as f:
         docs = list(yaml.safe_load_all(f))
     
     for doc in docs:
@@ -251,7 +251,7 @@ except:
 import yaml
 import sys
 try:
-    with open('$CONFIG_FILE', 'r') as f:
+    with open('$INSTRUCTIONS_FILE', 'r') as f:
         docs = list(yaml.safe_load_all(f))
     
     for doc in docs:
@@ -349,12 +349,12 @@ interactive_setup() {
     
     echo "=== Configuration Overview ==="
     echo ""
-    echo "Configuration file: $CONFIG_FILE"
+    echo "Configuration file: $INSTRUCTIONS_FILE"
     echo ""
     
     # Show configuration summary using Python module
     echo "Analyzing configuration..."
-    python3 -m config_analyzer "$CONFIG_FILE"
+    python3 -m config_analyzer "$INSTRUCTIONS_FILE"
     
     if [[ $? -ne 0 ]]; then
         print_fail "Failed to analyze configuration"
@@ -391,7 +391,7 @@ is_component_enabled() {
 import yaml
 import sys
 try:
-    with open('$CONFIG_FILE', 'r') as f:
+    with open('$INSTRUCTIONS_FILE', 'r') as f:
         docs = list(yaml.safe_load_all(f))
     
     for doc in docs:
@@ -452,7 +452,7 @@ phase_configure_users() {
         config_args="--shuttle-config-path=$SHUTTLE_CONFIG_PATH"
     fi
     
-    python3 -m user_group_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag $config_args
+    python3 -m user_group_manager "$INSTRUCTIONS_FILE" "$PRODUCTION_DIR" $dry_run_flag $config_args
 
     if [[ $? -ne 0 ]]; then
         print_fail "Failed to configure users and groups"
@@ -473,7 +473,7 @@ phase_set_permissions() {
         dry_run_flag="--dry-run"
     fi
     
-    python3 -m permission_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag
+    python3 -m permission_manager "$INSTRUCTIONS_FILE" "$PRODUCTION_DIR" $dry_run_flag
 
     if [[ $? -ne 0 ]]; then
         print_warn "⚠️  Some permission settings may have failed"
@@ -505,7 +505,7 @@ phase_configure_samba() {
         interactive_flag="--non-interactive"
     fi
     
-    python3 -m samba_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag $interactive_flag
+    python3 -m samba_manager "$INSTRUCTIONS_FILE" "$PRODUCTION_DIR" $dry_run_flag $interactive_flag
 
     if [[ $? -ne 0 ]]; then
         print_warn "⚠️  Some Samba configuration may have failed"
@@ -605,15 +605,15 @@ run_configuration_wizard() {
         rm -f /tmp/wizard_config_filename
         # Check if wizard_filename is already an absolute path
         if [[ "$wizard_filename" = /* ]]; then
-            CONFIG_FILE="$wizard_filename"
+            INSTRUCTIONS_FILE="$wizard_filename"
         else
-            CONFIG_FILE="$PROJECT_ROOT/config/$wizard_filename"
+            INSTRUCTIONS_FILE="$PROJECT_ROOT/config/$wizard_filename"
         fi
         echo ""
-        print_success "Using wizard-generated configuration: $CONFIG_FILE"
+        print_success "Using wizard-generated configuration: $INSTRUCTIONS_FILE"
         echo ""
         # Show usage instructions for the saved configuration
-        show_saved_config_usage "$0" "$CONFIG_FILE" "configuration" "false"
+        show_saved_config_usage "$0" "$INSTRUCTIONS_FILE" "configuration" "false"
         echo ""
         print_info "Continuing to apply configuration..."
         echo ""
@@ -622,12 +622,12 @@ run_configuration_wizard() {
         local latest_config=$(ls -t $CONFIG_GLOB_PATTERN 2>/dev/null | head -1)
         
         if [[ -n "$latest_config" ]]; then
-            CONFIG_FILE="$PROJECT_ROOT/config/$latest_config"
+            INSTRUCTIONS_FILE="$PROJECT_ROOT/config/$latest_config"
             echo ""
-            print_success "Using generated configuration: $CONFIG_FILE"
+            print_success "Using generated configuration: $INSTRUCTIONS_FILE"
             echo ""
             # Show usage instructions for the saved configuration
-            show_saved_config_usage "$0" "$CONFIG_FILE" "configuration" "false"
+            show_saved_config_usage "$0" "$INSTRUCTIONS_FILE" "configuration" "false"
             echo ""
             print_info "Continuing to apply configuration..."
             echo ""
@@ -668,7 +668,7 @@ show_completion_summary() {
         echo ""
     fi
     
-    echo "Configuration file used: $CONFIG_FILE"
+    echo "Configuration file used: $INSTRUCTIONS_FILE"
     echo "For detailed configuration options, see: yaml_user_setup_design.md"
 }
 

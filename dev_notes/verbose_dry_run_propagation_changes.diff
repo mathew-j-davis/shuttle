@@ -1,0 +1,609 @@
+--- Verbose and Dry-Run Flag Propagation Changes ---
+================================================================================
+
+This diff file shows all changes needed to implement comprehensive verbose and
+dry-run flag propagation throughout the installation and configuration system.
+
+Changes are organized by priority for incremental implementation.
+
+================================================================================
+PRIORITY 1: CORE INFRASTRUCTURE FIXES
+================================================================================
+
+--- a/scripts/_setup_lib_py/command_executor.py
++++ b/scripts/_setup_lib_py/command_executor.py
+@@ -7,8 +7,31 @@
+ import subprocess
+ from typing import List, Tuple
+ 
++import os
+ 
+-def run_command(cmd_list: List[str], description: str, dry_run: bool = False, interactive: bool = False) -> bool:
++def run_command(cmd_list: List[str], description: str, dry_run: bool = False, 
++                verbose: bool = False, interactive: bool = False) -> bool:
+     """
+     Execute command or show what would be executed in dry run
+     
+@@ -16,11 +16,19 @@ def run_command(cmd_list: List[str], description: str, dry_run: bool = False, i
+         cmd_list: Command and arguments as list
+         description: Human readable description
+-        dry_run: If True, show command but don't execute
++        dry_run: If True, show command but don't execute (check env var as fallback)
++        verbose: If True, show command even when executing (check env var as fallback)
+         interactive: If True, don't capture output
+     """
++    # Check environment variables as fallback
++    if not dry_run:
++        dry_run = os.environ.get('DRY_RUN', 'false').lower() == 'true'
++    if not verbose:
++        verbose = os.environ.get('VERBOSE', 'false').lower() == 'true'
++    
+     cmd_str = " ".join([f'"{arg}"' if ' ' in arg else arg for arg in cmd_list])
+     
+-    if dry_run:
++    # Show command if verbose OR dry-run
++    if verbose or dry_run:
++        if dry_run:
+             print(f"[DRY RUN] {description}")
++        else:
++            print(f"Executing: {description}")
+         print(f"  Command: {cmd_str}")
++    
++    if dry_run:
+         return True
+         
+     # Implementation
+@@ -57,7 +65,18 @@ def run_command(cmd_list: List[str], description: str, dry_run: bool = False, i
+             return False
+ 
+ 
+-def execute_commands(commands: List[Tuple[List[str], str]], dry_run: bool = False, 
++# Simple helper for shell script execution with flag propagation
++def run_script_with_flags(script_path: str, base_args: List[str], description: str,
++                         dry_run: bool = False, verbose: bool = False) -> bool:
++    """Run shell script with automatic flag propagation"""
++    cmd = [script_path] + base_args
++    
++    # Add flags if they should be propagated  
++    if verbose or os.environ.get('VERBOSE', 'false').lower() == 'true':
++        cmd.append('--verbose')
++    if dry_run or os.environ.get('DRY_RUN', 'false').lower() == 'true':
++        cmd.append('--dry-run')
++        
++    return run_command(cmd, description, dry_run, verbose)
++
++
++def execute_commands(commands: List[Tuple[List[str], str]], dry_run: bool = False, verbose: bool = False,
+                     stop_on_error: bool = True) -> Tuple[int, int]:
+     """
+     Execute a batch of commands
+@@ -73,7 +92,7 @@ def execute_commands(commands: List[Tuple[List[str], str]], dry_run: bool = Fal
+     error_count = 0
+     
+     for cmd_list, description in commands:
+-        if run_command(cmd_list, description, dry_run):
++        if run_command(cmd_list, description, dry_run, verbose):
+             success_count += 1
+         else:
+             error_count += 1
+
+--- a/scripts/_setup_lib_sh/_common_.source.sh
++++ b/scripts/_setup_lib_sh/_common_.source.sh
+@@ -733,3 +733,29 @@ append_if_set() {
+         echo "$base_cmd"
+     fi
+ }
++
++# ============================================================================
++# PYTHON MODULE EXECUTION WITH FLAG PROPAGATION
++# ============================================================================
++
++# Function for executing Python modules with automatic flag propagation
++# Builds on execute_or_execute_dryrun to maintain consistency
++execute_or_execute_dryrun_python_module() {
++    local module_name="$1"
++    local base_args="$2"
++    local success_msg="$3"
++    local error_msg="$4"
++    local explanation="${5:-}"
++    
++    # Build the base Python command
++    local cmd="python3 -m $module_name"
++    
++    # Add base arguments if provided
++    if [[ -n "$base_args" ]]; then
++        cmd="$cmd $base_args"
++    fi
++    
++    # Add --verbose flag if VERBOSE is true
++    # (--dry-run is handled by execute_or_execute_dryrun)
++    if [[ "${VERBOSE:-false}" == "true" ]]; then
++        cmd="$cmd --verbose"
++    fi
++    
++    # Call the existing function which handles --dry-run automatically
++    execute_or_execute_dryrun "$cmd" "$success_msg" "$error_msg" "$explanation"
++}
+
+================================================================================
+PRIORITY 1: FIX PYTHON MODULE CALLS IN 2_POST_INSTALL_CONFIG.SH
+================================================================================
+
+--- a/scripts/2_post_install_config.sh
++++ b/scripts/2_post_install_config.sh
+@@ -354,7 +354,10 @@ interactive_setup() {
+     
+     # Show configuration summary using Python module
+     echo "Analyzing configuration..."
+-    python3 -m config_analyzer "$CONFIG_FILE"
++    execute_or_execute_dryrun_python_module "config_analyzer" \
++        "\"$CONFIG_FILE\"" \
++        "Configuration analysis complete" \
++        "Configuration analysis failed" \
++        "Analyze YAML configuration structure and settings"
+     
+     if [[ $? -ne 0 ]]; then
+         print_fail "Failed to analyze configuration"
+@@ -452,7 +455,11 @@ phase_configure_users() {
+         config_args="--shuttle-config-path=$SHUTTLE_CONFIG_PATH"
+     fi
+     
+-    python3 -m user_group_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag $config_args
++    execute_or_execute_dryrun_python_module "user_group_manager" \
++        "\"$CONFIG_FILE\" \"$PRODUCTION_DIR\" $config_args" \
++        "User and group configuration complete" \
++        "User and group configuration failed" \
++        "Configure system users and groups according to YAML specification"
+ 
+     if [[ $? -ne 0 ]]; then
+         print_fail "Failed to configure users and groups"
+@@ -473,7 +476,11 @@ phase_set_permissions() {
+         dry_run_flag="--dry-run"
+     fi
+     
+-    python3 -m permission_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag
++    execute_or_execute_dryrun_python_module "permission_manager" \
++        "\"$CONFIG_FILE\" \"$PRODUCTION_DIR\"" \
++        "File permissions configuration complete" \
++        "File permissions configuration failed" \
++        "Apply file and directory permissions based on YAML configuration"
+ 
+     if [[ $? -ne 0 ]]; then
+         print_warn "⚠️  Some permission settings may have failed"
+@@ -505,7 +508,11 @@ phase_configure_samba() {
+         interactive_flag="--non-interactive"
+     fi
+     
+-    python3 -m samba_manager "$CONFIG_FILE" "$PRODUCTION_DIR" $dry_run_flag $interactive_flag
++    execute_or_execute_dryrun_python_module "samba_manager" \
++        "\"$CONFIG_FILE\" \"$PRODUCTION_DIR\" $interactive_flag" \
++        "Samba configuration complete" \
++        "Samba configuration failed" \
++        "Configure Samba users and shares based on YAML configuration"
+ 
+     if [[ $? -ne 0 ]]; then
+         print_warn "⚠️  Some Samba configuration may have failed"
+@@ -559,7 +562,11 @@ run_configuration_wizard() {
+     fi
+     
+     # Run the wizard with arguments
+-    python3 -m post_install_config_wizard $wizard_args
++    execute_or_execute_dryrun_python_module "post_install_config_wizard" \
++        "$wizard_args" \
++        "Configuration wizard completed successfully" \
++        "Configuration wizard failed" \
++        "Run interactive wizard to generate YAML configuration"
+     local wizard_exit_code=$?
+     
+     if [[ $wizard_exit_code -eq 3 ]]; then
+
+================================================================================
+PRIORITY 2: ADD --VERBOSE ARGUMENT SUPPORT TO PYTHON MODULES
+================================================================================
+
+--- a/scripts/_setup_lib_py/config_analyzer.py
++++ b/scripts/_setup_lib_py/config_analyzer.py
+@@ -4,6 +4,7 @@ Configuration Analyzer
+ Analyzes and displays YAML configuration structure
+ """
+ 
++import argparse
+ import yaml
+ import sys
+ from typing import Dict, List, Any
+@@ -95,8 +96,18 @@ def display_component_settings(config_docs: List[Dict[str, Any]]) -> None:
+ 
+ 
+ def main():
+-    if len(sys.argv) != 2:
+-        print("Usage: python3 -m config_analyzer <config_file>", file=sys.stderr)
++    parser = argparse.ArgumentParser(description='Analyze YAML configuration structure')
++    parser.add_argument('config_file', help='Path to YAML configuration file')
++    parser.add_argument('--verbose', action='store_true', 
++                       help='Show detailed analysis information')
++    parser.add_argument('--dry-run', action='store_true',
++                       help='Analyze configuration without performing actions (compatibility flag)')
++    
++    args = parser.parse_args()
++    
++    if args.verbose:
++        print(f"Analyzing configuration file: {args.config_file}")
++        print("Verbose mode: Detailed analysis enabled")
+         sys.exit(1)
+     
+-    config_file = sys.argv[1]
++    config_file = args.config_file
+     
+     try:
+@@ -108,6 +119,9 @@ def main():
+             print(f"Error: {config_file} is not a valid YAML file")
+             sys.exit(1)
+         
++        if args.verbose:
++            print(f"Successfully parsed {len(config_docs)} YAML document(s)")
++        
+         print("\n=== Configuration Analysis ===\n")
+         
+         # Display each section
+@@ -117,6 +131,9 @@ def main():
+         display_component_settings(config_docs)
+         display_user_summary(config_docs)
+         
++        if args.verbose:
++            print("\nConfiguration analysis completed successfully")
++        
+     except FileNotFoundError:
+         print(f"Error: Configuration file '{config_file}' not found")
+         sys.exit(1)
+
+--- a/scripts/_setup_lib_py/user_group_manager.py
++++ b/scripts/_setup_lib_py/user_group_manager.py
+@@ -8,6 +8,7 @@ import argparse
+ import os
+ import sys
+ import yaml
++from command_executor import run_script_with_flags
+ from path_resolver import resolve_symbolic_paths
+ 
+ 
+@@ -200,10 +201,11 @@ def process_user_permissions(user_config: dict, paths: dict, scripts_dir: str,
+ def main():
+     parser = argparse.ArgumentParser(description='Manage users and groups from YAML configuration')
+     parser.add_argument('config_file', help='Path to YAML configuration file')
+     parser.add_argument('scripts_dir', help='Path to scripts directory')
+     parser.add_argument('--dry-run', action='store_true', help='Show what would be done without making changes')
++    parser.add_argument('--verbose', action='store_true', 
++                       help='Show detailed execution information')
+     parser.add_argument('--shuttle-config-path', help='Path to shuttle configuration file for path resolution')
+     
+     args = parser.parse_args()
+     
+     try:
+@@ -215,6 +217,10 @@ def main():
+             print(f"Error: {args.config_file} is not a valid YAML file")
+             sys.exit(1)
+         
++        if args.verbose:
++            print(f"Processing configuration: {args.config_file}")
++            print(f"Scripts directory: {args.scripts_dir}")
++        
+         # Resolve symbolic paths
+         try:
+             paths = resolve_symbolic_paths(args.shuttle_config_path)
+@@ -228,13 +234,16 @@ def main():
+         # Process configuration
+         for doc in config_docs:
+             if doc and doc.get('type') == 'user':
++                if args.verbose:
++                    print(f"Processing user: {doc['user']['name']}")
+                 success = process_user_configuration(
+-                    doc, paths, args.scripts_dir, args.dry_run
++                    doc, paths, args.scripts_dir, args.dry_run, args.verbose
+                 )
+                 if not success:
+                     print(f"Failed to process user configuration", file=sys.stderr)
+                     sys.exit(1)
+         
++        print("User and group management completed successfully")
+         
+     except FileNotFoundError:
+         print(f"Error: Configuration file '{args.config_file}' not found")
+
+--- a/scripts/_setup_lib_py/permission_manager.py
++++ b/scripts/_setup_lib_py/permission_manager.py
+@@ -8,6 +8,7 @@ import argparse
+ import os
+ import sys
+ import yaml
++from command_executor import run_command
+ from path_resolver import resolve_symbolic_paths
+ 
+ 
+@@ -134,10 +135,11 @@ def apply_permission_set(username: str, permission_set: dict, paths: dict, 
+ def main():
+     parser = argparse.ArgumentParser(description='Apply file permissions from YAML configuration')
+     parser.add_argument('config_file', help='Path to YAML configuration file')
+     parser.add_argument('scripts_dir', help='Path to scripts directory')
+     parser.add_argument('--dry-run', action='store_true', help='Show what would be done without making changes')
++    parser.add_argument('--verbose', action='store_true', 
++                       help='Show detailed execution information')
+     parser.add_argument('--shuttle-config-path', help='Path to shuttle configuration file for path resolution')
+     
+     args = parser.parse_args()
+     
+     try:
+@@ -149,6 +150,10 @@ def main():
+             print(f"Error: {args.config_file} is not a valid YAML file")
+             sys.exit(1)
+         
++        if args.verbose:
++            print(f"Processing permissions: {args.config_file}")
++            print(f"Scripts directory: {args.scripts_dir}")
++        
+         # Resolve symbolic paths
+         try:
+             paths = resolve_symbolic_paths(args.shuttle_config_path)
+@@ -162,13 +167,16 @@ def main():
+         # Process permissions
+         for doc in config_docs:
+             if doc and doc.get('type') == 'user' and 'permissions' in doc.get('user', {}):
++                if args.verbose:
++                    print(f"Applying permissions for user: {doc['user']['name']}")
+                 success = apply_user_permissions(
+-                    doc['user'], paths, args.scripts_dir, args.dry_run
++                    doc['user'], paths, args.scripts_dir, args.dry_run, args.verbose
+                 )
+                 if not success:
+                     print(f"Failed to apply permissions for user {doc['user']['name']}", file=sys.stderr)
+                     sys.exit(1)
+         
++        print("Permission management completed successfully")
+         
+     except FileNotFoundError:
+         print(f"Error: Configuration file '{args.config_file}' not found")
+
+--- a/scripts/_setup_lib_py/samba_manager.py
++++ b/scripts/_setup_lib_py/samba_manager.py
+@@ -8,6 +8,7 @@ import argparse
+ import os
+ import sys
+ import yaml
++from command_executor import run_command
+ from path_resolver import resolve_symbolic_paths
+ 
+ 
+@@ -130,11 +131,12 @@ def configure_samba_for_user(user_config: dict, scripts_dir: str, dry_run: bool
+ def main():
+     parser = argparse.ArgumentParser(description='Configure Samba from YAML configuration')
+     parser.add_argument('config_file', help='Path to YAML configuration file')
+     parser.add_argument('scripts_dir', help='Path to scripts directory')
+     parser.add_argument('--dry-run', action='store_true', help='Show what would be done without making changes')
++    parser.add_argument('--verbose', action='store_true', 
++                       help='Show detailed execution information')
+     parser.add_argument('--non-interactive', action='store_true', help='Run in non-interactive mode')
+     parser.add_argument('--shuttle-config-path', help='Path to shuttle configuration file for path resolution')
+     
+     args = parser.parse_args()
+     
+     try:
+@@ -146,6 +148,10 @@ def main():
+             print(f"Error: {args.config_file} is not a valid YAML file")
+             sys.exit(1)
+         
++        if args.verbose:
++            print(f"Processing Samba configuration: {args.config_file}")
++            print(f"Scripts directory: {args.scripts_dir}")
++        
+         # Process Samba configuration for each user
+         for doc in config_docs:
+             if (doc and doc.get('type') == 'user' and 
+@@ -153,13 +159,17 @@ def main():
+                 user_config = doc['user']
+                 if user_config.get('samba', {}).get('enabled', False):
++                    if args.verbose:
++                        print(f"Configuring Samba for user: {user_config['name']}")
+                     success = configure_samba_for_user(
+-                        user_config, args.scripts_dir, args.dry_run, not args.non_interactive
++                        user_config, args.scripts_dir, args.dry_run, 
++                        not args.non_interactive, args.verbose
+                     )
+                     if not success:
+                         print(f"Failed to configure Samba for user {user_config['name']}", file=sys.stderr)
+                         sys.exit(1)
+         
++        print("Samba configuration completed successfully")
+         
+     except FileNotFoundError:
+         print(f"Error: Configuration file '{args.config_file}' not found")
+
+--- a/scripts/_setup_lib_py/post_install_config_wizard.py
++++ b/scripts/_setup_lib_py/post_install_config_wizard.py
+@@ -8,6 +8,7 @@ import argparse
+ import os
+ import subprocess
+ import sys
+ 
+ def run_wizard():
+     """Run the interactive configuration wizard"""
+@@ -19,19 +20,32 @@ def run_wizard():
+ 
+ def main():
+     parser = argparse.ArgumentParser(description='Post-install configuration wizard')
++    parser.add_argument('--verbose', action='store_true', 
++                       help='Show detailed execution information')
++    parser.add_argument('--dry-run', action='store_true',
++                       help='Show what would be done without making changes')
+     parser.add_argument('--shuttle-config-path', help='Path to shuttle configuration file')
+     parser.add_argument('--test-work-dir', help='Test working directory path')
+     parser.add_argument('--test-config-path', help='Test configuration file path')
+     
+     args = parser.parse_args()
+     
++    if args.verbose:
++        print("Starting post-install configuration wizard")
++        if args.shuttle_config_path:
++            print(f"Shuttle config path: {args.shuttle_config_path}")
++        if args.test_work_dir:
++            print(f"Test work directory: {args.test_work_dir}")
++        if args.test_config_path:
++            print(f"Test config path: {args.test_config_path}")
++    
+     try:
+         # Run the wizard
+         exit_code = run_wizard()
+         
+         if exit_code == 0:
+             print("Configuration wizard completed successfully")
++            if args.verbose:
++                print("Generated configuration ready for use")
+         
+         sys.exit(exit_code)
+         
+
+================================================================================
+PRIORITY 3: WRAP DIRECT COMMANDS IN INSTALLATION SCRIPTS
+================================================================================
+
+--- a/scripts/1_installation_steps/02_env_and_venv.sh
++++ b/scripts/1_installation_steps/02_env_and_venv.sh
+@@ -94,9 +94,15 @@ setup_environment_directories() {
+     
+     log INFO "Setting up environment directories for $ENV_FLAG environment"
+     
+-    mkdir -p $(dirname "$CONFIG_PATH")
+-    mkdir -p $(dirname "$VENV_PATH")  
+-    mkdir -p "$TEST_WORK_DIR"
++    execute_or_dryrun "mkdir -p \"$(dirname \"$CONFIG_PATH\")\"" \
++        "Configuration directory created" \
++        "Failed to create configuration directory" \
++        "Create directory for shuttle configuration files"
++    
++    execute_or_dryrun "mkdir -p \"$(dirname \"$VENV_PATH\")\"" \
++        "Virtual environment parent directory created" \
++        "Failed to create virtual environment parent directory" \
++        "Create parent directory for Python virtual environment"
++    
++    execute_or_dryrun "mkdir -p \"$TEST_WORK_DIR\"" \
++        "Test work directory created" \
++        "Failed to create test work directory" \
++        "Create directory for test operations and temporary files"
+     
+     log INFO "Environment directories setup complete"
+ }
+@@ -193,7 +199,10 @@ create_virtual_environment() {
+         return 0
+     fi
+     
+-    python3 -m venv "$VENV_PATH"
++    execute_or_dryrun "python3 -m venv \"$VENV_PATH\"" \
++        "Virtual environment created successfully" \
++        "Failed to create virtual environment" \
++        "Create isolated Python virtual environment for shuttle dependencies"
+     
+     if [[ $? -eq 0 ]]; then
+         log INFO "Virtual environment created at: $VENV_PATH"
+
+--- a/scripts/1_installation_steps/08_install_shared.sh
++++ b/scripts/1_installation_steps/08_install_shared.sh
+@@ -28,10 +28,16 @@ install_shared_library() {
+     cd "$SHARED_LIB_DIR"
+     
+     if [[ "$ENV_FLAG" == "-e" ]]; then
+-        pip install -e .
++        execute_or_dryrun "pip install -e ." \
++            "Shared library installed in editable mode" \
++            "Failed to install shared library in editable mode" \
++            "Install shuttle_common shared library for development (editable mode)"
+         log INFO "Shared library installed in editable mode"
+     else
+-        pip install .
++        execute_or_dryrun "pip install ." \
++            "Shared library installed" \
++            "Failed to install shared library" \
++            "Install shuttle_common shared library for production use"
+         log INFO "Shared library installed"
+     fi
+ }
+
+--- a/scripts/1_installation_steps/09_install_defender_test.sh
++++ b/scripts/1_installation_steps/09_install_defender_test.sh
+@@ -28,10 +28,16 @@ install_defender_test_app() {
+     cd "$DEFENDER_TEST_DIR"
+     
+     if [[ "$ENV_FLAG" == "-e" ]]; then
+-        pip install -e .
++        execute_or_dryrun "pip install -e ." \
++            "Defender test app installed in editable mode" \
++            "Failed to install defender test app in editable mode" \
++            "Install shuttle_defender_test application for development (editable mode)"
+         log INFO "Defender test app installed in editable mode"
+     else
+-        pip install .
++        execute_or_dryrun "pip install ." \
++            "Defender test app installed" \
++            "Failed to install defender test app" \
++            "Install shuttle_defender_test application for production use"
+         log INFO "Defender test app installed"
+     fi
+ }
+
+--- a/scripts/1_installation_steps/10_install_shuttle.sh
++++ b/scripts/1_installation_steps/10_install_shuttle.sh
+@@ -28,10 +28,16 @@ install_shuttle_app() {
+     cd "$SHUTTLE_APP_DIR"
+     
+     if [[ "$ENV_FLAG" == "-e" ]]; then
+-        pip install -e .
++        execute_or_dryrun "pip install -e ." \
++            "Shuttle application installed in editable mode" \
++            "Failed to install shuttle application in editable mode" \
++            "Install main shuttle application for development (editable mode)"
+         log INFO "Shuttle application installed in editable mode"
+     else
+-        pip install .
++        execute_or_dryrun "pip install ." \
++            "Shuttle application installed" \
++            "Failed to install shuttle application" \
++            "Install main shuttle application for production use"
+         log INFO "Shuttle application installed"
+     fi
+ }
+
+================================================================================
+SUMMARY OF CHANGES
+================================================================================
+
+Files Modified: 10
+Total Lines Added: ~300
+Total Lines Changed: ~50
+
+PRIORITY 1 (Critical - Shell to Python flag propagation):
+- scripts/_setup_lib_py/command_executor.py: Simple enhancement - add verbose parameter and env var fallback
+- scripts/_setup_lib_sh/_common_.source.sh: Added execute_or_execute_dryrun_python_module() function  
+- scripts/2_post_install_config.sh: Fixed 5 Python module calls (lines 357, 455, 476, 508, 562)
+
+PRIORITY 2 (Important - Python module --verbose support):
+- scripts/_setup_lib_py/config_analyzer.py: Added argparse and --verbose flag support
+- scripts/_setup_lib_py/user_group_manager.py: Added --verbose flag support, pass verbose to functions
+- scripts/_setup_lib_py/permission_manager.py: Added --verbose flag support, pass verbose to functions  
+- scripts/_setup_lib_py/samba_manager.py: Added --verbose flag support, pass verbose to functions
+- scripts/_setup_lib_py/post_install_config_wizard.py: Added --verbose and --dry-run support
+
+PRIORITY 3 (Good practice - Wrap direct commands):
+- scripts/1_installation_steps/02_env_and_venv.sh: Wrapped mkdir and python3 -m venv calls
+- scripts/1_installation_steps/08_install_shared.sh: Wrapped pip install calls
+- scripts/1_installation_steps/09_install_defender_test.sh: Wrapped pip install calls  
+- scripts/1_installation_steps/10_install_shuttle.sh: Wrapped pip install calls
+
+TESTING APPROACH:
+1. Test each priority level independently
+2. Verify backward compatibility (existing calls without flags still work)
+3. Test flag propagation: shell --verbose → python --verbose → subprocess visibility
+4. Test environment variable fallback in Python modules
+5. Verify dry-run mode prevents all system changes at every level
+
+ROLLBACK STRATEGY:
+- All changes are additive (new functions, enhanced existing functions)
+- Original functions maintained for backward compatibility  
+- Can selectively revert individual files if issues arise
+- No breaking changes to existing working functionality
