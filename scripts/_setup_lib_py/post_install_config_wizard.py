@@ -39,7 +39,6 @@ from standard_configs import (
     get_standard_groups, get_standard_path_permissions, 
     get_standard_user_templates, get_standard_components
 )
-from config_converters import convert_standard_to_old_format
 
 # Safety validation constants
 SAFE_PREFIXES = [
@@ -63,6 +62,84 @@ DANGEROUS_PREFIXES = [
     '/usr/bin/', '/usr/sbin/', '/bin/', '/sbin/', '/lib/', '/boot/',
     '/dev/', '/proc/', '/sys/', '/etc/systemd/', '/etc/ssh/'
 ]
+
+# Development mode defaults
+DEVELOPMENT_COMPONENT_DEFAULTS = {
+    'install_samba': True,
+    'configure_samba': True,
+    'install_acl': True,
+    'configure_firewall': True,
+    'configure_users_groups': True
+}
+
+# Standard production mode defaults
+STANDARD_PRODUCTION_COMPONENT_DEFAULTS = {
+    'install_samba': True,
+    'configure_samba': True,
+    'install_acl': True,
+    'configure_firewall': True,
+    'configure_users_groups': True
+}
+
+# Environment mappings
+ENVIRONMENT_CHOICES = {
+    "1": "development",
+    "2": "testing", 
+    "3": "production"
+}
+
+# Interactive mode mappings
+INTERACTIVE_MODE_CHOICES = {
+    "1": "interactive",
+    "2": "non-interactive",
+    "3": "mixed"
+}
+
+# Samba configuration defaults
+DEFAULT_SAMBA_CONFIG = {
+    'enabled': True
+}
+
+# Common permission templates
+def get_admin_all_permissions():
+    """Factory function for admin user with all permissions"""
+    return {
+        'read_write': [
+            {'path': 'source_path', 'mode': '755'},
+            {'path': 'destination_path', 'mode': '755'},
+            {'path': 'quarantine_path', 'mode': '755'},
+            {'path': 'log_path', 'mode': '755'},
+            {'path': 'hazard_archive_path', 'mode': '755'},
+            {'path': 'ledger_file_path', 'mode': '644'}
+        ],
+        'read_only': [
+            {'path': 'hazard_encryption_key_path', 'mode': '644'},
+            {'path': 'shuttle_config_path', 'mode': '644'}
+        ]
+    }
+
+def get_tester_permissions():
+    """Factory function for test user permissions"""
+    return {
+        'read_write': [
+            {'path': 'test_work_dir', 'mode': '755', 'recursive': True},
+            {'path': 'ledger_file_path', 'mode': '644'}
+        ],
+        'read_only': [
+            {'path': 'hazard_encryption_key_path', 'mode': '644'},
+            {'path': 'shuttle_config_path', 'mode': '644'},
+            {'path': 'test_config_path', 'mode': '644'}
+        ]
+    }
+
+def get_development_admin_group():
+    """Factory function for development admin group configuration"""
+    return {
+        'shuttle_admins': {
+            'description': 'Administrative users with full shuttle access',
+            'gid': 5000
+        }
+    }
 
 
 class ConfigWizard:
@@ -205,58 +282,69 @@ class ConfigWizard:
     
     def _run_simple_mode(self) -> Dict[str, Any]:
         """Run simple mode - single admin user"""
-        print("\n=== SIMPLE MODE ===")
+        print("\n=== SIMPLE DEVELOPMENT MODE ===")
         print("Creating a single admin user with full shuttle access.")
         print("")
         
-        # Basic environment setup
-        self.config['metadata']['environment'] = 'development'
-        self.config['metadata']['mode'] = 'simple'
-        self.config['settings']['interactive_mode'] = 'interactive'
+        # Apply mode-specific defaults using shared method
+        self._apply_mode_specific_defaults('simple')
         
-        # Component selection first
-        self._simple_mode_components()
+        # Ask if user wants to accept all defaults
+        accept_defaults = self._confirm("Accept all development defaults? (Recommended for testing)", True)
         
-        # Create single admin group
-        self.config['groups']['shuttle_admins'] = {
-            'description': 'Administrative users with full shuttle access',
-            'gid': 5000
-        }
-        
-        # Get admin user details
-        print("Admin User Configuration:")
-        username = input("Enter admin username [shuttle_admin]: ").strip() or "shuttle_admin"
-        
-        user_type = self._get_user_type()
-        
-        # Create admin user with full permissions
-        admin_user = {
-            'name': username,
-            'source': user_type,
-            'account_type': 'admin',
-            'groups': {
-                'primary': 'shuttle_admins',
-                'secondary': []
-            },
-            'permissions': {
-                'read_write': [
-                    {'path': path_name, 'mode': '755', 'recursive': True}
-                    for path_name in self.shuttle_paths.keys()
-                ]
+        if accept_defaults:
+            print("✅ Using all development defaults")
+            # Set recommended development defaults
+            self._add_components_to_instructions(DEVELOPMENT_COMPONENT_DEFAULTS)
+            
+            # Create single admin group
+            self._add_groups_to_instructions(get_development_admin_group())
+            
+            # Create default admin user
+            self._create_default_admin_user()
+        else:
+            print("📋 Step-by-step configuration...")
+            # Component selection using unified method
+            self._configure_components_interactive('simple')
+            
+            # Create single admin group
+            admin_group_data = {
+                'description': 'Administrative users with full shuttle access',
+                'gid': 5000
             }
-        }
-        
-        # Optional Samba access
-        if self._confirm("Enable Samba access for admin user?", False):
-            admin_user['samba'] = {
-                'enabled': True,
-                'auth_method': 'smbpasswd'
+            self._add_group_to_instructions('shuttle_admins', admin_group_data)
+            
+            # Get admin user details
+            print("Admin User Configuration:")
+            username = input("Enter admin username [shuttle_admin]: ").strip() or "shuttle_admin"
+            
+            user_type = self._get_user_type()
+            
+            # Create admin user with full permissions
+            admin_user = {
+                'name': username,
+                'source': user_type,
+                'account_type': 'admin',
+                'groups': {
+                    'primary': 'shuttle_admins',
+                    'secondary': []
+                }
             }
             
-        self.users.append(admin_user)
+            # Optional Samba access
+            if self._confirm("Enable Samba access for admin user?", False):
+                admin_user['samba'] = {
+                    'enabled': True,
+                    'auth_method': 'smbpasswd'
+                }
+            
+            self._add_user_to_instructions(admin_user)
+            
+            # Configure development-specific path permissions using the shared method
+            self._configure_development_paths()
         
         print(f"\n✅ Simple mode configuration complete!")
-        print(f"   Added user: {username} to instructions")
+        print(f"   Added {len(self.users)} user(s) to instructions")
         print(f"   Access: Full administrative access to all shuttle components")
         
         return self._build_complete_config()
@@ -267,22 +355,38 @@ class ConfigWizard:
         print("Setting up standard production users and groups.")
         print("")
         
-        # Set production defaults
-        self.config['metadata']['environment'] = 'production'
-        self.config['metadata']['mode'] = 'standard'
-        self.config['settings']['interactive_mode'] = 'non-interactive'
+        # Apply mode-specific defaults using shared method
+        self._apply_mode_specific_defaults('standard')
         
-        # Component selection first
-        self._standard_mode_components()
+        # Ask if user wants to accept all defaults
+        accept_defaults = self._confirm("Accept all standard production defaults? (Recommended)", True)
         
-        # Create standard groups
-        self._create_standard_groups()
-        
-        # Select and create standard roles
-        self._select_and_create_standard_roles()
-        
-        # Configure path permissions
-        self._configure_standard_paths()
+        if accept_defaults:
+            print("✅ Using all standard production defaults")
+            # Set all components to recommended defaults
+            self._add_components_to_instructions(STANDARD_PRODUCTION_COMPONENT_DEFAULTS)
+            
+            # Create standard groups
+            self._add_groups_to_instructions(get_standard_groups())
+            
+            # Create all standard roles with defaults
+            self._create_all_standard_roles_with_defaults()
+            
+            # Configure path permissions
+            self._configure_paths_standard('standard')
+        else:
+            print("📋 Step-by-step configuration...")
+            # Component selection using unified method
+            self._configure_components_interactive('standard')
+            
+            # Create standard groups
+            self._add_groups_to_instructions(get_standard_groups())
+            
+            # Select and create standard roles
+            self._select_and_create_standard_roles()
+            
+            # Configure path permissions
+            self._configure_paths_standard('standard')
             
         print(f"\n✅ Standard mode configuration complete!")
         print(f"   Added {len(self.users)} users to instructions with production security model")
@@ -379,12 +483,7 @@ class ConfigWizard:
         
         choice = self._get_choice("Select environment", ["1", "2", "3"], "1")
         
-        env_map = {
-            "1": "development",
-            "2": "testing",
-            "3": "production"
-        }
-        self.config['metadata']['environment'] = env_map[choice]
+        self.config['metadata']['environment'] = ENVIRONMENT_CHOICES[choice]
     
     def _select_interactive_mode(self):
         """Select interactive mode preference for post-install configuration"""
@@ -398,12 +497,7 @@ class ConfigWizard:
         
         choice = self._get_choice("Select mode", ["1", "2", "3"], "1")
         
-        mode_map = {
-            "1": "interactive",
-            "2": "non-interactive",
-            "3": "mixed"
-        }
-        self.config['settings']['interactive_mode'] = mode_map[choice]
+        self.config['settings']['interactive_mode'] = INTERACTIVE_MODE_CHOICES[choice]
         
         # Add additional settings based on mode
         if choice == "1":
@@ -547,7 +641,7 @@ class ConfigWizard:
         print("\nEnable Samba Access for User")
         print("============================")
         if self.config['components']['configure_samba'] and self._confirm("Enable Samba access for this user?", True):
-            user['samba'] = {'enabled': True}
+            user['samba'] = DEFAULT_SAMBA_CONFIG.copy()
             
             # Samba authentication method
             print("\nSamba authentication method:")
@@ -585,7 +679,7 @@ class ConfigWizard:
                 # Default to manual configuration
                 user['samba']['auth_method'] = 'manual'
         
-        self.users.append(user)
+        self._add_user_to_instructions(user)
     
     def _show_advanced_samba_options(self):
         """Show advanced Samba authentication options for manual setup"""
@@ -741,7 +835,7 @@ class ConfigWizard:
             if password:
                 user['samba']['password'] = password
         
-        self.users.append(user)
+        self._add_user_to_instructions(user)
     
     def _add_shuttle_user(self):
         """Add shuttle application user configuration"""
@@ -758,20 +852,7 @@ class ConfigWizard:
                 'primary': 'shuttle_app_users',
                 'secondary': ['shuttle_config_readers', 'shuttle_ledger_writers']
             },
-            'permissions': {
-                'read_write': [
-                    {'path': 'source_path', 'mode': '755'},
-                    {'path': 'destination_path', 'mode': '755'},
-                    {'path': 'quarantine_path', 'mode': '755'},
-                    {'path': 'log_path', 'mode': '755'},
-                    {'path': 'hazard_archive_path', 'mode': '755'},
-                    {'path': 'ledger_file_path', 'mode': '644'}
-                ],
-                'read_only': [
-                    {'path': 'hazard_encryption_key_path', 'mode': '644'},
-                    {'path': 'shuttle_config_path', 'mode': '644'}
-                ]
-            }
+            'permissions': get_admin_all_permissions()
         }
         
         # Only set shell and home for non-existing users
@@ -780,7 +861,7 @@ class ConfigWizard:
             user['home_directory'] = '/var/lib/shuttle/app'
             user['create_home'] = True
         
-        self.users.append(user)
+        self._add_user_to_instructions(user)
     
     def _add_test_user(self):
         """Add defender test user configuration"""
@@ -797,17 +878,7 @@ class ConfigWizard:
                 'primary': 'shuttle_test_users',
                 'secondary': ['shuttle_config_readers', 'shuttle_ledger_writers']
             },
-            'permissions': {
-                'read_write': [
-                    {'path': 'test_work_dir', 'mode': '755', 'recursive': True},
-                    {'path': 'ledger_file_path', 'mode': '644'}
-                ],
-                'read_only': [
-                    {'path': 'hazard_encryption_key_path', 'mode': '644'},
-                    {'path': 'shuttle_config_path', 'mode': '644'},
-                    {'path': 'test_config_path', 'mode': '644'}
-                ]
-            }
+            'permissions': get_tester_permissions()
         }
         
         # Only set shell and home for non-existing users
@@ -816,7 +887,7 @@ class ConfigWizard:
             user['home_directory'] = '/var/lib/shuttle/test'
             user['create_home'] = True
         
-        self.users.append(user)
+        self._add_user_to_instructions(user)
     
     def _configure_custom_users(self):
         """Configure custom users"""
@@ -887,9 +958,9 @@ class ConfigWizard:
         
         # Samba
         if self._confirm("Enable Samba access?", False):
-            user['samba'] = {'enabled': True}
+            user['samba'] = DEFAULT_SAMBA_CONFIG.copy()
         
-        self.users.append(user)
+        self._add_user_to_instructions(user)
     
     def _select_user_source(self) -> str:
         """Select user source type"""
@@ -963,53 +1034,6 @@ class ConfigWizard:
         }
         return type_map[choice]
     
-    def _create_standard_groups(self):
-        """Create standard production groups"""
-        standard_groups = get_standard_groups()
-        
-        self.config['groups'].update(standard_groups)
-        print(f"✅ Added {len(standard_groups)} standard groups to instructions")
-    
-    def _configure_standard_paths(self):
-        """Configure path permissions for standard production mode"""
-        print("\n--- Path Configuration ---")
-        print("Configuring standard production path permissions...")
-        
-        # Get standard path permissions and convert to old format
-        standard_configs = get_standard_path_permissions()
-        path_configs = convert_standard_to_old_format(standard_configs)
-        
-        # Store path configurations in the global config
-        if 'paths' not in self.config:
-            self.config['paths'] = {}
-        
-        for path_config in path_configs:
-            path_name = path_config['path']
-            if path_name in self.shuttle_paths:
-                actual_path = self.shuttle_paths[path_name]
-                
-                # Store the path configuration
-                self.config['paths'][actual_path] = {
-                    'description': path_config['description'],
-                    'owner': path_config['owner'],
-                    'group': path_config['group'],
-                    'mode': path_config['mode']
-                }
-                
-                # Add ACLs if specified
-                if path_config['acls']:
-                    self.config['paths'][actual_path]['acls'] = []
-                    for acl in path_config['acls']:
-                        acl_entry = f"{acl['type']}:{acl['name']}:{acl['perms']}"
-                        self.config['paths'][actual_path]['acls'].append(acl_entry)
-                
-                print(f"✅ Configured {path_config['description']}")
-        
-        # Note: Service accounts (shuttle_runner, shuttle_defender_test_runner) get access
-        # through group membership and don't need individual path permissions.
-        # Only network users (Samba) need individual ACL permissions since they're not
-        # in the directory ownership groups.
-    
     def _select_and_create_standard_roles(self):
         """Select and create standard roles with integrated flow"""
         print("\nThe standard production pattern uses the following user roles:")
@@ -1042,43 +1066,15 @@ class ConfigWizard:
         
         # Shuttle Runner
         if self._confirm("Add shuttle_runner service account?", True):
-            self.users.append({
-                'name': 'shuttle_runner',
-                'source': 'local',
-                'account_type': 'service',
-                'groups': {
-                    'primary': 'shuttle_runners',
-                    'secondary': [
-                        'shuttle_config_readers',
-                        'shuttle_data_owners',
-                        'shuttle_log_owners'
-                    ]
-                },
-                'shell': '/usr/sbin/nologin',
-                'home_directory': '/var/lib/shuttle/shuttle_runner',
-                'create_home': True
-            })
-            print("✅ Added shuttle_runner to instructions")
+            user_template = get_standard_user_templates()['shuttle_runner'].copy()
+            user_template['name'] = 'shuttle_runner'  # Use default name
+            self._add_user_to_instructions(user_template)
         
         # Defender Test Runner  
         if self._confirm("Add shuttle_defender_test_runner?", True):
-            self.users.append({
-                'name': 'shuttle_defender_test_runner',
-                'source': 'local',
-                'account_type': 'service', 
-                'groups': {
-                    'primary': 'shuttle_defender_test_runners',
-                    'secondary': [
-                        'shuttle_config_readers',
-                        'shuttle_log_owners',
-                        'shuttle_ledger_owners'
-                    ]
-                },
-                'shell': '/usr/sbin/nologin',
-                'home_directory': '/var/lib/shuttle/shuttle_defender_test_runner',
-                'create_home': True
-            })
-            print("✅ Added shuttle_defender_test_runner to instructions")
+            user_template = get_standard_user_templates()['shuttle_defender_test_runner'].copy()
+            user_template['name'] = 'shuttle_defender_test_runner'  # Use default name
+            self._add_user_to_instructions(user_template)
     
     def _create_network_users(self):
         """Create standard network users"""
@@ -1102,43 +1098,23 @@ class ConfigWizard:
                 'home_directory': '/var/lib/shuttle/samba/shuttle_in_user',
                 'create_home': True
             }
-            self.users.append(user)
+            self._add_user_to_instructions(user)
             print("✅ Added shuttle_in_user to instructions")
         
         # Out User
         if self._confirm("Add shuttle_out_user (outbound)?", True):
-            self.users.append({
-                'name': 'shuttle_out_user',
-                'source': 'domain',  # Usually domain account
-                'account_type': 'network',
-                'groups': {
-                    'primary': 'shuttle_samba_out_users',
-                    'secondary': []
-                },
-                'shell': '/usr/sbin/nologin',
-                'home_directory': '/var/lib/shuttle/samba/shuttle_out_user',
-                'create_home': True
-            })
-            print("✅ Added shuttle_out_user to instructions")
+            user_template = get_standard_user_templates()['shuttle_out_user'].copy()
+            user_template['name'] = 'shuttle_out_user'  # Use default name
+            self._add_user_to_instructions(user_template)
     
     def _create_test_users(self):
         """Create standard test users"""
         print("\n--- Test Users ---")
         
         if self._confirm("Add shuttle_tester?", True):
-            self.users.append({
-                'name': 'shuttle_tester',
-                'source': 'local',
-                'account_type': 'service',
-                'groups': {
-                    'primary': 'shuttle_testers',
-                    'secondary': []
-                },
-                'shell': '/bin/bash',
-                'home_directory': '/home/shuttle_tester',
-                'create_home': True
-            })
-            print("✅ Added shuttle_tester to instructions")
+            user_template = get_standard_user_templates()['shuttle_tester'].copy()
+            user_template['name'] = 'shuttle_tester'  # Use default name
+            self._add_user_to_instructions(user_template)
     
     def _create_admin_users(self):
         """Create admin users"""
@@ -1164,8 +1140,7 @@ class ConfigWizard:
             'create_home': True
         }
         
-        self.users.append(admin_user)
-        print(f"✅ Added {username} to instructions")
+        self._add_user_to_instructions(admin_user)
     
     # Component Selection Methods
     def _simple_mode_components(self):
@@ -1192,40 +1167,111 @@ class ConfigWizard:
         
         print("")
     
-    def _standard_mode_components(self):
-        """Component selection for standard production mode"""
-        print("\n=== Production Component Configuration ===")
-        print("Configure system components for production environment:")
-        print("")
+    def _create_default_admin_user(self):
+        """Create default admin user with standard settings"""
+        admin_user = {
+            'name': 'shuttle_admin',
+            'source': 'local',
+            'account_type': 'admin',
+            'groups': {
+                'primary': 'shuttle_admins',
+                'secondary': []
+            }
+        }
         
-        # Samba (network file sharing)
-        print("🌐 Network File Sharing:")
-        self.config['components']['install_samba'] = self._confirm("  Install Samba for network file access?", True)
+        # Include Samba access by default in development
         if self.config['components']['install_samba']:
-            self.config['components']['configure_samba'] = self._confirm("  Configure Samba users and shares?", True)
-        else:
-            self.config['components']['configure_samba'] = False
-        print("")
+            admin_user['samba'] = {
+                'enabled': True,
+                'auth_method': 'smbpasswd'
+            }
         
-        # ACL tools (advanced permissions)
-        print("🔒 Advanced Permissions:")
-        self.config['components']['install_acl'] = self._confirm("  Install ACL tools for fine-grained permissions?", True)
-        print("")
+        self._add_user_to_instructions(admin_user)
         
-        # Firewall
-        print("🛡️ Security:")
-        self.config['components']['configure_firewall'] = self._confirm("  Configure firewall settings?", True)
-        print("")
+        # Configure development-specific path permissions using the shared method
+        self._configure_development_paths()
+    
+    def _create_all_standard_roles_with_defaults(self):
+        """Create all standard roles using default values"""
+        print("✅ Creating all standard user roles with default names...")
         
-        # Always configure users/groups in standard mode
-        self.config['components']['configure_users_groups'] = True
+        # Get all standard user templates and add them with default names
+        user_templates = get_standard_user_templates()
         
-        if any([self.config['components']['install_samba'], 
-                self.config['components']['install_acl'], 
-                self.config['components']['configure_firewall']]):
-            print("✅ Production components configured")
-        else:
-            print("⚠️  Minimal configuration - only users and groups will be set up")
+        for template_name, template_data in user_templates.items():
+            user_data = template_data.copy()
+            # Ensure the name field is set to the template name
+            user_data['name'] = template_name
+            
+            # Add to instructions using unified method
+            self._add_user_to_instructions(user_data)
+    
+    def _configure_development_paths(self):
+        """Configure path permissions for development mode using the multi-document format"""
+        print("\n=== Development Path Configuration ===")
+        print("Setting up development-friendly permissions for all shuttle paths...")
+        
+        # Development mode gives full access to all paths for the admin group
+        development_path_configs = {}
+        
+        for path_name, actual_path in self.shuttle_paths.items():
+            development_path_configs[actual_path] = self._create_path_config(
+                actual_path=actual_path,
+                path_name=path_name,
+                owner='root',
+                group='shuttle_admins',
+                mode='2775',  # Group writable for development
+                acls=['g:shuttle_admins:rwX'],  # Full access for admin group
+                description=f'Development access for {path_name}'
+            )
+        
+        # Add all paths using unified method  
+        added_count = self._add_paths_to_instructions(development_path_configs)
+        print(f"✅ Configured development permissions for {added_count} paths")
+        print("   All paths accessible to shuttle_admins group with full permissions")
+    
+    def _create_path_config(self, actual_path, path_name, owner='root', group='shuttle_data_owners', 
+                           mode='2770', acls=None, description=None):
+        """
+        Shared utility method to create a standard path configuration entry.
+        Used by all modes to ensure consistent path configuration format.
+        """
+        config = {
+            'owner': owner,
+            'group': group,
+            'mode': mode,
+            'description': description or f'Shuttle {path_name}',
+            'default_acls': {
+                'file': ['u::rw-', 'g::rw-', 'o::---'],
+                'directory': ['u::rwx', 'g::rwx', 'o::---']
+            }
+        }
+        
+        if acls:
+            config['acls'] = acls if isinstance(acls, list) else [acls]
+        
+        return config
+    
+    def _apply_mode_specific_defaults(self, mode):
+        """
+        Apply mode-specific default configurations.
+        Consolidates common setup patterns across all modes.
+        """
+        if mode == 'simple':
+            self.config['metadata']['environment'] = 'development'
+            self.config['settings']['interactive_mode'] = 'interactive'
+        elif mode == 'standard':
+            self.config['metadata']['environment'] = 'production'
+            self.config['settings']['interactive_mode'] = 'non-interactive'
+        elif mode == 'custom':
+            # Custom mode lets user choose these
+            pass
+        
+        # Common defaults for all modes
+        self.config['metadata']['mode'] = mode
+        self.config['settings']['create_home_directories'] = True
+        self.config['settings']['backup_existing_users'] = True
+        self.config['settings']['validate_before_apply'] = True
     
     # Path Safety Validation Methods
     def _validate_path_safety(self, path: str) -> tuple[str, str]:
@@ -1471,8 +1517,7 @@ class ConfigWizard:
                 print("❌ Invalid GID")
                 return
         
-        self.config['groups'][group_name] = group_data
-        print(f"✅ Added group '{group_name}' to instructions")
+        self._add_group_to_instructions(group_name, group_data)
     
     def _custom_add_standard_group(self):
         """Add groups from standard templates"""
@@ -1519,16 +1564,15 @@ class ConfigWizard:
         elif choice_str == "0":
             # Add all available groups
             if self._confirm(f"Add all {len(available_groups)} available standard groups?", True):
-                for name, details in available_groups:
-                    self.config['groups'][name] = details.copy()
-                print(f"✅ Added {len(available_groups)} standard groups to instructions")
+                groups_to_add = {name: details for name, details in available_groups}
+                added_count = self._add_groups_to_instructions(groups_to_add)
+                print(f"✅ Added {added_count} standard groups to instructions")
         else:
             # Add single group
             choice = int(choice_str)
             if 1 <= choice <= len(available_groups):
                 name, details = available_groups[choice - 1]
-                self.config['groups'][name] = details.copy()
-                print(f"✅ Added group '{name}' to instructions")
+                self._add_group_to_instructions(name, details)
     
     def _custom_remove_group(self):
         """Remove a group"""
@@ -1753,10 +1797,9 @@ class ConfigWizard:
         
         # Samba access
         if self._confirm("\nEnable Samba access?", False):
-            user['samba'] = {'enabled': True}
+            user['samba'] = DEFAULT_SAMBA_CONFIG.copy()
         
-        self.users.append(user)
-        print(f"✅ Added user '{username}' to instructions")
+        self._add_user_to_instructions(user)
         
         # Offer to add permissions
         if self._confirm("\nAdd permissions for this user now?", True):
@@ -1845,9 +1888,7 @@ class ConfigWizard:
                     user['samba']['enabled'] = False
                     print("✅ Samba access disabled")
                 else:
-                    if 'samba' not in user:
-                        user['samba'] = {}
-                    user['samba']['enabled'] = True
+                    user['samba'] = DEFAULT_SAMBA_CONFIG.copy()
                     print("✅ Samba access enabled")
             elif choice == "5":
                 break
@@ -2017,17 +2058,17 @@ class ConfigWizard:
         if choice == "0":
             self._import_all_standard_users()
         elif choice == "1":
-            self._import_shuttle_runner()
+            self._import_user_template_interactive('shuttle_runner')
         elif choice == "2":
-            self._import_defender_test_runner()
+            self._import_user_template_interactive('shuttle_defender_test_runner')
         elif choice == "3":
-            self._import_samba_in_user()
+            self._import_user_template_interactive('shuttle_in_user')
         elif choice == "4":
-            self._import_samba_out_user()
+            self._import_user_template_interactive('shuttle_out_user')
         elif choice == "5":
-            self._import_shuttle_tester()
+            self._import_user_template_interactive('shuttle_tester')
         elif choice == "6":
-            self._import_shuttle_admin()
+            self._import_user_template_interactive('shuttle_admin')
         # choice == "b" returns automatically (no elif needed)
     
     def _import_all_standard_users(self):
@@ -2040,211 +2081,53 @@ class ConfigWizard:
         if not self._confirm("Import all standard user templates?", True):
             return
         
-        # Import all standard users
+        # Get all standard user templates and add them
+        user_templates = get_standard_user_templates()
         imported_count = 0
-        users_to_import = [
-            ("shuttle_runner", self._import_shuttle_runner),
-            ("defender_test_runner", self._import_defender_test_runner), 
-            ("shuttle_in_user", self._import_samba_in_user),
-            ("shuttle_out_user", self._import_samba_out_user),
-            ("shuttle_tester", self._import_shuttle_tester),
-            ("shuttle_admin", self._import_shuttle_admin)
-        ]
+        skipped_count = 0
         
-        for username, import_func in users_to_import:
+        for template_name, template_data in user_templates.items():
             # Check if user already exists
-            if not any(u['name'] == username for u in self.users):
-                try:
-                    # Save current state and import
-                    print(f"Importing {username}...")
-                    import_func()
-                    imported_count += 1
-                except Exception as e:
-                    print(f"⚠️  Failed to import {username}: {e}")
-            else:
-                print(f"✓ {username} already exists, skipping")
+            if any(u['name'] == template_name for u in self.users):
+                print(f"✓ {template_name} already exists, skipping")
+                skipped_count += 1
+                continue
+            
+            # Create user data from template
+            user_data = template_data.copy()
+            user_data['name'] = template_name
+            
+            # Add using unified method
+            print(f"Importing {template_name}...")
+            if self._add_user_to_instructions(user_data):
+                imported_count += 1
         
         print(f"\\n✅ Imported {imported_count} new standard users to instructions")
-        if imported_count < len(users_to_import):
-            skipped = len(users_to_import) - imported_count
-            print(f"ℹ️  Skipped {skipped} users that already existed")
+        if skipped_count > 0:
+            print(f"ℹ️  Skipped {skipped_count} users that already existed")
     
-    def _import_shuttle_runner(self):
-        """Import shuttle_runner template"""
-        username = input("Username [shuttle_runner]: ").strip() or "shuttle_runner"
+    def _import_user_template_interactive(self, template_name, default_username=None):
+        """Unified method to import any user template with interactive username selection"""
+        default_username = default_username or template_name
+        username = input(f"Username [{default_username}]: ").strip() or default_username
         
         if any(u['name'] == username for u in self.users):
             print(f"❌ User '{username}' already exists")
             return
         
-        user = {
-            'name': username,
-            'source': 'local',
-            'account_type': 'service',
-            'groups': {
-                'primary': 'shuttle_runners',
-                'secondary': [
-                    'shuttle_config_readers',
-                    'shuttle_data_owners',
-                    'shuttle_log_owners'
-                ]
-            },
-            'shell': '/usr/sbin/nologin',
-            'home_directory': f'/var/lib/shuttle/{username}',
-            'create_home': True
-        }
-        
-        self.users.append(user)
-        print(f"✅ Imported {username} (shuttle_runner template)")
-    
-    def _import_defender_test_runner(self):
-        """Import defender_test_runner template"""
-        username = input("Username [shuttle_defender_test_runner]: ").strip() or "shuttle_defender_test_runner"
-        
-        if any(u['name'] == username for u in self.users):
-            print(f"❌ User '{username}' already exists")
+        # Get template and create user data
+        user_templates = get_standard_user_templates()
+        if template_name not in user_templates:
+            print(f"❌ Unknown template: {template_name}")
             return
         
-        user = {
-            'name': username,
-            'source': 'local',
-            'account_type': 'service',
-            'groups': {
-                'primary': 'shuttle_defender_test_runners',
-                'secondary': [
-                    'shuttle_config_readers',
-                    'shuttle_log_owners',
-                    'shuttle_ledger_owners'
-                ]
-            },
-            'shell': '/usr/sbin/nologin',
-            'home_directory': f'/var/lib/shuttle/{username}',
-            'create_home': True
-        }
+        user_data = user_templates[template_name].copy()
+        user_data['name'] = username  # Use the chosen username
         
-        self.users.append(user)
-        print(f"✅ Imported {username} (defender_test_runner template)")
+        # Add using unified method
+        self._add_user_to_instructions(user_data)
+        print(f"✅ Imported {username} ({template_name} template)")
     
-    def _import_samba_in_user(self):
-        """Import in_user template"""
-        username = input("Username [shuttle_in_user]: ").strip() or "shuttle_in_user"
-        
-        if any(u['name'] == username for u in self.users):
-            print(f"❌ User '{username}' already exists")
-            return
-        
-        user = {
-            'name': username,
-            'source': 'local',
-            'account_type': 'service',
-            'groups': {
-                'primary': 'shuttle_samba_in_users',
-                'secondary': ['shuttle_config_readers']
-            },
-            'samba': {
-                'enabled': True
-            },
-            'shell': '/usr/sbin/nologin',
-            'home_directory': f'/var/lib/shuttle/samba/{username}',
-            'create_home': True
-        }
-        
-        self.users.append(user)
-        print(f"✅ Imported {username} (in_user template)")
-    
-    def _import_samba_out_user(self):
-        """Import out_user template"""
-        username = input("Username [shuttle_out_user]: ").strip() or "shuttle_out_user"
-        
-        if any(u['name'] == username for u in self.users):
-            print(f"❌ User '{username}' already exists")
-            return
-        
-        user = {
-            'name': username,
-            'source': 'local',
-            'account_type': 'service',
-            'groups': {
-                'primary': 'shuttle_samba_out_users',
-                'secondary': ['shuttle_config_readers']
-            },
-            'samba': {
-                'enabled': True
-            },
-            'shell': '/usr/sbin/nologin',
-            'home_directory': f'/var/lib/shuttle/samba/{username}',
-            'create_home': True
-        }
-        
-        self.users.append(user)
-        print(f"✅ Imported {username} (out_user template)")
-    
-    def _import_shuttle_tester(self):
-        """Import shuttle_tester template"""
-        username = input("Username [shuttle_tester]: ").strip() or "shuttle_tester"
-        
-        if any(u['name'] == username for u in self.users):
-            print(f"❌ User '{username}' already exists")
-            return
-        
-        user = {
-            'name': username,
-            'source': 'local',
-            'account_type': 'interactive',
-            'groups': {
-                'primary': 'shuttle_testers',
-                'secondary': [
-                    'shuttle_runners',
-                    'shuttle_config_readers'
-                ]
-            },
-            'shell': '/bin/bash',
-            'home_directory': f'/home/{username}',
-            'create_home': True
-        }
-        
-        self.users.append(user)
-        print(f"✅ Imported {username} (shuttle_tester template)")
-    
-    def _import_shuttle_admin(self):
-        """Import shuttle_admin template"""
-        username = input("Username [shuttle_admin]: ").strip() or "shuttle_admin"
-        
-        if any(u['name'] == username for u in self.users):
-            print(f"❌ User '{username}' already exists")
-            return
-        
-        # Admin users get permissions through group membership, not individual path assignments
-        
-        user = {
-            'name': username,
-            'source': 'local',
-            'account_type': 'interactive',
-            'groups': {
-                'primary': 'shuttle_admins' if 'shuttle_admins' in self.config['groups'] else None,
-                'secondary': []
-            },
-            'shell': '/bin/bash',
-            'home_directory': f'/home/{username}',
-            'create_home': True
-        }
-        
-        # Add all relevant groups as secondary
-        admin_secondary_groups = [
-            'shuttle_config_readers',
-            'shuttle_data_owners',
-            'shuttle_log_owners',
-            'shuttle_ledger_owners',
-            'shuttle_runners',
-            'shuttle_defender_test_runners'
-        ]
-        
-        for group in admin_secondary_groups:
-            if group in self.config['groups']:
-                user['groups']['secondary'].append(group)
-        
-        self.users.append(user)
-        print(f"✅ Imported {username} (shuttle_admin template)")
     
     def _custom_configure_path_permissions(self):
         """Configure permissions, ownership, and ACLs for shuttle paths"""
@@ -2294,7 +2177,7 @@ class ConfigWizard:
             print()  # Add spacing between response and next section
             
             if choice == "0":
-                self._apply_standard_path_permissions()
+                self._configure_paths_standard('custom')
             elif choice == "1":
                 self._custom_configure_shuttle_path_permissions()
             elif choice == "2":
@@ -2331,7 +2214,7 @@ class ConfigWizard:
             choice_str = self._get_choice("Select option", valid_choices, "0")
             
             if choice_str == "0":
-                self._apply_standard_path_permissions()
+                self._configure_paths_standard('custom')
                 return
             
             idx = int(choice_str)
@@ -2342,33 +2225,6 @@ class ConfigWizard:
                 print("❌ Invalid selection")
         except ValueError:
             print("❌ Invalid input")
-    
-    def _apply_standard_path_permissions(self):
-        """Apply standard permission configurations to all shuttle paths"""
-        print("\n=== ADD STANDARD PERMISSIONS TO INSTRUCTIONS ===")
-        print("This will add standard production permission configurations to instructions")
-        print("including ownership, modes, ACLs, and default ACLs.")
-        
-        if not self._confirm("\nAdd standard permissions to all shuttle paths in instructions?", True):
-            return
-        
-        # Get standard permissions from centralized definitions
-        standard_configs = get_standard_path_permissions()
-        
-        configured_count = 0
-        for path_name, actual_path in self.shuttle_paths.items():
-            if path_name in standard_configs:
-                config = standard_configs[path_name].copy()
-                config['description'] = f"Standard {path_name}"
-                self.config['paths'][actual_path] = config
-                configured_count += 1
-                print(f"✅ Configured {path_name}: {actual_path}")
-        
-        print(f"\\n✅ Applied standard permissions to {configured_count} paths")
-        print("\\nDefault ACLs configured for data directories ensure:")
-        print("  • Files created by Samba users: 660 (rw-rw----)")
-        print("  • Directories created by Samba users: 770 (rwxrwx---)")
-        print("  • Consistent permissions regardless of umask")
     
     def _custom_configure_custom_path_permissions(self):
         """Configure permissions for a custom (non-shuttle) path"""
@@ -2600,17 +2456,9 @@ class ConfigWizard:
     
     def _custom_import_standard_path_permissions(self):
         """Import standard path permission configurations"""
-        print("\n=== IMPORT STANDARD PATH PERMISSION TEMPLATES ===")
-        print("This will configure all shuttle paths with standard production permission settings.")
-        
         if self._confirm("Import standard path permission configurations?", True):
-            # Use the same method as standard mode
-            original_paths = self.config.get('paths', {}).copy()
-            self._configure_standard_paths()
-            
-            # Count what was added
-            new_paths = len(self.config.get('paths', {})) - len(original_paths)
-            print(f"✅ Imported standard permission configurations for {new_paths} paths")
+            # Use unified method
+            self._configure_paths_standard('custom')
 
     def _custom_manage_components(self):
         """Manage component configuration"""
@@ -2624,23 +2472,8 @@ class ConfigWizard:
         print(f"  Configure users/groups: {self.config['components']['configure_users_groups']}")
         print("")
         
-        self.config['components']['install_samba'] = self._confirm("Install Samba?", 
-            self.config['components']['install_samba'])
-        self.config['components']['install_acl'] = self._confirm("Install ACL tools?", 
-            self.config['components']['install_acl'])
-        self.config['components']['configure_firewall'] = self._confirm("Configure firewall?", 
-            self.config['components']['configure_firewall'])
-        
-        if self.config['components']['install_samba']:
-            self.config['components']['configure_samba'] = self._confirm("Configure Samba?", 
-                self.config['components']['configure_samba'])
-        else:
-            self.config['components']['configure_samba'] = False
-        
-        # Always configure users/groups in custom mode
-        self.config['components']['configure_users_groups'] = True
-        
-        print("✅ Component settings updated")
+        # Use unified method with custom mode behavior
+        self._configure_components_interactive('custom')
     
     def _custom_import_template(self):
         """Import from predefined templates"""
@@ -2829,6 +2662,211 @@ class ConfigWizard:
         
         return len(errors) == 0
     
+    # =============================================
+    # UNIFIED CONFIGURATION METHODS
+    # =============================================
+    
+    def _configure_paths_standard(self, mode='standard'):
+        """Unified standard path configuration for all modes"""
+        headers = {
+            'simple': "=== Development Path Configuration ===",
+            'standard': "=== Standard Production Path Configuration ===",
+            'custom': "=== Import Standard Path Permission Templates ==="
+        }
+        
+        descriptions = {
+            'simple': "Setting up development-friendly permissions for all shuttle paths...",
+            'standard': "Setting up production security permissions for all shuttle paths...",
+            'custom': "Configuring all shuttle paths with standard production permission settings..."
+        }
+        
+        print(f"\n{headers[mode]}")
+        print(descriptions[mode])
+        
+        # Get standard path permissions from centralized configs
+        standard_configs = get_standard_path_permissions()
+        paths_to_add = {}
+        
+        for path_name, config in standard_configs.items():
+            if path_name in self.shuttle_paths:
+                actual_path = self.shuttle_paths[path_name]
+                # Use the path config directly from standard_configs (with proper descriptions)
+                paths_to_add[actual_path] = config.copy()
+        
+        # Add all paths using unified method
+        added_count = self._add_paths_to_instructions(paths_to_add)
+        print(f"✅ Configured {added_count} standard paths")
+    
+    def _configure_components_interactive(self, mode='standard'):
+        """Unified component configuration for all modes"""
+        headers = {
+            'simple': "=== Development Component Configuration ===",
+            'standard': "=== Production Component Configuration ===",
+            'custom': "--- Component Configuration ---"
+        }
+        
+        descriptions = {
+            'simple': "Configure system components for development environment:",
+            'standard': "Configure system components for production environment:",
+            'custom': "Configure system components:"
+        }
+        
+        # Mode-specific defaults
+        firewall_defaults = {
+            'simple': False,
+            'standard': True,
+            'custom': False
+        }
+        
+        print(f"\n{headers[mode]}")
+        print(descriptions[mode])
+        print("")
+        
+        # Samba (network file sharing)
+        print("🌐 Network File Sharing:")
+        samba_install = self._confirm("  Install Samba for network file access?", True)
+        self._add_component_to_instructions('install_samba', samba_install)
+        
+        if samba_install:
+            samba_configure = self._confirm("  Configure Samba users and shares?", True)
+            self._add_component_to_instructions('configure_samba', samba_configure)
+        else:
+            self._add_component_to_instructions('configure_samba', False)
+        print("")
+        
+        # ACL tools (advanced permissions)
+        print("🔒 Advanced Permissions:")
+        acl_install = self._confirm("  Install ACL tools for fine-grained permissions?", True)
+        self._add_component_to_instructions('install_acl', acl_install)
+        print("")
+        
+        # Firewall
+        print("🛡️ Security:")
+        firewall_config = self._confirm("  Configure firewall settings?", firewall_defaults[mode])
+        self._add_component_to_instructions('configure_firewall', firewall_config)
+        print("")
+        
+        # Always configure users/groups in all modes
+        self._add_component_to_instructions('configure_users_groups', True)
+        
+        # Summary
+        enabled_components = [k for k, v in self.config['components'].items() if v]
+        if enabled_components:
+            print(f"✅ {len(enabled_components)} components will be configured")
+        else:
+            print("⚠️  No additional components selected")
+    
+    # =============================================
+    # UNIFIED INSTRUCTION BUILDERS
+    # =============================================
+    
+    def _add_group_to_instructions(self, group_name: str, group_data: dict) -> bool:
+        """Universal method to add any group to the instruction set"""
+        if group_name in self.config['groups']:
+            print(f"⚠️  Group '{group_name}' already exists in instructions")
+            return False
+        
+        # Validate group data structure
+        if not isinstance(group_data, dict):
+            print(f"❌ Invalid group data for '{group_name}': must be dictionary")
+            return False
+        
+        if 'description' not in group_data:
+            print(f"❌ Invalid group data for '{group_name}': missing description")
+            return False
+        
+        # Add to instructions
+        self.config['groups'][group_name] = group_data.copy()
+        print(f"✅ Added group '{group_name}' to instructions")
+        return True
+    
+    def _add_groups_to_instructions(self, groups_dict: dict) -> int:
+        """Add multiple groups to instructions"""
+        added_count = 0
+        for group_name, group_data in groups_dict.items():
+            if self._add_group_to_instructions(group_name, group_data):
+                added_count += 1
+        return added_count
+    
+    def _add_user_to_instructions(self, user_data: dict) -> bool:
+        """Universal method to add any user to the instruction set"""
+        if not isinstance(user_data, dict) or 'name' not in user_data:
+            print(f"❌ Invalid user data: must be dictionary with 'name' field")
+            return False
+        
+        username = user_data['name']
+        
+        # Check for duplicates
+        for existing_user in self.users:
+            if existing_user['name'] == username:
+                print(f"⚠️  User '{username}' already exists in instructions")
+                return False
+        
+        # Validate required fields
+        required_fields = ['name', 'source', 'account_type', 'groups']
+        for field in required_fields:
+            if field not in user_data:
+                print(f"❌ Invalid user data for '{username}': missing '{field}'")
+                return False
+        
+        # Add to instructions
+        self.users.append(user_data.copy())
+        print(f"✅ Added user '{username}' to instructions")
+        return True
+    
+    def _add_users_to_instructions(self, users_list: list) -> int:
+        """Add multiple users to instructions"""
+        added_count = 0
+        for user_data in users_list:
+            if self._add_user_to_instructions(user_data):
+                added_count += 1
+        return added_count
+    
+    def _add_component_to_instructions(self, component_name: str, component_value: bool) -> bool:
+        """Universal method to add any component to the instruction set"""
+        if component_name not in self.config['components']:
+            print(f"❌ Unknown component: '{component_name}'")
+            return False
+        
+        self.config['components'][component_name] = component_value
+        status = "enabled" if component_value else "disabled"
+        print(f"✅ Component '{component_name}' {status}")
+        return True
+    
+    def _add_components_to_instructions(self, components_dict: dict) -> int:
+        """Add multiple components to instructions"""
+        added_count = 0
+        for component_name, component_value in components_dict.items():
+            if self._add_component_to_instructions(component_name, component_value):
+                added_count += 1
+        return added_count
+    
+    def _add_path_to_instructions(self, actual_path: str, path_config: dict) -> bool:
+        """Universal method to add any path to the instruction set"""
+        if not isinstance(path_config, dict):
+            print(f"❌ Invalid path config for '{actual_path}': must be dictionary")
+            return False
+        
+        # Ensure paths section exists
+        if 'paths' not in self.config:
+            self.config['paths'] = {}
+        
+        # Add to instructions
+        self.config['paths'][actual_path] = path_config.copy()
+        
+        # Get readable path name for output
+        path_name = next((name for name, p in self.shuttle_paths.items() if p == actual_path), "custom")
+        print(f"✅ Added path '{path_name}' to instructions")
+        return True
+    
+    def _add_paths_to_instructions(self, paths_dict: dict) -> int:
+        """Add multiple paths to instructions"""
+        added_count = 0
+        for actual_path, path_config in paths_dict.items():
+            if self._add_path_to_instructions(actual_path, path_config):
+                added_count += 1
+        return added_count
+    
     def _build_complete_config(self) -> List[Dict[str, Any]]:
         """Build complete configuration documents"""
         # Validate all paths for safety before building config
@@ -2839,14 +2877,40 @@ class ConfigWizard:
         
         documents = []
         
-        # First document: global config
-        documents.append(self.config)
+        # First document: metadata, settings, and components only
+        base_config = {
+            'version': self.config['version'],
+            'metadata': self.config['metadata'],
+            'settings': self.config['settings'],
+            'components': self.config['components']
+        }
+        documents.append(base_config)
+        
+        # Group documents
+        for group_name, group_details in self.config.get('groups', {}).items():
+            documents.append({
+                'type': 'group',
+                'group': {
+                    'name': group_name,
+                    **group_details
+                }
+            })
         
         # User documents
         for user in self.users:
             documents.append({
                 'type': 'user',
                 'user': user
+            })
+        
+        # Path documents
+        for path, path_config in self.config.get('paths', {}).items():
+            documents.append({
+                'type': 'path',
+                'path': {
+                    'location': path,
+                    **path_config
+                }
             })
         
         print("✅ Path validation complete - configuration is ready")
@@ -2933,8 +2997,8 @@ def validate_yaml_config(filename: str) -> bool:
         else:
             main_config = docs[0]
             
-            # Check required sections
-            required_sections = ['metadata', 'settings', 'groups', 'components']
+            # Check required sections in base config
+            required_sections = ['metadata', 'settings', 'components']
             for section in required_sections:
                 if section not in main_config:
                     validation_errors.append(f"Missing required section: {section}")
@@ -2947,15 +3011,42 @@ def validate_yaml_config(filename: str) -> bool:
                     if field not in metadata:
                         validation_errors.append(f"Missing required metadata field: {field}")
         
-        # Validate user documents
-        user_count = len(docs) - 1
-        if user_count == 0:
+        # Count and validate different document types
+        group_docs = []
+        user_docs = []
+        path_docs = []
+        
+        for i, doc in enumerate(docs[1:], 1):
+            doc_type = doc.get('type')
+            if doc_type == 'group':
+                group_docs.append((i, doc))
+            elif doc_type == 'user':
+                user_docs.append((i, doc))
+            elif doc_type == 'path':
+                path_docs.append((i, doc))
+            else:
+                validation_errors.append(f"Document {i+1}: Invalid or missing type '{doc_type}'")
+        
+        # Validate groups
+        if not group_docs:
+            validation_errors.append("No groups defined")
+        else:
+            for i, doc in group_docs:
+                if 'group' not in doc:
+                    validation_errors.append(f"Document {i+1}: Missing 'group' section")
+                else:
+                    group = doc['group']
+                    if 'name' not in group:
+                        validation_errors.append(f"Document {i+1}: Group missing 'name' field")
+                    if 'gid' not in group:
+                        validation_errors.append(f"Document {i+1}: Group missing 'gid' field")
+        
+        # Validate users
+        if not user_docs:
             validation_errors.append("No users defined")
         else:
-            for i, doc in enumerate(docs[1:], 1):
-                if doc.get('type') != 'user':
-                    validation_errors.append(f"Document {i+1}: Invalid type, expected 'user'")
-                elif 'user' not in doc:
+            for i, doc in user_docs:
+                if 'user' not in doc:
                     validation_errors.append(f"Document {i+1}: Missing 'user' section")
                 else:
                     user = doc['user']
@@ -2963,6 +3054,20 @@ def validate_yaml_config(filename: str) -> bool:
                     for field in required_user_fields:
                         if field not in user:
                             validation_errors.append(f"User {user.get('name', 'unnamed')}: Missing required field '{field}'")
+        
+        # Validate paths
+        if path_docs:
+            for i, doc in path_docs:
+                if 'path' not in doc:
+                    validation_errors.append(f"Document {i+1}: Missing 'path' section")
+                else:
+                    path = doc['path']
+                    if 'location' not in path:
+                        validation_errors.append(f"Document {i+1}: Path missing 'location' field")
+                    required_path_fields = ['owner', 'group', 'mode']
+                    for field in required_path_fields:
+                        if field not in path:
+                            validation_errors.append(f"Path {path.get('location', 'unknown')}: Missing required field '{field}'")
         
         if validation_errors:
             print("❌ Configuration validation errors found:")
@@ -3012,8 +3117,15 @@ def main():
     
     print("\n=== Configuration Summary ===")
     print(f"Environment: {config[0]['metadata']['environment']}")
-    print(f"Groups: {len(config[0]['groups'])}")
-    print(f"Users: {len(config) - 1}")
+    
+    # Count different document types
+    group_count = sum(1 for doc in config if doc.get('type') == 'group')
+    user_count = sum(1 for doc in config if doc.get('type') == 'user')
+    path_count = sum(1 for doc in config if doc.get('type') == 'path')
+    
+    print(f"Groups: {group_count}")
+    print(f"Users: {user_count}")
+    print(f"Paths: {path_count}")
     
     # Save options
     print("\nWhat would you like to do?")

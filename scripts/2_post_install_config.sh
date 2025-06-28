@@ -85,6 +85,18 @@ DRY_RUN=false
 RUN_WIZARD=false
 VERBOSE=false
 
+# Command-line override variables
+CLI_ENVIRONMENT=""
+CLI_MODE=""
+CLI_CREATE_HOME=""
+CLI_BACKUP_USERS=""
+CLI_VALIDATE=""
+CLI_INSTALL_ACL=""
+CLI_INSTALL_SAMBA=""
+CLI_CONFIGURE_USERS_GROUPS=""
+CLI_CONFIGURE_SAMBA=""
+CLI_CONFIGURE_FIREWALL=""
+
 echo "=========================================" >&2
 echo "  Shuttle Post-Install Environment Configuration  " >&2
 echo "=========================================" >&2
@@ -103,25 +115,48 @@ show_usage() {
 Usage: $0 [options]
 
 Options:
-  --instructions <file> Path to YAML instructions file (default: wizard mode)
-  --interactive         Force interactive mode (override config file setting)
-  --non-interactive     Force non-interactive mode (override config file setting)
-  --dry-run             Show what would be done without making changes
-  --verbose            Show detailed command execution information
-  --wizard              Run configuration wizard to create YAML file first
-  --help               Show this help message
+  --instructions <file>   Path to YAML instructions file (default: wizard mode)
+  --interactive           Force interactive mode (override config file setting)
+  --non-interactive       Force non-interactive mode (override config file setting)
+  --dry-run               Show what would be done without making changes
+  --verbose               Show detailed command execution information
+  --wizard                Run configuration wizard to create YAML file first
+  --help                  Show this help message
+
+Base Configuration Overrides:
+  --environment <env>         Set environment (production|development|testing)
+  --mode <mode>              Set configuration mode (simple|standard|custom)
+  --create-home              Enable home directory creation
+  --no-create-home           Disable home directory creation
+  --backup-users             Enable user backup before changes
+  --no-backup-users          Disable user backup before changes
+  --validate                 Enable validation before apply
+  --no-validate              Disable validation before apply
+
+Component Control:
+  --install-acl              Enable ACL tools installation
+  --no-install-acl           Disable ACL tools installation
+  --install-samba            Enable Samba installation
+  --no-install-samba         Disable Samba installation
+  --configure-users-groups   Enable users and groups configuration
+  --no-configure-users-groups Disable users and groups configuration
+  --configure-samba          Enable Samba configuration
+  --no-configure-samba       Disable Samba configuration
+  --configure-firewall       Enable firewall configuration
+  --no-configure-firewall    Disable firewall configuration
 
 Examples:
   $0                                    # Interactive mode with default config
   $0 --wizard                          # Run wizard to create config, then apply
   $0 --instructions /path/to/post_install_config_steps.yaml     # Use mode from config file
-  $0 --instructions post_install_config_steps.yaml --non-interactive  # Force automated mode
-  $0 --instructions post_install_config_steps.yaml --interactive      # Force interactive mode
-  $0 --dry-run                          # Show what would be done
-  $0 --wizard --dry-run                 # Create config with wizard, then dry run
+  $0 --instructions minimal.yaml --non-interactive --environment production  # Minimal config with CLI overrides
+  $0 --instructions users-only.yaml --no-install-samba --no-configure-firewall  # Skip components
+  $0 --dry-run --no-validate            # Show what would be done without validation
 
 Configuration File:
   The YAML configuration file defines users, groups, and permissions.
+  All base configuration settings can be overridden via command-line parameters.
+  This allows minimal YAML files containing only groups, users, and/or paths.
   See yaml_user_setup_design.md for complete documentation and examples.
 EOF
 }
@@ -157,6 +192,80 @@ parse_arguments() {
                 ;;
             --wizard)
                 RUN_WIZARD=true
+                shift
+                ;;
+            # Base configuration overrides
+            --environment)
+                CLI_ENVIRONMENT="$2"
+                shift 2
+                ;;
+            --mode)
+                CLI_MODE="$2"
+                shift 2
+                ;;
+            --create-home)
+                CLI_CREATE_HOME="true"
+                shift
+                ;;
+            --no-create-home)
+                CLI_CREATE_HOME="false"
+                shift
+                ;;
+            --backup-users)
+                CLI_BACKUP_USERS="true"
+                shift
+                ;;
+            --no-backup-users)
+                CLI_BACKUP_USERS="false"
+                shift
+                ;;
+            --validate)
+                CLI_VALIDATE="true"
+                shift
+                ;;
+            --no-validate)
+                CLI_VALIDATE="false"
+                shift
+                ;;
+            # Component control
+            --install-acl)
+                CLI_INSTALL_ACL="true"
+                shift
+                ;;
+            --no-install-acl)
+                CLI_INSTALL_ACL="false"
+                shift
+                ;;
+            --install-samba)
+                CLI_INSTALL_SAMBA="true"
+                shift
+                ;;
+            --no-install-samba)
+                CLI_INSTALL_SAMBA="false"
+                shift
+                ;;
+            --configure-users-groups)
+                CLI_CONFIGURE_USERS_GROUPS="true"
+                shift
+                ;;
+            --no-configure-users-groups)
+                CLI_CONFIGURE_USERS_GROUPS="false"
+                shift
+                ;;
+            --configure-samba)
+                CLI_CONFIGURE_SAMBA="true"
+                shift
+                ;;
+            --no-configure-samba)
+                CLI_CONFIGURE_SAMBA="false"
+                shift
+                ;;
+            --configure-firewall)
+                CLI_CONFIGURE_FIREWALL="true"
+                shift
+                ;;
+            --no-configure-firewall)
+                CLI_CONFIGURE_FIREWALL="false"
                 shift
                 ;;
             --help|-h)
@@ -199,6 +308,15 @@ validate_config() {
         exit 1
     fi
     
+    # Enhanced validation with CLI override support
+    echo "Validating configuration structure..."
+    if ! python3 -m validate_config "$INSTRUCTIONS_FILE"; then
+        print_fail "Configuration validation failed"
+        echo "" >&2
+        echo "Please review your configuration file and try again." >&2
+        exit 1
+    fi
+    
     print_success "Configuration file validated: $INSTRUCTIONS_FILE"
     echo ""
 }
@@ -207,23 +325,7 @@ validate_config() {
 read_interactive_mode_settings() {
     # Only read from config if not explicitly set via command line
     if [[ "$INTERACTIVE_MODE" == "true" ]] && [[ -z "$COMMAND_LINE_INTERACTIVE_SET" ]]; then
-        local mode=$(python3 -c "
-import yaml
-import sys
-try:
-    with open('$INSTRUCTIONS_FILE', 'r') as f:
-        docs = list(yaml.safe_load_all(f))
-    
-    for doc in docs:
-        if doc and 'settings' in doc:
-            mode = doc['settings'].get('interactive_mode', '')
-            if mode:
-                print(mode)
-                sys.exit(0)
-    print('')
-except:
-    print('')
-")
+        local mode=$(python3 -m read_config_settings "$INSTRUCTIONS_FILE" "interactive_mode")
         
         if [[ -n "$mode" ]]; then
             case "$mode" in
@@ -247,28 +349,57 @@ except:
     
     # Check for dry-run default in config
     if [[ "$DRY_RUN" == "false" ]] && [[ -z "$COMMAND_LINE_DRY_RUN_SET" ]]; then
-        local dry_run_default=$(python3 -c "
-import yaml
-import sys
-try:
-    with open('$INSTRUCTIONS_FILE', 'r') as f:
-        docs = list(yaml.safe_load_all(f))
-    
-    for doc in docs:
-        if doc and 'settings' in doc:
-            if doc['settings'].get('dry_run_default', False):
-                print('true')
-                sys.exit(0)
-    print('false')
-except:
-    print('false')
-")
+        local dry_run_default=$(python3 -m read_config_settings "$INSTRUCTIONS_FILE" "dry_run_default")
         
         if [[ "$dry_run_default" == "true" ]]; then
             print_info "Dry-run mode enabled by default from configuration"
             DRY_RUN=true
             export DRY_RUN
         fi
+    fi
+}
+
+# Export CLI overrides as environment variables for Python modules
+export_cli_overrides() {
+    # Export CLI overrides as environment variables
+    if [[ -n "$CLI_ENVIRONMENT" ]]; then
+        export CLI_OVERRIDE_ENVIRONMENT="$CLI_ENVIRONMENT"
+    fi
+    
+    if [[ -n "$CLI_MODE" ]]; then
+        export CLI_OVERRIDE_MODE="$CLI_MODE"
+    fi
+    
+    if [[ -n "$CLI_CREATE_HOME" ]]; then
+        export CLI_OVERRIDE_CREATE_HOME="$CLI_CREATE_HOME"
+    fi
+    
+    if [[ -n "$CLI_BACKUP_USERS" ]]; then
+        export CLI_OVERRIDE_BACKUP_USERS="$CLI_BACKUP_USERS"
+    fi
+    
+    if [[ -n "$CLI_VALIDATE" ]]; then
+        export CLI_OVERRIDE_VALIDATE="$CLI_VALIDATE"
+    fi
+    
+    if [[ -n "$CLI_INSTALL_ACL" ]]; then
+        export CLI_OVERRIDE_INSTALL_ACL="$CLI_INSTALL_ACL"
+    fi
+    
+    if [[ -n "$CLI_INSTALL_SAMBA" ]]; then
+        export CLI_OVERRIDE_INSTALL_SAMBA="$CLI_INSTALL_SAMBA"
+    fi
+    
+    if [[ -n "$CLI_CONFIGURE_USERS_GROUPS" ]]; then
+        export CLI_OVERRIDE_CONFIGURE_USERS_GROUPS="$CLI_CONFIGURE_USERS_GROUPS"
+    fi
+    
+    if [[ -n "$CLI_CONFIGURE_SAMBA" ]]; then
+        export CLI_OVERRIDE_CONFIGURE_SAMBA="$CLI_CONFIGURE_SAMBA"
+    fi
+    
+    if [[ -n "$CLI_CONFIGURE_FIREWALL" ]]; then
+        export CLI_OVERRIDE_CONFIGURE_FIREWALL="$CLI_CONFIGURE_FIREWALL"
     fi
 }
 
@@ -387,20 +518,43 @@ interactive_setup() {
 # Check if component is enabled in config
 is_component_enabled() {
     local component_name="$1"
-    python3 -c "
-import yaml
-import sys
-try:
-    with open('$INSTRUCTIONS_FILE', 'r') as f:
-        docs = list(yaml.safe_load_all(f))
     
-    for doc in docs:
-        if doc.get('components', {}).get('$component_name', True):
-            sys.exit(0)
-    sys.exit(1)
-except:
-    sys.exit(0)  # Default to enabled if not specified
-"
+    # Check CLI overrides first
+    case "$component_name" in
+        "install_acl")
+            if [[ -n "$CLI_INSTALL_ACL" ]]; then
+                [[ "$CLI_INSTALL_ACL" == "true" ]]
+                return $?
+            fi
+            ;;
+        "install_samba")
+            if [[ -n "$CLI_INSTALL_SAMBA" ]]; then
+                [[ "$CLI_INSTALL_SAMBA" == "true" ]]
+                return $?
+            fi
+            ;;
+        "configure_users_groups")
+            if [[ -n "$CLI_CONFIGURE_USERS_GROUPS" ]]; then
+                [[ "$CLI_CONFIGURE_USERS_GROUPS" == "true" ]]
+                return $?
+            fi
+            ;;
+        "configure_samba")
+            if [[ -n "$CLI_CONFIGURE_SAMBA" ]]; then
+                [[ "$CLI_CONFIGURE_SAMBA" == "true" ]]
+                return $?
+            fi
+            ;;
+        "configure_firewall")
+            if [[ -n "$CLI_CONFIGURE_FIREWALL" ]]; then
+                [[ "$CLI_CONFIGURE_FIREWALL" == "true" ]]
+                return $?
+            fi
+            ;;
+    esac
+    
+    # Fall back to config file
+    python3 -m check_component_enabled "$INSTRUCTIONS_FILE" "$component_name"
 }
 
 # Phase 1: Install system tools
@@ -541,6 +695,9 @@ run_configuration_wizard() {
     # Change to config directory
     cd "$PROJECT_ROOT/config"
     
+    # Ensure PYTHONPATH is set for the wizard
+    export PYTHONPATH="${SETUP_LIB_DIR}:${PYTHONPATH}"
+    
     # Build wizard arguments
     local wizard_args=""
     
@@ -679,6 +836,9 @@ main() {
     
     echo "Starting production environment configuration..." >&2
     echo "" >&2
+    
+    # Export CLI overrides for Python modules
+    export_cli_overrides
     
     # Run wizard if requested
     if [[ "$RUN_WIZARD" == "true" ]]; then
