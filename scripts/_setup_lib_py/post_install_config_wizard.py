@@ -252,31 +252,33 @@ class ConfigWizard:
             return self._run_custom_mode()
     
     def _select_deployment_mode(self) -> str:
-        """Select the deployment mode"""
-        print("=== Deployment Mode Selection ===")
-        print("Choose how you want to configure shuttle permissions:")
-        print("")
-        print("1) Simple - Single admin user with full access")
-        print("   Best for: Development, testing, single-user systems")
-        print("   Creates: One user with access to everything")
-        print("")
-        print("2) Standard - Production roles and security model")
-        print("   Best for: Production systems, multiple users")
-        print("   Creates: Service accounts, network users, proper isolation")
-        print("")
-        print("3) Custom - Build your own permission model")
-        print("   Best for: Special requirements, complex environments")
-        print("   Creates: Whatever you design")
-        print("")
+        """Select the deployment mode using generic menu system"""
+        deployment_choices = [
+            {
+                'key': '1', 
+                'label': 'Simple - Single admin user with full access\n   Best for: Development, testing, single-user systems\n   Creates: One user with access to everything',
+                'value': 'simple'
+            },
+            {
+                'key': '2',
+                'label': 'Standard - Production roles and security model\n   Best for: Production systems, multiple users\n   Creates: Service accounts, network users, proper isolation', 
+                'value': 'standard'
+            },
+            {
+                'key': '3',
+                'label': 'Custom - Build your own permission model\n   Best for: Special requirements, complex environments\n   Creates: Whatever you design',
+                'value': 'custom'
+            }
+        ]
         
-        choice = self._get_choice("Select deployment mode", ["1", "2", "3"], "2")
+        choice = self._get_menu_choice(
+            "=== Deployment Mode Selection ===\nChoose how you want to configure shuttle permissions:",
+            deployment_choices,
+            "2",  # Default to standard mode
+            include_back=False  # No back option for main mode selection
+        )
         
-        mode_map = {
-            "1": "simple",
-            "2": "standard", 
-            "3": "custom"
-        }
-        selected_mode = mode_map[choice]
+        selected_mode = self._get_choice_value(choice, deployment_choices, "standard")
         print(f"\n✅ Selected: {selected_mode.title()} Mode")
         return selected_mode
     
@@ -963,15 +965,26 @@ class ConfigWizard:
         self._add_user_to_instructions(user)
     
     def _select_user_source(self) -> str:
-        """Select user source type"""
-        print("\nUser source:")
-        print("1) Existing user (any local or domain user already on this system)")
-        print("2) New local user (create new local user)")
-        print("3) Create new local configuration for a domain user (create reference to AD/LDAP user)")
+        """Select user source type using universal menu system"""
+        user_source_choices = [
+            {'key': '1', 'label': 'Existing user (any local or domain user already on this system)', 'value': 'existing'},
+            {'key': '2', 'label': 'New local user (create new local user)', 'value': 'local'},
+            {'key': '3', 'label': 'Create new local configuration for a domain user (create reference to AD/LDAP user)', 'value': 'domain'}
+        ]
         
-        choice = self._get_choice("Select user source", ["1", "2", "3"], "1")
-        source_map = {"1": "existing", "2": "local", "3": "domain"}
-        return source_map[choice]
+        # Find default key (will be '1' - lowest numbered)
+        default_key = self._find_default_key(user_source_choices)
+        
+        # Use universal menu system
+        selected_key = self._get_menu_choice(
+            "User source:",
+            user_source_choices,
+            default_key,
+            include_back=False  # No back option for this utility function
+        )
+        
+        # Extract and return the value
+        return self._get_choice_value(selected_key, user_source_choices, 'existing')
     
     def _get_username(self, prompt: str, default: str, source: str) -> str:
         """Get username with optional domain prefix"""
@@ -1017,23 +1030,49 @@ class ConfigWizard:
             sys.exit(3)  # Exit code 3 for user cancellation
         return response in ['y', 'yes']
     
-    # Standard Mode Helper Methods
-    def _get_user_type(self) -> str:
-        """Get user type for simple mode"""
-        print("\nUser account type:")
-        print("1) Local account - Create new local user")
-        print("2) Existing account - Use existing local user")
-        print("3) Domain account - Use domain/LDAP user")
+    # Generic Helper Methods
+    def _get_user_type(self, default_type: str = "local") -> str:
+        """
+        Get user type interactively - used across all modes (development, production, custom)
         
-        choice = self._get_choice("Select user type", ["1", "2", "3"], "1")
+        Usage examples:
+            # Development mode (typically local accounts)
+            user_type = self._get_user_type("local")
+            
+            # Production mode (might prefer existing/domain)  
+            user_type = self._get_user_type("existing")
+            
+            # Custom mode (let user decide)
+            user_type = self._get_user_type()
         
-        type_map = {
-            "1": "local",
-            "2": "existing", 
-            "3": "domain"
-        }
-        return type_map[choice]
+        Args:
+            default_type: Default user type ('local', 'existing', 'domain')
+        
+        Returns:
+            Selected user type string
+        """
+        # Universal user type options - same for all modes
+        user_type_choices = [
+            {'key': '1', 'label': 'Local account - Create new local user', 'value': 'local'},
+            {'key': '2', 'label': 'Existing account - Use existing local user', 'value': 'existing'},
+            {'key': '3', 'label': 'Domain account - Use domain/LDAP user', 'value': 'domain'}
+        ]
+        
+        # Find default key using generic function
+        default_key = self._find_default_key(user_type_choices, default_type)
+        
+        # Use generic menu choice function
+        selected_key = self._get_menu_choice(
+            "User account type:",
+            user_type_choices,
+            default_key,
+            include_back=False  # No back option for this utility function
+        )
+        
+        # Extract and return the value
+        return self._get_choice_value(selected_key, user_type_choices, default_type)
     
+    # Standard Mode Helper Methods
     def _select_and_create_standard_roles(self):
         """Select and create standard roles with integrated flow"""
         print("\nThe standard production pattern uses the following user roles:")
@@ -1394,6 +1433,211 @@ class ConfigWizard:
             if choice in valid_choices:
                 return choice
             print(f"Invalid choice. Please select from: {', '.join(valid_choices)} or x to exit")
+    
+    def _get_menu_choice(self, title: str, choices: List[Dict[str, Any]], 
+                        default_key: str, include_back: bool = True, 
+                        back_label: str = "parent menu") -> str:
+        """
+        Universal menu choice function - works for any menu pattern
+        
+        This is the core reusable function that replaces all hardcoded menu patterns.
+        Any menu in the application can use this by defining a data structure.
+        
+        Args:
+            title: Menu title/header text
+            choices: List of choice dictionaries with required keys:
+                    - 'key': choice key (e.g., '1', '2', 'a')
+                    - 'label': display text for the choice
+                    Optional keys:
+                    - 'value': return value (if different from key)
+                    - 'action': action to execute (for action-based menus)
+            default_key: Default choice key
+            include_back: Whether to add back option
+            back_label: Label for back option context
+        
+        Returns:
+            Selected choice key
+            
+        Pattern Examples:
+        
+        1) Simple value selection (like user types):
+            choices = [
+                {'key': '1', 'label': 'Local account', 'value': 'local'},
+                {'key': '2', 'label': 'Domain account', 'value': 'domain'}
+            ]
+            key = self._get_menu_choice("User Type:", choices, '1', False)
+            value = self._get_choice_value(key, choices, 'local')
+            
+        2) Action-based menus (like management menus):
+            choices = [
+                {'key': '1', 'label': 'Add User', 'action': self._add_user},
+                {'key': '2', 'label': 'Delete User', 'action': self._delete_user}
+            ]
+            key = self._get_menu_choice("User Management:", choices, '1')
+            self._execute_menu_choice(key, choices)
+            
+        3) Complex nested menus (with multi-line labels):
+            choices = [
+                {'key': '1', 'label': 'Option 1 - Description\n   Details: More info', 'value': 'opt1'}
+            ]
+            
+        This pattern eliminates all hardcoded print statements and if/elif chains.
+        """
+        print(f"\n{title}")
+        
+        # Display all choices
+        for choice in choices:
+            print(f"{choice['key']}) {choice['label']}")
+        
+        # Add back option if requested
+        valid_keys = [choice['key'] for choice in choices]
+        if include_back:
+            print("")
+            print(f"b) Back to {back_label}")
+            valid_keys.append('b')
+            
+        return self._get_choice("Select option", valid_keys, default_key)
+    
+    def _show_dynamic_menu(self, title: str, menu_items: List[Dict[str, Any]], 
+                          parent_menu_name: str = "parent menu") -> str:
+        """
+        Generic menu system for dynamic content (legacy wrapper - use _get_menu_choice instead)
+        
+        Args:
+            title: Menu title/header
+            menu_items: List of menu item dictionaries with keys:
+                       - 'key': menu choice key (e.g., '1', '2')  
+                       - 'label': display text for menu item
+                       - 'action': callable or special action name
+            parent_menu_name: Name of parent menu for back option
+        
+        Returns:
+            Selected choice key or 'b' for back
+        """
+        return self._get_menu_choice(title, menu_items, "b", True, parent_menu_name)
+    
+    def _get_choice_value(self, selected_key: str, choices: List[Dict[str, Any]], 
+                         fallback_value: Any = None) -> Any:
+        """
+        Extract value from choice data structure based on selected key
+        
+        Args:
+            selected_key: The key that was selected
+            choices: List of choice dictionaries 
+            fallback_value: Value to return if key not found
+            
+        Returns:
+            The 'value' field from matching choice, or the 'key' if no 'value' field exists,
+            or fallback_value if no match found
+        """
+        for choice in choices:
+            if choice['key'] == selected_key:
+                return choice.get('value', choice['key'])
+        return fallback_value
+    
+    def _find_default_key(self, choices: List[Dict[str, Any]], target_value: Any = None) -> str:
+        """
+        Find the appropriate default key from choices list
+        
+        Args:
+            choices: List of choice dictionaries with 'key' and optional 'value' fields
+            target_value: Value to search for in 'value' fields, or None for lowest key
+            
+        Returns:
+            Key that matches target_value, or the lowest numbered key if no match/target
+            
+        Examples:
+            # Find key for specific value
+            choices = [
+                {'key': '1', 'value': 'local'}, 
+                {'key': '2', 'value': 'domain'}
+            ]
+            key = self._find_default_key(choices, 'domain')  # Returns '2'
+            
+            # Get lowest numbered key (no target specified)
+            key = self._find_default_key(choices)  # Returns '1'
+            
+            # Works with mixed key types
+            choices = [
+                {'key': '3', 'label': 'Option 3'},
+                {'key': '1', 'label': 'Option 1'}, 
+                {'key': 'a', 'label': 'Option A'}
+            ]
+            key = self._find_default_key(choices)  # Returns '1' (lowest numeric)
+            
+            # Template menu with '0' option
+            choices = [
+                {'key': '0', 'label': 'Add All'},
+                {'key': '1', 'label': 'Template 1'}
+            ]
+            key = self._find_default_key(choices)  # Returns '0'
+        """
+        if not choices:
+            return "1"  # Ultimate fallback
+            
+        # If target_value specified, try to find matching choice
+        if target_value is not None:
+            for choice in choices:
+                if choice.get('value') == target_value:
+                    return choice['key']
+        
+        # Fallback: find lowest numbered key
+        numeric_keys = []
+        non_numeric_keys = []
+        
+        for choice in choices:
+            key = choice['key']
+            try:
+                numeric_keys.append((int(key), key))
+            except ValueError:
+                non_numeric_keys.append(key)
+        
+        # Return lowest numeric key if any exist
+        if numeric_keys:
+            numeric_keys.sort()
+            return numeric_keys[0][1]  # Return the key string of lowest number
+            
+        # Return first non-numeric key if no numeric keys  
+        if non_numeric_keys:
+            return non_numeric_keys[0]
+            
+        # Ultimate fallback
+        return choices[0]['key']
+    
+    def _execute_menu_choice(self, choice: str, menu_items: List[Dict[str, Any]]) -> bool:
+        """
+        Execute the action for a selected menu choice
+        
+        Args:
+            choice: Selected choice key
+            menu_items: Menu items list with action definitions
+        
+        Returns:
+            True if action was executed, False if choice was 'b' (back)
+        """
+        if choice == 'b':
+            return False
+            
+        # Find matching menu item
+        for item in menu_items:
+            if item['key'] == choice:
+                action = item['action']
+                
+                # Handle different action types
+                if callable(action):
+                    action()
+                elif isinstance(action, str):
+                    # Handle special action strings
+                    if hasattr(self, action):
+                        getattr(self, action)()
+                    else:
+                        print(f"❌ Unknown action: {action}")
+                else:
+                    print(f"❌ Invalid action type for choice {choice}")
+                return True
+        
+        print(f"❌ No action found for choice {choice}")
+        return True
     
     def _get_permission_choice(self, prompt: str, default: bool = True) -> str:
         """Get permission choice with skip and exit options"""
@@ -2039,37 +2283,78 @@ class ConfigWizard:
                     print("❌ Invalid input")
     
     
+    def _build_user_template_menu(self, include_all_option=True):
+        """
+        Build dynamic user template menu from available templates
+        
+        Example of reusable pattern. Other menus could be refactored similarly:
+        
+        # Custom main menu could become:
+        # main_menu_items = [
+        #     {'key': '1', 'label': 'Manage Groups', 'action': self._manage_groups},
+        #     {'key': '2', 'label': 'Manage Users', 'action': self._manage_users},
+        #     {'key': '3', 'label': 'Configure Path Permissions', 'action': self._configure_paths},
+        #     {'key': 's', 'label': 'Save Configuration', 'action': self._save_config}
+        # ]
+        
+        Args:
+            include_all_option: Whether to include "Add All" option
+            
+        Returns:
+            List of menu item dictionaries
+        """
+        # Template display name mappings
+        template_labels = {
+            'shuttle_runner': 'Service Account - shuttle_runner',
+            'shuttle_defender_test_runner': 'Service Account - defender_test_runner', 
+            'shuttle_in_user': 'Network User - in_user',
+            'shuttle_out_user': 'Network User - out_user',
+            'shuttle_tester': 'Test User - shuttle_tester',
+            'shuttle_admin': 'Admin User - shuttle_admin'
+        }
+        
+        menu_items = []
+        
+        # Add "All" option if requested
+        if include_all_option:
+            menu_items.append({
+                'key': '0',
+                'label': 'Add All Standard Users',
+                'action': self._import_all_standard_users
+            })
+        
+        # Get available templates and build menu items
+        user_templates = get_standard_user_templates()
+        key_counter = 1 if include_all_option else 0
+        
+        for template_name in user_templates.keys():
+            if template_name in template_labels:
+                menu_items.append({
+                    'key': str(key_counter),
+                    'label': template_labels[template_name],
+                    'action': lambda t=template_name: self._import_user_template_interactive(t)
+                })
+                key_counter += 1
+        
+        return menu_items
+    
     def _custom_import_standard_users(self):
-        """Import standard user templates"""
-        print("\n--- Import Standard Users ---")
-        print("Select user template to add to instructions:")
-        print("0) Add All Standard Users")
-        print("1) Service Account - shuttle_runner")
-        print("2) Service Account - defender_test_runner")
-        print("3) Network User - in_user")
-        print("4) Network User - out_user")
-        print("5) Test User - shuttle_tester")
-        print("6) Admin User - shuttle_admin")
-        print("")
-        print("b) Back to User Management")
+        """Import standard user templates using generic menu system"""
+        menu_items = self._build_user_template_menu(include_all_option=True)
         
-        choice = self._get_choice("Select template", ["0", "1", "2", "3", "4", "5", "6", "b"], "b")
+        # Find appropriate default (lowest numbered option, typically '0' for "Add All")
+        default_key = self._find_default_key(menu_items)
         
-        if choice == "0":
-            self._import_all_standard_users()
-        elif choice == "1":
-            self._import_user_template_interactive('shuttle_runner')
-        elif choice == "2":
-            self._import_user_template_interactive('shuttle_defender_test_runner')
-        elif choice == "3":
-            self._import_user_template_interactive('shuttle_in_user')
-        elif choice == "4":
-            self._import_user_template_interactive('shuttle_out_user')
-        elif choice == "5":
-            self._import_user_template_interactive('shuttle_tester')
-        elif choice == "6":
-            self._import_user_template_interactive('shuttle_admin')
-        # choice == "b" returns automatically (no elif needed)
+        # Use the new generic menu choice function
+        choice = self._get_menu_choice(
+            "--- Import Standard Users ---\nSelect user template to add to instructions:",
+            menu_items,
+            default_key,
+            include_back=True,
+            back_label="User Management"
+        )
+        
+        self._execute_menu_choice(choice, menu_items)
     
     def _import_all_standard_users(self):
         """Add all standard users"""
