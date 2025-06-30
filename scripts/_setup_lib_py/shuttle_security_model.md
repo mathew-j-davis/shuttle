@@ -3,24 +3,26 @@
 ## Three-Layer Permission Control
 
 1. **Directory Permissions (2770)** - Basic Linux access control
-2. **Default ACLs** - Consistent file permissions regardless of creator's umask
+2. **Default ACLs** - Ensures Samba uploads get consistent 660 permissions
 3. **Shuttle umask (0007)** - Process-level file creation guarantees
+
+**Purpose of Default ACLs:** Windows clients uploading via Samba can create files with unpredictable permissions (644, 664, 600, etc.) depending on client settings. Default ACLs override this to ensure all uploaded files get 660 permissions.
 
 **Result:** All files created with `660` permissions and proper group ownership.
 
 ## Path Permissions
 
-| Path                       | Owner                       | Mode | ACLs                          | Default ACLs         | Result |
-|----------------------------|-----------------------------|------|-------------------------------|----------------------|--------|
-| source_path                | root:shuttle_data_owners    | 2770 | g:shuttle_samba_in_users:rwX  | u::rw-,g::rw-,o::--- | F:660 D:770 |
-| destination_path           | root:shuttle_data_owners    | 2770 | g:shuttle_samba_out_users:r-X | u::rw-,g::rw-,o::--- | F:660 D:770 |
-| quarantine_path            | root:shuttle_data_owners    | 2770 | None                          | u::rw-,g::rw-,o::--- | F:660 D:770 |
-| hazard_archive_path        | root:shuttle_data_owners    | 2770 | None                          | u::rw-,g::rw-,o::--- | F:660 D:770 |
-| log_path                   | root:shuttle_log_owners     | 2770 | None                          | None                 | N/A    |
-| hazard_encryption_key_path | root:shuttle_config_readers | 0640 | None                          | None                 | N/A    |
-| ledger_file_path           | root:shuttle_config_readers | 0640 | g:shuttle_ledger_owners:rw-   | None                 | N/A    |
-| test_work_dir              | root:shuttle_testers        | 0775 | None                          | None                 | N/A    |
-| test_config_path           | root:shuttle_testers        | 0664 | None                          | None                 | N/A    |
+| Path                       | Owner                       | Mode | ACLs                          | Default ACLs         | Purpose |
+|----------------------------|-----------------------------|------|-------------------------------|----------------------|---------|
+| source_path                | root:shuttle_data_owners    | 2770 | g:shuttle_samba_in_users:rwX  | u::rw-,g::rw-,o::--- | Samba uploads: F:660 D:770 |
+| destination_path           | root:shuttle_data_owners    | 2770 | g:shuttle_samba_out_users:rwX | u::rw-,g::rw-,o::--- | Samba downloads: F:660 D:770 |
+| quarantine_path            | root:shuttle_data_owners    | 2770 | None                          | None                 | Shuttle only (umask handles) |
+| hazard_archive_path        | root:shuttle_data_owners    | 2770 | None                          | None                 | Shuttle only (umask handles) |
+| log_path                   | root:shuttle_log_owners     | 2770 | None                          | None                 | Shuttle only (umask handles) |
+| hazard_encryption_key_path | root:shuttle_config_readers | 0640 | None                          | None                 | Static file |
+| ledger_file_path           | root:shuttle_config_readers | 0640 | g:shuttle_ledger_owners:rw-   | None                 | Static file |
+| test_work_dir              | root:shuttle_testers        | 0775 | None                          | None                 | Test isolation |
+| test_config_path           | root:shuttle_testers        | 0664 | None                          | None                 | Static file |
 
 ## Group Access Matrix
 
@@ -32,7 +34,7 @@
 | shuttle_ledger_owners        |           |      |        | rw-    |       |
 | shuttle_testers              |           |      |        |        | rwx   |
 | shuttle_samba_in_users       | source:rwX|      |        |        |       |
-| shuttle_samba_out_users      | dest:r-X  |      |        |        |       |
+| shuttle_samba_out_users      | dest:rwX  |      |        |        |       |
 
 ## Security Features
 
@@ -44,13 +46,22 @@
 
 ## Default ACL Commands
 
-Apply to all data directories to ensure consistent permissions:
+Apply ONLY to directories accessed by Samba users (source_path and destination_path):
 ```bash
-# Set default ACLs on directory (files: 660, dirs: 770)
-setfacl -d -m u::rw-,g::rw-,o::--- /path/to/directory    # Files
-setfacl -d -m d:u::rwx,d:g::rwx,d:o::--- /path/to/directory  # Directories
+# For source_path (Samba uploads)
+setfacl -d -m u::rw-,g::rw-,o::--- /path/to/source         # Files get 660
+setfacl -d -m u::rwx,g::rwx,o::--- /path/to/source         # Directories get 770
+
+# For destination_path (Samba downloads)
+setfacl -d -m u::rw-,g::rw-,o::--- /path/to/destination    # Files get 660
+setfacl -d -m u::rwx,g::rwx,o::--- /path/to/destination    # Directories get 770
 ```
-**Result:** Files created by any process (Samba, manual, etc.) get 660 permissions without execute bit.
+
+**NOT needed for:** quarantine_path, hazard_archive_path, log_path (only shuttle process writes there, umask(0007) handles permissions)
+
+**Purpose:** Ensures files uploaded via Samba get consistent 660 permissions regardless of Windows client settings or Samba configuration.
+
+**Result:** Samba-uploaded files get proper permissions without manual intervention.
 
 ## User Accounts and Group Memberships
 
