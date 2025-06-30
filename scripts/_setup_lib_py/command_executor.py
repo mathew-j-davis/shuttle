@@ -22,7 +22,7 @@ def run_command(cmd_list: List[str], description: str, dry_run: bool = False, in
         True if successful, False otherwise
     """
     # Build command string with proper quoting
-    cmd_str = " ".join([f'"{arg}"' if ' ' in arg else arg for arg in cmd_list])
+    cmd_str = " ".join([f'"{arg}"' if arg is not None and ' ' in arg else str(arg) for arg in cmd_list])
     
     if dry_run:
         print(f"[DRY RUN] {description}")

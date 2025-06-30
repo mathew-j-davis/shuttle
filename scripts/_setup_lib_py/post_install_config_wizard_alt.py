@@ -253,33 +253,26 @@ class ConfigWizard:
     
     def _select_deployment_mode(self) -> str:
         """Select the deployment mode using generic menu system"""
-        description = """
-=== Deployment Mode Selection ===
-
-Choose how you want to configure shuttle permissions:
-
-1) Simple - Single admin user with full access
-   Best for: Development, testing, single-user systems
-   Creates: One user with access to everything
-
-2) Standard - Production roles and security model
-   Best for: Production systems, multiple users
-   Creates: Service accounts, network users, proper isolation
-
-3) Custom - Build your own permission model
-   Best for: Special requirements, complex environments
-   Creates: Whatever you design
-        """
-        print(description)
-        
         deployment_choices = [
-            {'key': '1', 'label': 'Simple', 'value': 'simple'},
-            {'key': '2', 'label': 'Standard', 'value': 'standard'},
-            {'key': '3', 'label': 'Custom', 'value': 'custom'}
+            {
+                'key': '1', 
+                'label': 'Simple - Single admin user with full access\n   Best for: Development, testing, single-user systems\n   Creates: One user with access to everything',
+                'value': 'simple'
+            },
+            {
+                'key': '2',
+                'label': 'Standard - Production roles and security model\n   Best for: Production systems, multiple users\n   Creates: Service accounts, network users, proper isolation', 
+                'value': 'standard'
+            },
+            {
+                'key': '3',
+                'label': 'Custom - Build your own permission model\n   Best for: Special requirements, complex environments\n   Creates: Whatever you design',
+                'value': 'custom'
+            }
         ]
         
         choice = self._get_menu_choice(
-            "",  # Title already in description
+            "=== Deployment Mode Selection ===\nChoose how you want to configure shuttle permissions:",
             deployment_choices,
             "2",  # Default to standard mode
             include_back=False  # No back option for main mode selection
@@ -291,12 +284,8 @@ Choose how you want to configure shuttle permissions:
     
     def _run_simple_mode(self) -> Dict[str, Any]:
         """Run simple mode - single admin user"""
-        description = """
-=== SIMPLE DEVELOPMENT MODE ===
-
-Creating a single admin user with full shuttle access.
-        """
-        print(description)
+        print("\n=== SIMPLE DEVELOPMENT MODE ===")
+        print("Creating a single admin user with full shuttle access.")
         print("")
         
         # Apply mode-specific defaults using shared method
@@ -364,12 +353,9 @@ Creating a single admin user with full shuttle access.
     
     def _run_standard_mode(self) -> Dict[str, Any]:
         """Run standard mode - production security model"""
-        description = """
-=== STANDARD PRODUCTION MODE ===
-
-Setting up standard production users and groups.
-        """
-        print(description)
+        print("\n=== STANDARD PRODUCTION MODE ===")
+        print("Setting up standard production users and groups.")
+        print("")
         
         # Apply mode-specific defaults using shared method
         self._apply_mode_specific_defaults('standard')
@@ -1112,7 +1098,7 @@ Setting up standard production users and groups.
         print(description)
      
         # Service Accounts
-        self._select_and_create_standard_service_roles()
+        self._select_and_create_standard_roles()
         
         # Network Users
         if self._confirm("Create network users?", True):
@@ -1706,53 +1692,44 @@ Setting up standard production users and groups.
     # Custom Mode Methods
     def _show_custom_menu(self):
         """Show the main custom mode menu"""
-        description = f"""
-=== CUSTOM MODE MENU ===
-
-Current configuration:
-  Groups: {len(self.config['groups'])}
-  Users: {len(self.users)}
-  Paths: {len(self.config.get('paths', {}))}
-
-1) Manage Groups
-2) Manage Users
-3) Configure Path Permissions
-4) Configure Components
-5) Import from Templates
-6) Show Current Configuration
-7) Validate Configuration
-
-d) Delete Custom Configuration and return to main menu
-r) Reset Custom Configuration
-s) Use this configuration and continue.
-        """
-        print(description)
+        print("\n=== CUSTOM MODE MENU ===")
+        print(f"Groups: {len(self.config['groups'])}")
+        print(f"Users: {len(self.users)}")
+        print(f"Paths: {len(self.config.get('paths', {}))}")
+        print("")
+        print("1) Manage Groups")
+        print("2) Manage Users")
+        print("3) Configure Path Permissions")
+        print("4) Configure Components")
+        print("5) Import from Templates")
+        print("6) Show Current Configuration")
+        print("7) Validate Configuration")
+        print("")
+        print("d) Delete Custom Configuration and return to main menu")
+        print("r) Reset Custom Configuration")
+        print("s) Save Custom Configuration File")
+        print("")
     
     def _custom_manage_groups(self):
         """Manage groups in custom mode"""
         while True:
-            # Build groups list dynamically
-            groups_list = ""
+            print("\n=== GROUP MANAGEMENT ===")
+            print(f"Current groups in instructions: {len(self.config['groups'])}")
+            
             if self.config['groups']:
-                groups_list = "\nGroups to be created:\n"
+                print("\nGroups to be created:")
                 for name, details in sorted(self.config['groups'].items()):
                     gid_str = str(details.get('gid', 'auto'))
                     desc = details.get('description', 'No description')
-                    groups_list += f"  • {name} (GID: {gid_str}) - {desc}\n"
+                    print(f"  • {name} (GID: {gid_str}) - {desc}")
             
-            description = f"""
-=== GROUP MANAGEMENT ===
-
-Current groups in instructions: {len(self.config['groups'])}
-{groups_list}
-0) Add Standard Groups to Instructions
-1) Add Custom Group to Instructions
-2) Remove Group from Instructions
-3) Edit Group in Instructions
-
-b) Back to Main Custom Configuration Menu
-            """
-            print(description)
+            print("")
+            print("0) Add Standard Groups to Instructions")
+            print("1) Add Custom Group to Instructions")
+            print("2) Remove Group from Instructions")
+            print("3) Edit Group in Instructions")
+            print("")
+            print("b) Back to Main Custom Configuration Menu")
             
             choice = self._get_choice("Select action", ["0", "1", "2", "3", "b"], "b")
             print()  # Add spacing between response and next section
@@ -1943,26 +1920,19 @@ b) Back to Main Custom Configuration Menu
     def _custom_manage_users(self):
         """Manage users in custom mode"""
         while True:
-            # Build users list dynamically
-            users_list = ""
+            print("\n=== USER MANAGEMENT ===")
+            print(f"Users in instructions: {len(self.users)}")
             if self.users:
-                users_list = "\nUsers to be created:\n"
+                print("\nUsers to be created:")
                 for user in self.users:
-                    users_list += f"  • {user['name']} ({user['source']}) - {user['account_type']}\n"
-            
-            description = f"""
-=== USER MANAGEMENT ===
-
-Users in instructions: {len(self.users)}
-{users_list}
-0) Add Standard Users to Instructions
-1) Add Custom User to Instructions
-2) Remove User from Instructions
-3) Edit User in Instructions
-
-b) Back to Main Custom Configuration Menu
-            """
-            print(description)
+                    print(f"  • {user['name']} ({user['source']}) - {user['account_type']}")
+            print("")
+            print("0) Add Standard Users to Instructions")
+            print("1) Add Custom User to Instructions")
+            print("2) Remove User from Instructions")
+            print("3) Edit User in Instructions")
+            print("")
+            print("b) Back to Main Custom Configuration Menu")
             
             choice = self._get_choice("Select action", ["0", "1", "2", "3", "b"], "b")
             print()  # Add spacing between response and next section
@@ -2806,15 +2776,11 @@ b) Back to Main Custom Configuration Menu
     
     def _custom_import_template(self):
         """Import from predefined templates"""
-        description = """
---- Import Templates ---
-
-1) Import Standard Mode Template (production)
-2) Import Simple Mode Template (single admin)  
-3) Import Minimal Template (basic groups only)
-4) Cancel
-        """
-        print(description)
+        print("\n--- Import Templates ---")
+        print("1) Import Standard Mode Template (production)")
+        print("2) Import Simple Mode Template (single admin)")
+        print("3) Import Minimal Template (basic groups only)")
+        print("4) Cancel")
         
         choice = self._get_choice("Select template", ["1", "2", "3", "4"], "1")
         

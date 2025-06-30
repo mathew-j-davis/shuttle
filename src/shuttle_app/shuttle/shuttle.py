@@ -333,6 +333,9 @@ class Shuttle:
         try:
             self._create_lock_file()
             
+            # Set umask to ensure restrictive file permissions (group writable, no other access)
+            os.umask(0o007)
+            
             # Set up logging
             unique_id = self._setup_logging()
             

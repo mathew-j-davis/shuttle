@@ -136,8 +136,8 @@ class UserGroupManager:
         groups_config = user.get('groups', {})
         success = True
         
-        # Set primary group if specified
-        if 'primary' in groups_config:
+        # Set primary group if specified (None means use system default)
+        if 'primary' in groups_config and groups_config['primary'] is not None:
             cmd = [self.users_groups_script, "add-user-to-group", 
                    "--user", user_name, "--group", groups_config['primary']]
             if user['source'] == 'domain':
