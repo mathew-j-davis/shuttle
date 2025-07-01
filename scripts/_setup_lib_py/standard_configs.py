@@ -44,9 +44,19 @@ STANDARD_GROUPS = {
     }
 }
 
-# Standard Path Permissions - Single source of truth
-# Uses the format from _apply_standard_path_permissions() which is more complete
-STANDARD_PATH_PERMISSIONS = {
+# Development Path Permissions - Catch-all pattern for development environments
+STANDARD_DEVELOPMENT_PATH_PERMISSIONS = {
+    '*': {  # Catch-all pattern for any path
+        'owner': 'root',
+        'group': 'shuttle_admins',
+        'mode': '2775',  # Group writable for development
+        'acls': ['g:shuttle_admins:rwX'],  # Full access for admin group
+        'description': 'Development access'  # Will be customized per path
+    }
+}
+
+# Production Path Permissions - Specific configurations per path type
+STANDARD_PRODUCTION_PATH_PERMISSIONS = {
     'source_path': {
         'owner': 'root',
         'group': 'shuttle_data_owners',
@@ -123,7 +133,7 @@ STANDARD_PATH_PERMISSIONS = {
 }
 
 # Standard User Templates - Single source of truth
-STANDARD_USER_TEMPLATES = {
+STANDARD_PRODUCTION_USER_TEMPLATES = {
     'shuttle_runner': {
         'name': 'shuttle_runner',
         'source': 'local',
@@ -211,8 +221,8 @@ STANDARD_USER_TEMPLATES = {
     }
 }
 
-# Standard Components Configuration
-STANDARD_COMPONENTS = {
+# Base components definition - used only in instruction template
+_BASE_COMPONENTS = {
     'install_samba': True,
     'install_acl': True,
     'configure_users_groups': True,
@@ -220,20 +230,105 @@ STANDARD_COMPONENTS = {
     'configure_firewall': True
 }
 
+# Standard Samba configuration
+STANDARD_SAMBA_CONFIG = {
+    'enabled': True
+}
+
+# Standard mode configurations for different deployment types
+STANDARD_MODE_CONFIGS = {
+    'development': {
+        'title': 'DEVELOPMENT MODE',
+        'description': 'Creating a single admin user with full shuttle access.',
+        'accept_prompt': 'Accept all development defaults? (Recommended for testing)',
+        'success_message': 'Using all development defaults',
+        'components': {
+            'install_samba': True,
+            'install_acl': True,
+            'configure_users_groups': True,
+            'configure_samba': True,
+            'configure_firewall': False  # Disabled for development
+        },
+        'groups_function': 'get_development_admin_group',
+        'users_function': '_create_default_admin_user',
+        'paths_function': '_configure_development_paths',
+        'firewall_default': False,
+        'completion_message': 'Development mode configuration complete!',
+        'completion_details': 'Added {user_count} user(s) to instructions\n   Access: Full administrative access to all shuttle components'
+    },
+    'production': {
+        'title': 'PRODUCTION MODE',
+        'description': 'Setting up standard production users and groups.',
+        'accept_prompt': 'Accept all standard production defaults? (Recommended)',
+        'success_message': 'Using all standard production defaults',
+        'components': {
+            'install_samba': True,
+            'install_acl': True,
+            'configure_users_groups': True,
+            'configure_samba': True,
+            'configure_firewall': True  # Enabled for production
+        },
+        'groups_function': 'get_standard_groups',
+        'users_function': '_create_all_standard_roles_with_defaults',
+        'paths_function': '_configure_paths_for_environment',
+        'firewall_default': True,
+        'completion_message': 'Standard mode configuration complete!',
+        'completion_details': 'Added {user_count} users to instructions with production security model\n   Configured permissions for {path_count} paths in instructions'
+    }
+}
+
+# Standard instruction template - base structure for main configuration document
+STANDARD_INSTRUCTION_TEMPLATE = {
+    'version': '1.0',
+    'metadata': {
+        'description': 'Shuttle post-install user configuration',
+        'environment': 'production',
+        'generated_by': 'Configuration Wizard'
+        # 'created' will be added dynamically
+    },
+    'settings': {
+        'create_home_directories': True,
+        'backup_existing_users': True,
+        'validate_before_apply': True
+    },
+    'components': _BASE_COMPONENTS.copy()
+    # Note: groups, users, paths are separate collections that become separate YAML documents
+}
+
 def get_standard_groups():
     """Get a copy of standard groups configuration"""
     return STANDARD_GROUPS.copy()
 
-def get_standard_path_permissions():
-    """Get a copy of standard path permissions configuration"""
+def get_standard_path_permissions(environment='production'):
+    """Get a copy of standard path permissions configuration for the specified environment
+    
+    Args:
+        environment: 'production' or 'development'
+        
+    Returns:
+        Deep copy of the appropriate path permissions configuration
+    """
     import copy
-    return copy.deepcopy(STANDARD_PATH_PERMISSIONS)
+    if environment == 'development':
+        return copy.deepcopy(STANDARD_DEVELOPMENT_PATH_PERMISSIONS)
+    else:
+        return copy.deepcopy(STANDARD_PRODUCTION_PATH_PERMISSIONS)
 
 def get_standard_user_templates():
     """Get a copy of standard user templates configuration"""
     import copy
-    return copy.deepcopy(STANDARD_USER_TEMPLATES)
+    return copy.deepcopy(STANDARD_PRODUCTION_USER_TEMPLATES)
 
-def get_standard_components():
-    """Get a copy of standard components configuration"""
-    return STANDARD_COMPONENTS.copy()
+def get_standard_instruction_template():
+    """Get a copy of standard instruction template with current timestamp"""
+    import copy
+    from datetime import datetime
+    
+    template = copy.deepcopy(STANDARD_INSTRUCTION_TEMPLATE)
+    template['metadata']['created'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    return template
+
+def get_standard_mode_configs():
+    """Get a copy of standard mode configurations"""
+    import copy
+    return copy.deepcopy(STANDARD_MODE_CONFIGS)
