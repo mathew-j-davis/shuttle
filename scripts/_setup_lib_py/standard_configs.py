@@ -6,6 +6,10 @@ Centralized source of truth for all standard groups, users, and path permissions
 
 # Standard Groups - Single source of truth
 STANDARD_GROUPS = {
+    'shuttle_admins': {
+        'description': 'Administrative users with full shuttle access',
+        'gid': 5000
+    },
     'shuttle_config_readers': {
         'description': 'Read access to config, key, and ledger',
         'gid': 5001
@@ -380,6 +384,10 @@ def get_standard_groups():
     """Get a copy of standard groups configuration"""
     return STANDARD_GROUPS.copy()
 
+def get_development_admin_group():
+    """Get a copy of just the development admin group"""
+    return {'shuttle_admins': STANDARD_GROUPS['shuttle_admins'].copy()}
+
 def get_standard_path_permissions(environment='production'):
     """Get a copy of standard path permissions configuration for the specified environment
     
@@ -424,7 +432,162 @@ def get_standard_mode_configs():
     import copy
     return copy.deepcopy(STANDARD_MODE_CONFIGS)
 
+# Custom Group Base Templates - For custom group creation
+CUSTOM_GROUP_BASE_TEMPLATES = {
+    'custom_standard': {
+        'description': 'Custom group for shuttle operations',
+        'category': 'custom',
+        'gid': None,  # Auto-assign
+        'recommended': True
+    },
+    'custom_service': {
+        'description': 'Service-specific operational group',
+        'category': 'service',
+        'gid': None,  # Auto-assign
+        'recommended': True
+    },
+    'custom_data': {
+        'description': 'Data access and management group',
+        'category': 'data',
+        'gid': None,  # Auto-assign
+        'recommended': True
+    },
+    'custom_admin': {
+        'description': 'Administrative privileges group',
+        'category': 'admin',
+        'gid': None,  # Auto-assign
+        'recommended': False
+    }
+}
+
 def get_custom_user_base_templates():
     """Get a copy of custom user base templates"""
     import copy
     return copy.deepcopy(CUSTOM_USER_BASE_TEMPLATES)
+
+def get_custom_group_base_templates():
+    """Get a copy of custom group base templates"""
+    import copy
+    return copy.deepcopy(CUSTOM_GROUP_BASE_TEMPLATES)
+
+# Path Permission Base Templates - For template-driven path configuration
+PATH_PERMISSION_BASE_TEMPLATES = {
+    'production': {
+        'name': 'Production Security Model',
+        'description': 'Production-ready permissions with role-based access control',
+        'category': 'standard',
+        'recommended': True,
+        'templates': {
+            'source_path': {
+                'owner': 'root',
+                'group': 'shuttle_data_owners', 
+                'mode': '2770',
+                'acls': ['g:shuttle_samba_in_users:rwX'],
+                'default_acls': {
+                    'file': ['u::rw-', 'g::rw-', 'o::---'],
+                    'directory': ['u::rwx', 'g::rwx', 'o::---']
+                },
+                'description': 'Inbound files with Samba upload access'
+            },
+            'destination_path': {
+                'owner': 'root',
+                'group': 'shuttle_data_owners',
+                'mode': '2770', 
+                'acls': ['g:shuttle_samba_out_users:r-X'],
+                'default_acls': {
+                    'file': ['u::rw-', 'g::rw-', 'o::---'],
+                    'directory': ['u::rwx', 'g::rwx', 'o::---']
+                },
+                'description': 'Processed files with Samba download access'
+            },
+            'quarantine_path': {
+                'owner': 'root',
+                'group': 'shuttle_data_owners',
+                'mode': '2770',
+                'default_acls': {
+                    'file': ['u::rw-', 'g::rw-', 'o::---'],
+                    'directory': ['u::rwx', 'g::rwx', 'o::---']
+                },
+                'description': 'Quarantine directory (shuttle process only)'
+            },
+            'hazard_archive_path': {
+                'owner': 'root',
+                'group': 'shuttle_data_owners',
+                'mode': '2770',
+                'default_acls': {
+                    'file': ['u::rw-', 'g::rw-', 'o::---'],
+                    'directory': ['u::rwx', 'g::rwx', 'o::---']
+                },
+                'description': 'Encrypted malware archive (restricted access)'
+            },
+            'log_path': {
+                'owner': 'root',
+                'group': 'shuttle_log_owners',
+                'mode': '2770',
+                'description': 'Log files (log writers only)'
+            },
+            'hazard_encryption_key_path': {
+                'owner': 'root',
+                'group': 'shuttle_config_readers',
+                'mode': '0640',
+                'description': 'Encryption key (read-only for authorized users)'
+            },
+            'ledger_file_path': {
+                'owner': 'root',
+                'group': 'shuttle_config_readers',
+                'mode': '0640',
+                'acls': ['g:shuttle_ledger_owners:rw-'],
+                'description': 'Ledger file (config readers + ledger writers)'
+            }
+        }
+    },
+    'development': {
+        'name': 'Development/Testing Model',
+        'description': 'Relaxed permissions for development and testing',
+        'category': 'standard',
+        'recommended': True,
+        'templates': {
+            '*': {
+                'owner': 'root',
+                'group': 'shuttle_admins',
+                'mode': '2775',
+                'acls': ['g:shuttle_admins:rwX'],
+                'description': 'Full admin access for development'
+            }
+        }
+    },
+    'custom_secure': {
+        'name': 'Custom Secure Template',
+        'description': 'Starting point for custom secure configurations',
+        'category': 'custom',
+        'recommended': False,
+        'templates': {
+            'custom_path': {
+                'owner': 'root',
+                'group': 'root',
+                'mode': '0755',
+                'description': 'Basic secure configuration'
+            }
+        }
+    },
+    'custom_shared': {
+        'name': 'Custom Shared Template',
+        'description': 'Starting point for shared directory configurations',
+        'category': 'custom', 
+        'recommended': False,
+        'templates': {
+            'custom_path': {
+                'owner': 'root',
+                'group': 'root',
+                'mode': '2775',
+                'acls': [],
+                'description': 'Shared directory with group write access'
+            }
+        }
+    }
+}
+
+def get_path_permission_base_templates():
+    """Get a copy of path permission base templates"""
+    import copy
+    return copy.deepcopy(PATH_PERMISSION_BASE_TEMPLATES)
