@@ -258,12 +258,36 @@ sudo cp shuttle_public.gpg /etc/shuttle/public-key.gpg
 ```
 
 ### Verify Installation
+
+#### 1. Run Tests
 Run tests to verify everything works:
 
 ```bash
 # Activate the appropriate virtual environment first
 python tests/run_tests.py
 ```
+
+#### 2. Security Audit (Production Deployments)
+For production deployments, run the security audit tool to validate configuration:
+
+```bash
+# Run security audit
+python3 scripts/security_audit.py \
+  --audit-config example/security_audit_config/production_audit.yaml \
+  --shuttle-config /path/to/your/shuttle_config.yaml
+
+# Exit codes:
+# 0 = All checks passed or warnings only
+# 1 = Errors found (configuration issues)  
+# 2 = Critical security issues found
+```
+
+The security audit validates:
+- User accounts have proper shells and group memberships
+- Samba users are properly isolated from other groups
+- File permissions are secure (no world-readable files)
+- Path ownership matches shuttle configuration
+- No executable files in data directories
 
 ### Running Shuttle
 ```bash

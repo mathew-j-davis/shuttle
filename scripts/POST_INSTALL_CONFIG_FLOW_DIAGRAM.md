@@ -40,7 +40,8 @@ scripts/2_post_install_config.sh [--wizard|--instructions <file>|--help]
 │       ├── Phase 2: Configure Users & Groups
 │       ├── Phase 3: Set File Permissions
 │       ├── Phase 4: Configure Samba
-│       └── Phase 5: Configure Firewall
+│       ├── Phase 5: Configure Firewall
+│       └── Phase 6: Security Audit (Optional Validation)
 ```
 
 ---
@@ -68,11 +69,163 @@ run_configuration_wizard()
 ```
 
 ### Wizard Features:
-- Reads existing shuttle configuration to extract actual paths
-- Supports multiple environment profiles (development, testing, production)
-- Interactive user input with validation
-- Generates multi-document YAML with global settings and user definitions
-- Provides symbolic path resolution for shuttle directories
+- **Template-driven configuration**: Production, development, and custom templates for users, groups, and paths
+- **Interactive template editing**: Field-by-field customization with validation and preview
+- **Standardized menu system**: Universal menu navigation with back options and consistent numbering
+- **Environment profiles**: Multiple environment support (development, testing, production)
+- **Path integration**: Reads existing shuttle configuration to extract actual paths
+- **Secure password handling**: No password storage in YAML - provides manual setup guidance
+- **Configuration validation**: Built-in YAML validation and structure checking
+- **Symbolic path resolution**: Automatic resolution of shuttle directory paths
+
+### Detailed Wizard Flow Diagram:
+```
+Configuration Wizard (post_install_config_wizard.py)
+│
+├── 1. Initialization
+│   ├── Load shuttle config → Extract actual paths
+│   ├── Initialize wizard state → Track users, groups, paths
+│   └── Display welcome → Show wizard purpose and process
+│
+├── 2. Environment Selection
+│   ├── Choose Configuration Type:
+│   │   ├── 1) Production → Use production templates
+│   │   ├── 2) Development → Use development templates  
+│   │   └── 3) Custom → Start with minimal configuration
+│   └── Load base templates for selected environment
+│
+├── 3. Main Configuration Menu
+│   ├── Option 1: Configure Groups
+│   │   ├── Show Current Groups → Display configured groups with counts
+│   │   ├── Group Management Menu:
+│   │   │   ├── 0) Add All Standard Groups → Bulk add environment templates
+│   │   │   ├── 1) Add Group from Template → Template selection
+│   │   │   ├── 2) Add Custom Group → Manual group creation
+│   │   │   ├── 3) Edit Group → Select and modify existing group
+│   │   │   ├── 4) Remove Group → Delete group configuration
+│   │   │   └── b) Back to Main Menu
+│   │   └── Group Template Flow:
+│   │       ├── Template Selection → Show available templates with descriptions
+│   │       ├── Template Preview → Display complete group information
+│   │       ├── Customization Choice:
+│   │       │   ├── Use as-is → Accept template defaults
+│   │       │   ├── Edit → Field-by-field customization
+│   │       │   └── Skip → Don't add this group
+│   │       └── Apply Changes → Add to configuration
+│   │
+│   ├── Option 2: Configure Users  
+│   │   ├── Show Current Users → Display configured users with types and counts
+│   │   ├── User Management Menu:
+│   │   │   ├── 0) Add All Standard Users → Bulk add environment templates
+│   │   │   ├── 1) Add User from Template → Template selection
+│   │   │   ├── 2) Add Custom User → Manual user creation
+│   │   │   ├── 3) Edit User → Select and modify existing user
+│   │   │   ├── 4) Remove User → Delete user configuration
+│   │   │   └── b) Back to Main Menu
+│   │   └── User Template Flow:
+│   │       ├── Template Category Selection → admin, core_services, network_services
+│   │       ├── Template Selection → Show templates with recommendations
+│   │       ├── Template Preview → Display complete user information:
+│   │       │   ├── Account type, source, groups
+│   │       │   ├── Shell, home directory settings
+│   │       │   ├── Samba configuration
+│   │       │   └── Password setup guidance
+│   │       ├── Customization Choice:
+│   │       │   ├── Use as-is → Accept template defaults
+│   │       │   ├── Edit → Interactive field editing:
+│   │       │   │   ├── Basic Info → Name, description, account type
+│   │       │   │   ├── Source Settings → Local, existing, domain
+│   │       │   │   ├── Group Configuration → Primary and secondary groups
+│   │       │   │   ├── Local Account Settings → Shell, home directory
+│   │       │   │   ├── Samba Settings → Enable/disable, auth method
+│   │       │   │   └── Final Review → Show all changes before applying
+│   │       │   └── Skip → Don't add this user
+│   │       └── Apply Changes → Add to configuration with password guidance
+│   │
+│   ├── Option 3: Configure Path Permissions
+│   │   ├── Show Current Paths → Display shuttle paths and permission status
+│   │   ├── Path Permission Menu:
+│   │   │   ├── 0) Apply Standard Path Permissions to All Paths → Bulk template application
+│   │   │   ├── 1) Configure Permissions for Shuttle Path → Path-specific configuration
+│   │   │   ├── 2) Configure Permissions for Custom Path → Manual path addition
+│   │   │   ├── 3) Edit Path Permission Configuration → Modify existing
+│   │   │   ├── 4) Remove Path Permission Configuration → Delete path config
+│   │   │   └── b) Back to Main Menu
+│   │   └── Path Template Flow:
+│   │       ├── Template Selection → Production, development, custom templates
+│   │       ├── Template Preview → Display ownership, permissions, ACLs
+│   │       ├── Path Selection → Choose from shuttle config paths
+│   │       ├── Template Customization:
+│   │       │   ├── Owner/Group → Select from configured users/groups
+│   │       │   ├── File Mode → Numeric permissions (e.g., 0644)
+│   │       │   ├── Directory Mode → Numeric permissions (e.g., 0755)
+│   │       │   ├── ACL Configuration → User and group ACLs
+│   │       │   └── Default ACLs → Directory inheritance rules
+│   │       └── Apply to Paths → Apply template to selected paths
+│   │
+│   ├── Option 4: Review Configuration
+│   │   ├── Show Configuration Summary:
+│   │   │   ├── Groups Count → N groups configured
+│   │   │   ├── Users Count → N users configured (X service, Y interactive)
+│   │   │   ├── Paths Count → N paths configured
+│   │   │   └── Interactive Users Warning → Password setup required
+│   │   ├── Detailed Review → Show complete configuration
+│   │   └── Validation → Check for configuration issues
+│   │
+│   ├── Option 5: Save Configuration
+│   │   ├── Final Validation → YAML syntax and structure check
+│   │   ├── Generate Multi-Document YAML:
+│   │   │   ├── Document 1 → Global settings and metadata
+│   │   │   ├── Document 2 → Group definitions
+│   │   │   ├── Document N → User definitions (one per user)
+│   │   │   └── Document N+1 → Path permission configurations
+│   │   ├── Save Options:
+│   │   │   ├── 1) Save configuration only (exit without applying)
+│   │   │   ├── 2) Save configuration and continue to installation
+│   │   │   └── x) Exit without saving
+│   │   └── File Output → post_install_config_steps_YYYYMMDD_HHMMSS.yaml
+│   │
+│   └── Option x: Exit Wizard
+│       ├── Unsaved Changes Check → Warn if configuration not saved
+│       └── Exit Codes:
+│           ├── 0 → Success, configuration saved and ready to apply
+│           ├── 1 → Configuration saved, user chose to exit
+│           ├── 2 → User cancelled, no configuration saved
+│           └── 3 → Error occurred during wizard execution
+│
+├── 4. Universal Menu System Features
+│   ├── Consistent Navigation:
+│   │   ├── Numbered options starting at 1 (0 reserved for special actions)
+│   │   ├── 'b' for back navigation (available in most menus)
+│   │   ├── 'x' for exit/cancel actions
+│   │   └── Default values shown in brackets [default]
+│   ├── User Experience:
+│   │   ├── Clear prompts with help text
+│   │   ├── Input validation with error messages
+│   │   ├── Configuration previews before applying
+│   │   └── Running totals and status indicators
+│   └── Security Integration:
+│   │   ├── Password setup guidance for interactive accounts
+│   │   ├── Service account security model enforcement
+│   │   ├── Samba user isolation warnings
+│   │   └── Permission template security implications
+│
+└── 5. Template System Integration
+    ├── Standard Templates (standard_configs.py):
+    │   ├── Production Templates → Secure, restrictive defaults
+    │   ├── Development Templates → Broader access for testing
+    │   └── Base Templates → Foundation for customization
+    ├── Template Features:
+    │   ├── Category organization → admin, core_services, network_services
+    │   ├── Recommendation flags → Highlight recommended templates
+    │   ├── Security implications → Clear warnings and guidance
+    │   └── Inheritance support → Build on base configurations
+    └── Interactive Editing:
+        ├── Field-by-field customization → Guided input for each setting
+        ├── Validation feedback → Real-time error checking
+        ├── Preview generation → Show final configuration before applying
+        └── Rollback support → Undo changes if needed
+```
 
 ---
 
@@ -137,6 +290,8 @@ user:
   samba:
     enabled: true
     auth_method: "smbpasswd"
+  # Note: Passwords are NOT stored in YAML files for security
+  # Manual setup required: sudo passwd username, sudo smbpasswd -a username
 ```
 
 ---
@@ -235,6 +390,21 @@ phase_configure_firewall()
     └── Provide manual configuration guidance
 ```
 
+### Phase 6: Security Audit (Optional Validation)
+```
+phase_security_audit() [Optional - can be run separately]
+├── Check if security audit is requested
+├── Validate audit configuration exists
+├── python3 scripts/security_audit.py --audit-config production_audit.yaml --shuttle-config SHUTTLE_CONFIG
+└── Security validation checks:
+    ├── User account security (shells, group memberships)
+    ├── Group configuration (proper members, no unauthorized access)
+    ├── Samba security model (user isolation, shell restrictions)
+    ├── Path permissions (ownership, world-readable detection)
+    ├── File system security (ACLs, executable files in data directories)
+    └── Exit codes: 0=passed, 1=errors, 2=critical issues
+```
+
 ---
 
 ## Python Module Architecture
@@ -242,12 +412,16 @@ phase_configure_firewall()
 ### Core Configuration Modules
 
 #### post_install_config_wizard.py
-- **Purpose**: Interactive YAML configuration generation
+- **Purpose**: Interactive YAML configuration generation with template-driven approach
 - **Features**: 
-  - Reads shuttle config to extract actual paths
-  - Multi-environment support (dev/test/prod)
-  - User input validation and guidance
-  - Generates complete multi-document YAML
+  - **Template system**: Production, development, and custom templates for users, groups, and paths
+  - **Interactive editing**: Field-by-field template customization with validation
+  - **Universal menu system**: Standardized navigation with back options and consistent numbering
+  - **Security-focused**: No password storage, provides manual setup guidance
+  - **Multi-environment support**: Development, testing, and production profiles
+  - **Path integration**: Reads shuttle config to extract actual paths
+  - **Configuration validation**: Built-in YAML syntax and structure validation
+  - **User-friendly UX**: Clear prompts, help text, and configuration previews
 
 #### config_analyzer.py  
 - **Purpose**: YAML configuration parsing and validation
@@ -289,6 +463,24 @@ phase_configure_firewall()
   - Support for all shuttle symbolic paths
   - Path validation and existence checking
 
+#### standard_configs.py
+- **Purpose**: Template definitions for users, groups, and path permissions
+- **Features**:
+  - Production and development template variants
+  - Base templates with recommended configurations
+  - Template inheritance and customization support
+  - Security-focused default configurations
+
+#### security_audit.py
+- **Purpose**: Production deployment security validation
+- **Features**:
+  - User account security verification (shells, group memberships)
+  - Samba security model enforcement (user isolation, restrictions)
+  - File system security validation (permissions, ACLs, world-readable detection)
+  - Path ownership verification against shuttle configuration
+  - Configuration-driven audit policies with YAML definitions
+  - CI/CD integration with exit codes (0=pass, 1=errors, 2=critical)
+
 ---
 
 ## Component Control System
@@ -301,6 +493,7 @@ components:
   configure_users_groups: true  # Phase 2: User/group management
   configure_samba: true    # Phase 4: Samba configuration
   configure_firewall: true # Phase 5: Firewall configuration
+  security_audit: false   # Phase 6: Security validation (optional)
 ```
 
 ### Component Behavior:
@@ -372,6 +565,51 @@ settings:
 - **Component Disable**: Skip problematic components
 - **Wizard Regeneration**: Create new configuration if YAML invalid
 - **Manual Intervention**: Clear guidance for manual fixes
+
+---
+
+## Template-Driven Configuration System
+
+### Template Architecture:
+```
+Standard Templates (standard_configs.py)
+├── User Templates
+│   ├── Production Templates (STANDARD_PRODUCTION_USER_TEMPLATES)
+│   │   ├── Service accounts (shuttle_runner, shuttle_monitor)
+│   │   ├── Admin accounts (shuttle_admin)
+│   │   └── Samba accounts (shuttle_samba_in, shuttle_samba_out)
+│   └── Development Templates (STANDARD_DEVELOPMENT_USER_TEMPLATES)
+│       ├── Developer accounts with broader access
+│       └── Testing accounts for validation
+├── Group Templates  
+│   ├── Functional groups (shuttle_runners, shuttle_monitors)
+│   ├── Permission groups (shuttle_config_readers, shuttle_data_owners)
+│   └── Samba isolation groups (shuttle_samba_in_users, shuttle_samba_out_users)
+└── Path Permission Templates (PATH_PERMISSION_BASE_TEMPLATES)
+    ├── Production template (restrictive permissions)
+    ├── Development template (broader access for testing)
+    └── Custom template (user-defined baseline)
+```
+
+### Template Selection and Customization:
+1. **Environment Selection**: Choose production, development, or custom baseline
+2. **Template Review**: Display template details with security implications
+3. **Interactive Editing**: Field-by-field customization with validation
+4. **Bulk Operations**: "Add All" options for complete environment setup
+5. **Template Application**: Apply templates to all paths with consistent permissions
+
+### Security Model Integration:
+- **Service Account Templates**: No-login shells, minimal group memberships
+- **Samba User Templates**: Complete isolation from other shuttle groups
+- **Permission Templates**: Secure defaults with ACL inheritance
+- **Path Templates**: Ownership and permission patterns for shuttle directories
+
+### Wizard User Experience:
+- **Universal Menu System**: Consistent navigation with numbered options and back functionality
+- **Template Previews**: Clear display of what each template configures
+- **Validation Feedback**: Real-time validation with clear error messages
+- **Security Guidance**: Password setup instructions and security best practices
+- **Configuration Counts**: Running totals of users, groups, and paths configured
 
 ---
 
@@ -451,4 +689,24 @@ COMMAND_HISTORY_FILE="/tmp/shuttle_post_install_configuration_command_history_YY
 # Create config only (don't apply)
 ./scripts/2_post_install_config.sh --wizard
 # (Choose "Save configuration and exit" option)
+```
+
+### Security Validation:
+```bash
+# Run security audit after configuration
+python3 scripts/security_audit.py \
+  --audit-config example/security_audit_config/production_audit.yaml \
+  --shuttle-config /etc/shuttle/shuttle_config.yaml
+
+# Security audit with verbose output
+python3 scripts/security_audit.py \
+  --audit-config example/security_audit_config/production_audit.yaml \
+  --shuttle-config /etc/shuttle/shuttle_config.yaml \
+  --verbose
+
+# Check exit code for CI/CD integration
+if ! python3 scripts/security_audit.py --audit-config audit.yaml --shuttle-config config.yaml; then
+    echo "Security audit failed - review configuration"
+    exit 1
+fi
 ```

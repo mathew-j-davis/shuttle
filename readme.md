@@ -162,6 +162,15 @@ Throttling system monitors available disk space in all relevant directories and 
 - Uses `ProcessPoolExecutor` for parallel file processing
 - Enforces single instance operation via lock file mechanism
 
+### Security Audit and Validation
+- **Production Security Audit Tool** (`scripts/security_audit.py`): Validates deployed configurations against security policies
+- **User Account Security**: Verifies service accounts have proper shells, group memberships, and restrictions
+- **Samba Security Model**: Enforces isolation of Samba users from other system groups
+- **File Permission Validation**: Checks for world-readable files, executable files in data directories
+- **Path Security**: Validates ownership, ACLs, and permission inheritance
+- **Configuration-Driven**: Uses YAML configuration files to define expected security state
+- **CI/CD Integration**: Provides exit codes for automated deployment validation
+
 ## Installation
 
 Shuttle provides interactive installation scripts for easy setup:

@@ -1,0 +1,212 @@
+# Shuttle Security Audit Configuration - Production Environment
+# This file defines the expected security configuration for a production Shuttle deployment
+
+# Expected user accounts and their security requirements
+users:
+  # Core service accounts
+  - name: shuttle_runner
+    account_type: service
+    source: local
+    groups:
+      primary: shuttle_runners
+      secondary:
+        - shuttle_config_readers
+        - shuttle_data_owners
+        - shuttle_log_owners
+    home_directory: /var/lib/shuttle/shuttle_runner
+    
+  - name: shuttle_monitor
+    account_type: service
+    source: local
+    groups:
+      primary: shuttle_monitors
+      secondary:
+        - shuttle_config_readers
+        - shuttle_log_readers
+    home_directory: /var/lib/shuttle/shuttle_monitor
+
+  # Samba service accounts (if using Samba file transfer)
+  - name: shuttle_samba_in
+    account_type: service
+    source: local
+    groups:
+      primary: shuttle_samba_in_users
+      secondary: []
+    home_directory: /dev/null
+
+  - name: shuttle_samba_out
+    account_type: service
+    source: local
+    groups:
+      primary: shuttle_samba_out_users
+      secondary: []
+    home_directory: /dev/null
+
+  # Admin accounts (if using local admin accounts)
+  - name: shuttle_admin
+    account_type: admin
+    source: local
+    groups:
+      primary: shuttle_admins
+      secondary:
+        - shuttle_config_managers
+        - shuttle_data_owners
+        - shuttle_log_owners
+    home_directory: /home/shuttle_admin
+
+# Expected group configurations
+groups:
+  # Core functional groups
+  - name: shuttle_runners
+    members: [shuttle_runner]
+    allow_extra_members: false
+    
+  - name: shuttle_monitors
+    members: [shuttle_monitor]
+    allow_extra_members: false
+    
+  - name: shuttle_admins
+    members: [shuttle_admin]
+    allow_extra_members: true  # Allow additional admin users
+    
+  # Permission-based groups
+  - name: shuttle_config_readers
+    members: [shuttle_runner, shuttle_monitor]
+    allow_extra_members: true
+    
+  - name: shuttle_config_managers
+    members: [shuttle_admin]
+    allow_extra_members: true
+    
+  - name: shuttle_data_owners
+    members: [shuttle_runner, shuttle_admin]
+    allow_extra_members: false
+    
+  - name: shuttle_log_readers
+    members: [shuttle_monitor]
+    allow_extra_members: true
+    
+  - name: shuttle_log_owners
+    members: [shuttle_runner, shuttle_admin]
+    allow_extra_members: false
+    
+  # Samba isolation groups
+  - name: shuttle_samba_in_users
+    members: [shuttle_samba_in]
+    allow_extra_members: false
+    
+  - name: shuttle_samba_out_users
+    members: [shuttle_samba_out]
+    allow_extra_members: false
+
+# Samba-specific security requirements
+samba_security:
+  shuttle_samba_in_users:
+    allowed_shells: ['/usr/sbin/nologin', '/bin/false', '/sbin/nologin']
+    forbidden_groups:
+      - shuttle_runners
+      - shuttle_monitors
+      - shuttle_admins
+      - shuttle_config_readers
+      - shuttle_config_managers
+      - shuttle_data_owners
+      - shuttle_log_readers
+      - shuttle_log_owners
+      - shuttle_samba_out_users
+    max_group_memberships: 1  # Only their primary group
+    
+  shuttle_samba_out_users:
+    allowed_shells: ['/usr/sbin/nologin', '/bin/false', '/sbin/nologin']
+    forbidden_groups:
+      - shuttle_runners
+      - shuttle_monitors
+      - shuttle_admins
+      - shuttle_config_readers
+      - shuttle_config_managers
+      - shuttle_data_owners
+      - shuttle_log_readers
+      - shuttle_log_owners
+      - shuttle_samba_in_users
+    max_group_memberships: 1  # Only their primary group
+
+# Expected ownership for key paths (will be read from shuttle config)
+path_ownership:
+  source:
+    owner: shuttle_runner
+    group: shuttle_data_owners
+  destination:
+    owner: shuttle_runner
+    group: shuttle_data_owners
+  quarantine:
+    owner: shuttle_runner
+    group: shuttle_data_owners
+  hazard_archive:
+    owner: shuttle_runner
+    group: shuttle_data_owners
+  tracking:
+    owner: shuttle_runner
+    group: shuttle_log_owners
+
+# Security policy settings
+security_policy:
+  # File permission requirements
+  max_file_permissions: 0o664  # Files should not be more permissive than this
+  max_dir_permissions: 0o775   # Directories should not be more permissive than this
+  
+  # Prohibited permissions
+  prohibit_world_readable: true
+  prohibit_world_writable: true
+  prohibit_world_executable: true
+  
+  # Data directory restrictions
+  data_directories:
+    - source
+    - destination
+    - quarantine
+    - hazard_archive
+  
+  # Files in data directories should not be executable
+  prohibit_executable_in_data: true
+  
+  # Require default ACLs on directories
+  require_default_acls: true
+  
+  # Home directory restrictions
+  service_accounts_no_home: true
+  
+# Audit scope and limits
+audit_settings:
+  max_files_per_directory: 100
+  max_depth: 5
+  timeout_seconds: 300
+  
+  # Skip certain paths to avoid noise
+  skip_paths:
+    - /tmp
+    - /var/tmp
+    - /proc
+    - /sys
+    - /dev
+    - /run
+  
+  # Include additional paths for security scanning
+  additional_scan_paths: []
+
+# Reporting settings
+reporting:
+  # Severity levels: CRITICAL, ERROR, WARNING, INFO
+  min_severity: INFO
+  
+  # Exit codes
+  exit_codes:
+    passed: 0
+    warnings: 0
+    errors: 1
+    critical: 2
+  
+  # Output format
+  format: text  # text, json, yaml
+  
+  # Include successful checks in output
+  show_passed: false
+  show_details: true

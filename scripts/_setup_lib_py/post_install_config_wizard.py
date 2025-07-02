@@ -145,7 +145,7 @@ class ConfigWizard:
     
     def _wrap_title(self, title: str) -> str:
         """Wrap a title with decorative borders for consistent formatting"""
-        return f"=== {title} ==="
+        return f"\n=== {title} ===\n"
     
     # =============================================
     # GROUP HELPER METHODS
@@ -282,7 +282,7 @@ class ConfigWizard:
                 print(f"Auto-assigned GID: {edited_data['gid']}")
         
         # 3. Show final configuration preview
-        print(f"\n{self._wrap_title('Final Group Configuration')}")
+        print(self._wrap_title('Final Group Configuration'))
         self._display_group_template(group_name, edited_data)
         
         if self._confirm("\nApply these changes?", True):
@@ -1150,6 +1150,17 @@ class ConfigWizard:
         # Show Samba access (default to disabled if not specified)
         samba_enabled = template_data.get('samba', {}).get('enabled', False)
         print(f"   Samba access: {'Enabled' if samba_enabled else 'Disabled'}")
+        
+        # Show password setup guidance
+        if account_type in ['interactive', 'admin']:
+            print(f"   ⚠️  Password setup: Manual setup required after installation")
+            print(f"        sudo passwd {template_name}")
+            if samba_enabled:
+                print(f"        sudo smbpasswd -a {template_name}")
+        elif account_type == 'service':
+            print(f"   🔒 Password: None (service account uses nologin shell)")
+        else:
+            print(f"   ℹ️  Password: Manual setup may be required after installation")
 
     def _get_template_action(self) -> str:
         """Get user's choice for template action (yes/no/edit)"""
@@ -1574,20 +1585,11 @@ class ConfigWizard:
         """Confirm if domain prefix should be added"""
         return self._confirm("Add DOMAIN\\ prefix to username?", True)
     
-    def _get_password(self, prompt: str) -> Optional[str]:
-        """Get password (with warning)"""
-        print(f"\n{prompt}")
-        print("WARNING: Password will be stored in YAML file!")
-        print("Leave blank to set password later")
-        
-        import getpass
-        password = getpass.getpass("Password: ").strip()
-        if password:
-            confirm = getpass.getpass("Confirm password: ").strip()
-            if password != confirm:
-                print("Passwords do not match!")
-                return None
-        return password if password else None
+    # NOTE: Password handling is intentionally excluded from this wizard
+    # - Service accounts (most users) don't need passwords and use nologin shells
+    # - Interactive accounts require manual password setup after installation
+    # - Storing passwords in YAML config files would be a security risk
+    # - Use 'sudo passwd username' or 'sudo smbpasswd -a username' after installation
     
     def _confirm(self, prompt: str, default: bool = True) -> bool:
         """Get yes/no confirmation"""
@@ -3651,6 +3653,16 @@ def main():
     
     # Count different document types using reusable function
     print(wizard._get_config_counts(config, format_output=True))
+    
+    # Password setup guidance for users
+    has_interactive_users = any(
+        user.get('account_type') in ['interactive', 'admin'] 
+        for doc in config for user in doc.get('users', [])
+    )
+    if has_interactive_users:
+        print("\n⚠️  IMPORTANT: Interactive users require manual password setup after installation")
+        print("   Use: sudo passwd <username>")
+        print("   For Samba users: sudo smbpasswd -a <username>")
     
     # Save options using standard menu
     choices = [

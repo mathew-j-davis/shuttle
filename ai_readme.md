@@ -35,6 +35,12 @@ While it is similar in content to readme.md, this file is different in that the 
    - `docs/run-cron-service-config.md` - Environment variables for production deployment
    - Configuration precedence: CLI args > config file > defaults
 
+4. **Security and Audit**
+   - `scripts/security_audit.py` - Production security validation tool
+   - `example/security_audit_config/production_audit.yaml` - Expected security configuration
+   - `example/security_audit_config/README.md` - Security audit tool documentation
+   - `docs/shuttle_production_user_group_model.md` - Complete security model
+
 ## Code Exploration Strategy
 
 1. **Installation and Configuration System**
