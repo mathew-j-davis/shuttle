@@ -132,10 +132,35 @@ STANDARD_PRODUCTION_PATH_PERMISSIONS = {
     }
 }
 
-# Standard User Templates - Single source of truth
+# Development User Templates - For development/testing environments
+STANDARD_DEVELOPMENT_USER_TEMPLATES = {
+    'shuttle_admin': {
+        'name': 'shuttle_admin',
+        'description': 'Development admin user with full access to all shuttle components',
+        'category': 'admin',
+        'recommended': True,
+        'source': 'local',
+        'account_type': 'admin',
+        'groups': {
+            'primary': 'shuttle_admins',
+            'secondary': []
+        },
+        'shell': '/bin/bash',
+        'home_directory': '/home/shuttle_admin',
+        'create_home': True,
+        'samba': {
+            'enabled': False  # Can be enabled via prompt
+        }
+    }
+}
+
+# Production User Templates - Single source of truth
 STANDARD_PRODUCTION_USER_TEMPLATES = {
     'shuttle_runner': {
         'name': 'shuttle_runner',
+        'description': 'Main application service account - runs shuttle file processing',
+        'category': 'core_services',
+        'recommended': True,
         'source': 'local',
         'account_type': 'service',
         'groups': {
@@ -149,6 +174,9 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
     },
     'shuttle_defender_test_runner': {
         'name': 'shuttle_defender_test_runner',
+        'description': 'Defender testing service account - validates antivirus functionality',
+        'category': 'core_services',
+        'recommended': True,
         'source': 'local',
         'account_type': 'service',
         'groups': {
@@ -162,6 +190,9 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
     },
     'shuttle_in_user': {
         'name': 'shuttle_in_user',
+        'description': 'Samba user for uploading files to shuttle (inbound network access)',
+        'category': 'network_services',
+        'recommended': True,
         'source': 'local',
         'account_type': 'service',
         'groups': {
@@ -178,6 +209,9 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
     },
     'shuttle_out_user': {
         'name': 'shuttle_out_user',
+        'description': 'Samba user for downloading processed files (outbound network access)',
+        'category': 'network_services',
+        'recommended': True,
         'source': 'local',
         'account_type': 'service',
         'groups': {
@@ -194,6 +228,9 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
     },
     'shuttle_tester': {
         'name': 'shuttle_tester',
+        'description': 'Interactive account for running shuttle test suites and development',
+        'category': 'testing',
+        'recommended': False,
         'source': 'local',
         'account_type': 'interactive',
         'groups': {
@@ -206,6 +243,9 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
     },
     'shuttle_admin': {
         'name': 'shuttle_admin',
+        'description': 'Administrative account with full access to all shuttle components',
+        'category': 'admin',
+        'recommended': False,
         'source': 'local',
         'account_type': 'interactive',
         'groups': {
@@ -233,6 +273,47 @@ _BASE_COMPONENTS = {
 # Standard Samba configuration
 STANDARD_SAMBA_CONFIG = {
     'enabled': True
+}
+
+# Custom User Base Templates - For custom user creation
+CUSTOM_USER_BASE_TEMPLATES = {
+    'custom_service': {
+        'name': '',  # To be filled by user
+        'description': 'Custom service account',
+        'category': 'custom',
+        'recommended': True,
+        'source': 'local',
+        'account_type': 'service',
+        'groups': {'primary': None, 'secondary': []},
+        'shell': '/usr/sbin/nologin',
+        'home_directory': '/var/lib/shuttle/custom',
+        'create_home': True,
+        'samba': {'enabled': False}
+    },
+    'custom_interactive': {
+        'name': '',
+        'description': 'Custom interactive user account', 
+        'category': 'custom',
+        'recommended': True,
+        'source': 'local',
+        'account_type': 'interactive',
+        'groups': {'primary': None, 'secondary': []},
+        'shell': '/bin/bash',
+        'home_directory': '/home/custom',
+        'create_home': True,
+        'samba': {'enabled': False}
+    },
+    'custom_existing': {
+        'name': '',
+        'description': 'Existing user account',
+        'category': 'custom', 
+        'recommended': True,
+        'source': 'existing',
+        'account_type': 'interactive',  # Default, may not matter for existing
+        'groups': {'primary': None, 'secondary': []},
+        # No shell/home defaults for existing users - they already have them
+        'samba': {'enabled': False}
+    }
 }
 
 # Standard mode configurations for different deployment types
@@ -314,10 +395,20 @@ def get_standard_path_permissions(environment='production'):
     else:
         return copy.deepcopy(STANDARD_PRODUCTION_PATH_PERMISSIONS)
 
-def get_standard_user_templates():
-    """Get a copy of standard user templates configuration"""
+def get_standard_user_templates(environment='production'):
+    """Get a copy of standard user templates configuration for the specified environment
+    
+    Args:
+        environment: 'production' or 'development'
+        
+    Returns:
+        Deep copy of the appropriate user templates configuration
+    """
     import copy
-    return copy.deepcopy(STANDARD_PRODUCTION_USER_TEMPLATES)
+    if environment == 'development':
+        return copy.deepcopy(STANDARD_DEVELOPMENT_USER_TEMPLATES)
+    else:
+        return copy.deepcopy(STANDARD_PRODUCTION_USER_TEMPLATES)
 
 def get_standard_instruction_template():
     """Get a copy of standard instruction template with current timestamp"""
@@ -332,3 +423,8 @@ def get_standard_mode_configs():
     """Get a copy of standard mode configurations"""
     import copy
     return copy.deepcopy(STANDARD_MODE_CONFIGS)
+
+def get_custom_user_base_templates():
+    """Get a copy of custom user base templates"""
+    import copy
+    return copy.deepcopy(CUSTOM_USER_BASE_TEMPLATES)

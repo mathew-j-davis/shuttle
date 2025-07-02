@@ -38,6 +38,7 @@ from post_install_config_constants import get_config_filename
 from standard_configs import (
     get_standard_groups, get_standard_path_permissions, 
     get_standard_user_templates, get_standard_instruction_template,
+    get_custom_user_base_templates,
     STANDARD_MODE_CONFIGS, STANDARD_SAMBA_CONFIG
 )
 
@@ -229,24 +230,51 @@ class ConfigWizard:
             gid += 1
         return gid
     
+    def _get_all_available_groups(self) -> Dict[str, Dict[str, Any]]:
+        """Get all available groups (standard + instruction groups) with status"""
+        from standard_configs import get_standard_groups
+        
+        # Start with standard groups
+        standard_groups = get_standard_groups()
+        all_groups = {}
+        
+        # Add standard groups with status
+        for name, data in standard_groups.items():
+            all_groups[name] = {
+                'description': data.get('description', ''),
+                'gid': data.get('gid', 'auto'),
+                'source': 'standard',
+                'in_instructions': name in self.groups
+            }
+        
+        # Add any custom groups from instructions that aren't in standard
+        for name, data in self.groups.items():
+            if name not in all_groups:
+                all_groups[name] = {
+                    'description': data.get('description', 'Custom group'),
+                    'gid': data.get('gid', 'auto'),
+                    'source': 'custom',
+                    'in_instructions': True
+                }
+        
+        return all_groups
+    
     def _select_group_from_list(self, prompt: str, include_none: bool = False, 
                                none_label: str = "None", current_group: str = None,
                                exclude_groups: List[str] = None) -> Optional[str]:
         """
-        Generic group selection menu
+        Enhanced group selection menu showing all available groups with status
         
         Returns:
             Selected group name, None if cancelled/none selected
         """
-        groups = self._get_sorted_groups()
+        all_groups = self._get_all_available_groups()
         
         # Apply exclusions
         if exclude_groups:
-            groups = [g for g in groups if g not in exclude_groups]
-        
-        if not groups and not include_none:
-            print("No groups available")
-            return None
+            available_groups = {k: v for k, v in all_groups.items() if k not in exclude_groups}
+        else:
+            available_groups = all_groups
         
         # Build menu items
         menu_items = []
@@ -258,10 +286,27 @@ class ConfigWizard:
                 'value': None
             })
         
-        for i, group_name in enumerate(groups, 1):
+        # Sort groups: standard first, then custom
+        standard_groups = [(k, v) for k, v in available_groups.items() if v['source'] == 'standard']
+        custom_groups = [(k, v) for k, v in available_groups.items() if v['source'] == 'custom']
+        
+        all_sorted = sorted(standard_groups) + sorted(custom_groups)
+        
+        for i, (group_name, group_data) in enumerate(all_sorted, 1):
+            # Build label with status indicators
             label = group_name
             if group_name == current_group:
                 label += " (current)"
+            
+            # Add status indicator
+            if group_data['in_instructions']:
+                label += " ✓"  # In instructions
+            else:
+                label += " ○"  # Available but not in instructions
+            
+            # Add description
+            if group_data['description']:
+                label += f" - {group_data['description']}"
             
             menu_items.append({
                 'key': str(i),
@@ -269,21 +314,43 @@ class ConfigWizard:
                 'value': group_name
             })
         
+        # Add custom group input option
+        custom_key = str(len(menu_items) + 1)
+        menu_items.append({
+            'key': custom_key,
+            'label': "Enter custom group name",
+            'value': '__custom__'
+        })
+        
+        print(f"\n{prompt}")
+        print("Legend: ✓ = In instructions, ○ = Standard group available")
+        
         # Use existing menu system
         default_key = self._find_default_key(menu_items)
         choice = self._get_menu_choice(
-            prompt,
+            "",  # Empty prompt since we already printed it
             menu_items,
             default_key,
             include_back=False
         )
         
-        return self._get_choice_value(choice, menu_items)
+        # Convert choice key to value
+        choice_value = self._get_choice_value(choice, menu_items)
+        
+        # Handle custom group input
+        if choice_value == '__custom__':
+            custom_name = input("Enter group name: ").strip()
+            if custom_name:
+                return custom_name
+            else:
+                return None
+        
+        return choice_value
     
     def _select_multiple_groups(self, prompt: str, already_selected: List[str] = None,
-                               exclude_groups: List[str] = None) -> List[str]:
+                               exclude_groups: List[str] = None, primary_group: str = None) -> List[str]:
         """
-        Select multiple groups one at a time
+        Enhanced multiple group selection with add/remove capability
         
         Returns:
             List of selected group names
@@ -291,52 +358,113 @@ class ConfigWizard:
         selected = already_selected.copy() if already_selected else []
         
         while True:
-            # Get available groups (excluding already selected and excluded)
-            all_excluded = set(selected)
-            if exclude_groups:
-                all_excluded.update(exclude_groups)
+            # Build combined menu with selected groups (removable) and available groups (addable)
+            all_groups = self._get_all_available_groups()
             
-            groups = [g for g in self._get_sorted_groups() if g not in all_excluded]
+            # Apply exclusions
+            excluded_set = set(exclude_groups) if exclude_groups else set()
             
-            if not groups:
-                if not selected:
-                    print("No groups available to select")
-                break
-            
-            # Show current selection
-            if selected:
-                print(f"\nCurrently selected: {', '.join(selected)}")
-            
-            # Build menu
+            # Build menu items
             menu_items = []
-            for i, group_name in enumerate(groups, 1):
-                menu_items.append({
-                    'key': str(i),
-                    'label': group_name,
-                    'value': group_name
-                })
             
-            # Add finish option
+            # First section: Currently selected groups (removable)
+            if selected:
+                print(f"\nCurrently selected:")
+                for i, group_name in enumerate(selected):
+                    group_info = all_groups.get(group_name, {'description': 'Custom group'})
+                    description = group_info.get('description', '')
+                    label = f"{group_name} - Remove from selection"
+                    if description:
+                        label += f" ({description})"
+                    
+                    menu_items.append({
+                        'key': f"-{i+1}",
+                        'label': label,
+                        'value': f"REMOVE:{group_name}"
+                    })
+            
+            # Add "Done" option
             menu_items.append({
-                'key': 'd',
-                'label': 'Done selecting groups',
+                'key': '0',
+                'label': "Done selecting groups",
                 'value': 'DONE'
             })
             
+            # Second section: Available groups to add (excluding selected and excluded)
+            available_groups = {k: v for k, v in all_groups.items() 
+                              if k not in selected and k not in excluded_set}
+            
+            # Sort: standard first, then custom
+            standard_groups = [(k, v) for k, v in available_groups.items() if v['source'] == 'standard']
+            custom_groups = [(k, v) for k, v in available_groups.items() if v['source'] == 'custom']
+            all_sorted = sorted(standard_groups) + sorted(custom_groups)
+            
+            # Add available groups
+            for i, (group_name, group_data) in enumerate(all_sorted, 1):
+                # Build label with status indicator
+                label = group_name
+                if group_data['in_instructions']:
+                    label += " ✓"  # In instructions
+                else:
+                    label += " ○"  # Available but not in instructions
+                
+                # Add description
+                if group_data['description']:
+                    label += f" - {group_data['description']}"
+                
+                menu_items.append({
+                    'key': str(i),
+                    'label': label,
+                    'value': f"ADD:{group_name}"
+                })
+            
+            # Add custom group input option
+            custom_key = str(len([item for item in menu_items if not item['value'].startswith('REMOVE:')]))
+            menu_items.append({
+                'key': custom_key,
+                'label': "Enter custom group name",
+                'value': 'CUSTOM'
+            })
+            
+            # Display prompt
             print(f"\n{prompt}")
+            if primary_group:
+                print(f"Primary group: {primary_group} (not available for secondary groups)")
+            if selected:
+                print("Legend: ✓ = In instructions, ○ = Standard group available")
+            
+            # Use menu system
+            default_key = '0'  # Default to "Done"
             choice = self._get_menu_choice(
-                "Select group to add (or 'd' when done):",
+                "",  # Empty since we already printed the prompt
                 menu_items,
-                'd',
+                default_key,
                 include_back=False
             )
             
-            value = self._get_choice_value(choice, menu_items)
-            if value == 'DONE':
+            # Convert choice key to value
+            choice_value = self._get_choice_value(choice, menu_items)
+            
+            # Handle choice
+            if choice_value == 'DONE':
                 break
-            elif value:
-                selected.append(value)
-                print(f"✅ Added '{value}' to selection")
+            elif choice_value == 'CUSTOM':
+                custom_name = input("Enter group name: ").strip()
+                if custom_name and custom_name not in selected:
+                    selected.append(custom_name)
+                    print(f"✅ Added {custom_name}")
+                elif custom_name in selected:
+                    print(f"⚠️  {custom_name} already selected")
+            elif choice_value.startswith('REMOVE:'):
+                group_to_remove = choice_value[7:]  # Remove "REMOVE:" prefix
+                if group_to_remove in selected:
+                    selected.remove(group_to_remove)
+                    print(f"✅ Removed {group_to_remove}")
+            elif choice_value.startswith('ADD:'):
+                group_to_add = choice_value[4:]  # Remove "ADD:" prefix
+                if group_to_add not in selected:
+                    selected.append(group_to_add)
+                    print(f"✅ Added {group_to_add}")
         
         return selected
     
@@ -458,6 +586,485 @@ class ConfigWizard:
             
         # Add to instructions
         self._add_user_to_instructions(user_template)
+    
+    def _add_user_from_template_data(self, template_data: Dict[str, Any], 
+                                    name: str = None, source: str = None, 
+                                    account_type: str = None, primary_group: str = None, 
+                                    secondary_groups: List[str] = None, shell: str = None, 
+                                    home_directory: str = None, create_home: bool = None,
+                                    auth_method: str = None) -> None:
+        """
+        Add user from direct template data (no template name lookup)
+        
+        Same override behavior as _add_templated_user but works with template_data directly.
+        This enables data-driven user creation without hardcoded template names.
+        
+        Args:
+            template_data: Complete user template dictionary
+            name: Override username (optional)
+            source: Override user source (optional) 
+            account_type: Override account type (optional)
+            primary_group: Override primary group (optional)
+            secondary_groups: Override secondary groups (optional)
+            shell: Override shell (optional)
+            home_directory: Override home directory (optional)
+            create_home: Override create_home flag (optional)
+            auth_method: Samba auth method if applicable (optional)
+        """
+        # Start with a copy of the template data
+        user_template = template_data.copy()
+        
+        # Apply simple overrides
+        if name is not None:
+            user_template['name'] = name
+        if source is not None:
+            user_template['source'] = source
+        if account_type is not None:
+            user_template['account_type'] = account_type
+        if shell is not None:
+            user_template['shell'] = shell
+        if home_directory is not None:
+            user_template['home_directory'] = home_directory
+        if create_home is not None:
+            user_template['create_home'] = create_home
+            
+        # Handle groups structure (nested dictionary)
+        if primary_group is not None or secondary_groups is not None:
+            if 'groups' not in user_template:
+                user_template['groups'] = {}
+            if primary_group is not None:
+                user_template['groups']['primary'] = primary_group
+            if secondary_groups is not None:
+                user_template['groups']['secondary'] = secondary_groups
+                
+        # Handle samba auth method if provided and samba is enabled
+        if auth_method is not None and user_template.get('samba', {}).get('enabled', False):
+            user_template['samba']['auth_method'] = auth_method
+            
+        # Add to instructions
+        self._add_user_to_instructions(user_template)
+    
+    def _process_user_templates(self, templates: Dict[str, Dict], accept_defaults: bool = False, 
+                               allow_edit: bool = True) -> int:
+        """
+        Process a set of user templates - either all or with interactive prompts
+        
+        Unified template processor that enables data-driven user creation for both
+        accept-defaults mode and interactive mode.
+        
+        Args:
+            templates: Dictionary of template_name -> template_data
+            accept_defaults: If True, auto-add recommended templates; if False, prompt for each
+            allow_edit: If True, allow editing template values in interactive mode
+            
+        Returns:
+            Number of users added
+        """
+        added_count = 0
+        
+        for template_name, template_data in templates.items():
+            should_add = False
+            user_data = None
+            
+            if accept_defaults:
+                # Auto-add if recommended
+                should_add = template_data.get('recommended', True)
+                user_data = template_data.copy()
+            else:
+                # Display full template details
+                self._display_full_template(template_name, template_data)
+                
+                # Three-way choice: yes, no, or edit
+                if allow_edit:
+                    choice = self._get_template_action(template_data.get('recommended', True))
+                    
+                    if choice == 'y':
+                        should_add = True
+                        user_data = template_data.copy()
+                    elif choice == 'e':
+                        # Edit the template
+                        edited_data = self._edit_template_interactively(template_name, template_data)
+                        if edited_data:
+                            should_add = True
+                            user_data = edited_data
+                    # 'n' means skip (should_add remains False)
+                else:
+                    # Simple yes/no without edit option
+                    prompt = f"Add {template_name}?"
+                    default = template_data.get('recommended', True)
+                    if self._confirm(prompt, default):
+                        should_add = True
+                        user_data = template_data.copy()
+            
+            # Core action - single point of user creation
+            if should_add and user_data:
+                self._add_user_from_template_data(user_data)
+                added_count += 1
+                print(f"   ✓ Added {user_data['name']}")
+                    
+        return added_count
+    
+    def _get_user_templates_for_environment(self, environment: str = 'production') -> Dict[str, Dict]:
+        """Get user templates for specified environment"""
+        return get_standard_user_templates(environment)
+    
+    def _get_current_user_info(self, username: str) -> Optional[Dict[str, Any]]:
+        """Get current system information for an existing user"""
+        try:
+            import pwd
+            import grp
+            
+            # Get user info
+            user_info = pwd.getpwnam(username)
+            
+            # Get primary group name
+            primary_group = grp.getgrgid(user_info.pw_gid).gr_name
+            
+            # Get secondary groups
+            secondary_groups = []
+            for group in grp.getgrall():
+                if username in group.gr_mem:
+                    secondary_groups.append(group.gr_name)
+            
+            return {
+                'name': user_info.pw_name,
+                'uid': user_info.pw_uid,
+                'gid': user_info.pw_gid,
+                'shell': user_info.pw_shell,
+                'home_directory': user_info.pw_dir,
+                'groups': {
+                    'primary': primary_group,
+                    'secondary': secondary_groups
+                }
+            }
+        except (KeyError, ImportError):
+            # User doesn't exist or can't access system info
+            return None
+    
+    def _edit_groups_with_context(self, edited_data: Dict[str, Any], current_user_info: Optional[Dict[str, Any]]):
+        """Context-aware group editing with 4-option reconciliation"""
+        template_groups = edited_data.get('groups', {})
+        template_primary = template_groups.get('primary')
+        template_secondary = template_groups.get('secondary', [])
+        
+        if current_user_info:
+            current_primary = current_user_info['primary_group']
+            current_secondary = current_user_info['secondary_groups']
+            
+            print(f"\n=== Group Configuration ===")
+            print(f"Current system primary group: {current_primary}")
+            print(f"Current system secondary groups: {', '.join(current_secondary) if current_secondary else 'None'}")
+            print(f"Template primary group: {template_primary}")
+            print(f"Template secondary groups: {', '.join(template_secondary) if template_secondary else 'None'}")
+            
+            # Primary group reconciliation
+            if current_primary != template_primary:
+                print(f"\n⚠️  Primary group mismatch!")
+                choice = self._get_choice(
+                    "How to handle primary group:",
+                    [
+                        ("1", "Keep current system group", current_primary),
+                        ("2", "Use template group", template_primary),
+                        ("3", "Copy current to instructions", current_primary),
+                        ("4", "Choose new group", None)
+                    ],
+                    "1"
+                )
+                
+                if choice == "1":
+                    # Remove from instructions (keep current)
+                    template_groups['primary'] = None
+                elif choice == "2":
+                    # Keep template value (no change)
+                    pass
+                elif choice == "3":
+                    # Copy current to instructions
+                    template_groups['primary'] = current_primary
+                elif choice == "4":
+                    # Choose new value
+                    new_primary = self._select_group_from_list("Select new primary group:")
+                    template_groups['primary'] = new_primary
+            
+            # Secondary groups reconciliation
+            current_set = set(current_secondary)
+            template_set = set(template_secondary)
+            if current_set != template_set:
+                print(f"\n⚠️  Secondary groups differ!")
+                choice = self._get_choice(
+                    "How to handle secondary groups:",
+                    [
+                        ("1", "Keep current system groups", current_secondary),
+                        ("2", "Use template groups", template_secondary),
+                        ("3", "Copy current to instructions", current_secondary),
+                        ("4", "Choose new groups", None)
+                    ],
+                    "1"
+                )
+                
+                if choice == "1":
+                    template_groups['secondary'] = []
+                elif choice == "2":
+                    pass
+                elif choice == "3":
+                    template_groups['secondary'] = current_secondary
+                elif choice == "4":
+                    new_secondary = self._select_multiple_groups(
+                        "Select secondary groups:",
+                        already_selected=template_secondary,
+                        exclude_groups=[template_primary] if template_primary else [],
+                        primary_group=template_primary
+                    )
+                    template_groups['secondary'] = new_secondary
+        else:
+            # No current user info - standard template editing
+            print(f"\n=== Group Configuration ===")
+            print(f"Primary group: {template_primary or 'None'}")
+            print(f"Secondary groups: {', '.join(template_secondary) if template_secondary else 'None'}")
+            
+            if self._confirm("Edit group configuration?", False):
+                # Edit primary group
+                if self._confirm("Change primary group?", False):
+                    new_primary = self._select_group_from_list("Select primary group:")
+                    template_groups['primary'] = new_primary
+                
+                # Edit secondary groups
+                if self._confirm("Edit secondary groups?", False):
+                    new_secondary = self._select_multiple_groups(
+                        "Select secondary groups:",
+                        already_selected=template_secondary,
+                        exclude_groups=[template_primary] if template_primary else [],
+                        primary_group=template_primary
+                    )
+                    template_groups['secondary'] = new_secondary
+        
+        edited_data['groups'] = template_groups
+
+    def _edit_shell_with_context(self, edited_data: Dict[str, Any], current_user_info: Optional[Dict[str, Any]]):
+        """Context-aware shell editing with 4-option reconciliation"""
+        template_shell = edited_data.get('shell', '/bin/bash')
+        
+        if current_user_info:
+            current_shell = current_user_info['shell']
+            
+            print(f"\n=== Shell Configuration ===")
+            print(f"Current system shell: {current_shell}")
+            print(f"Template shell: {template_shell}")
+            
+            if current_shell != template_shell:
+                print(f"\n⚠️  Shell mismatch!")
+                choice = self._get_choice(
+                    "How to handle shell:",
+                    [
+                        ("1", "Keep current system shell", current_shell),
+                        ("2", "Use template shell", template_shell),
+                        ("3", "Copy current to instructions", current_shell),
+                        ("4", "Choose new shell", None)
+                    ],
+                    "1"
+                )
+                
+                if choice == "1":
+                    # Remove from instructions (keep current)
+                    if 'shell' in edited_data:
+                        del edited_data['shell']
+                elif choice == "2":
+                    # Keep template value (no change)
+                    pass
+                elif choice == "3":
+                    # Copy current to instructions
+                    edited_data['shell'] = current_shell
+                elif choice == "4":
+                    # Choose new value
+                    common_shells = ['/bin/bash', '/bin/sh', '/usr/sbin/nologin', '/bin/zsh']
+                    print("Common shells:")
+                    for i, shell in enumerate(common_shells, 1):
+                        print(f"  {i}) {shell}")
+                    print(f"  {len(common_shells) + 1}) Custom")
+                    
+                    shell_choice = self._get_choice("Select shell:", 
+                                                   [str(i) for i in range(1, len(common_shells) + 2)], "1")
+                    
+                    if shell_choice == str(len(common_shells) + 1):
+                        new_shell = input("Enter shell path: ").strip()
+                    else:
+                        new_shell = common_shells[int(shell_choice) - 1]
+                    
+                    if new_shell:
+                        edited_data['shell'] = new_shell
+        else:
+            # No current user info - standard template editing
+            print(f"\n=== Shell Configuration ===")
+            print(f"Current shell: {template_shell}")
+            if self._confirm("Change shell?", False):
+                common_shells = ['/bin/bash', '/bin/sh', '/usr/sbin/nologin', '/bin/zsh']
+                print("Common shells:")
+                for i, shell in enumerate(common_shells, 1):
+                    print(f"  {i}) {shell}")
+                print(f"  {len(common_shells) + 1}) Custom")
+                
+                shell_choice = self._get_choice("Select shell:", 
+                                               [str(i) for i in range(1, len(common_shells) + 2)], "1")
+                
+                if shell_choice == str(len(common_shells) + 1):
+                    new_shell = input("Enter shell path: ").strip()
+                else:
+                    new_shell = common_shells[int(shell_choice) - 1]
+                
+                if new_shell:
+                    edited_data['shell'] = new_shell
+    
+    def _display_full_template(self, template_name: str, template_data: Dict[str, Any]):
+        """Display complete template information for user review"""
+        category = template_data.get('category', 'unknown')
+        description = template_data.get('description', 'No description available')
+        
+        print(f"\n{template_name} ({category}):")
+        print(f"   {description}")
+        
+        # Show key template details
+        source = template_data.get('source', 'local')
+        account_type = template_data.get('account_type', 'unknown')
+        print(f"   Source: {source}, Type: {account_type}")
+        
+        # Show groups
+        groups = template_data.get('groups', {})
+        primary_group = groups.get('primary', 'None')
+        secondary_groups = groups.get('secondary', [])
+        print(f"   Primary group: {primary_group}")
+        if secondary_groups:
+            print(f"   Secondary groups: {', '.join(secondary_groups)}")
+        else:
+            print(f"   Secondary groups: None")
+        
+        # Show shell (for interactive accounts)
+        if account_type in ['interactive', 'admin']:
+            shell = template_data.get('shell', '/bin/bash')
+            print(f"   Shell: {shell}")
+        
+        # Show home directory (for local accounts)
+        if source == 'local':
+            home_dir = template_data.get('home_directory', 'Not specified')
+            create_home = template_data.get('create_home', False)
+            print(f"   Home directory: {home_dir} ({'will create' if create_home else 'no creation'})")
+        elif source == 'existing':
+            print(f"   Home directory: Using existing user's home directory")
+        
+        # Show Samba access (default to disabled if not specified)
+        samba_enabled = template_data.get('samba', {}).get('enabled', False)
+        print(f"   Samba access: {'Enabled' if samba_enabled else 'Disabled'}")
+
+    def _get_template_action(self, recommended: bool = True) -> str:
+        """Get user's choice for template action (yes/no/edit)"""
+        default_choice = 'y' if recommended else 'n'
+        prompt = "Add this user? [Y/n/e]" if recommended else "Add this user? [y/N/e]"
+        print("   y = Yes, add with defaults")
+        print("   n = No, skip this user")
+        print("   e = Edit template values")
+        print("   x = Exit wizard")
+        
+        while True:
+            choice = input(f"{prompt}: ").strip().lower()
+            
+            if choice == 'x':
+                print("\nExiting wizard...")
+                sys.exit(3)
+            
+            if not choice:
+                return default_choice
+                
+            if choice in ['y', 'n', 'e']:
+                return choice
+                
+            print("Invalid choice. Please enter y, n, e, or x.")
+    
+    def _edit_template_interactively(self, template_name: str, template_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Context-aware interactive template editing
+        
+        Shows current system state for existing users and provides 4-option reconciliation
+        for each configurable field.
+        
+        Args:
+            template_name: Name of the template being edited
+            template_data: Original template data
+            
+        Returns:
+            Modified template data or None if cancelled
+        """
+        print(f"\n=== Editing {template_name} ===")
+        
+        # Start with a copy
+        edited_data = template_data.copy()
+        
+        # 1. Edit name (always allow)
+        current_name = edited_data.get('name', template_name)
+        new_name = input(f"Username [{current_name}]: ").strip()
+        if new_name:
+            edited_data['name'] = new_name
+        
+        # 2. Edit source type
+        current_source = edited_data.get('source', 'local')
+        print(f"\nCurrent source: {current_source}")
+        if self._confirm("Change source type?", False):
+            edited_data['source'] = self._get_user_type()
+        
+        # Get current system info if this is an existing user
+        current_user_info = None
+        if edited_data.get('source') == 'existing':
+            current_user_info = self._get_current_user_info(edited_data['name'])
+        
+        # 3. Edit account type (for local accounts)
+        if edited_data.get('source') == 'local':
+            current_account_type = edited_data.get('account_type', 'service')
+            print(f"\n=== Account Type ===")
+            print(f"Current account type: {current_account_type}")
+            if self._confirm("Change account type?", False):
+                print("1) Service - No shell, application access only")
+                print("2) Interactive - Shell access for human users")
+                type_choice = self._get_choice("Select account type", ["1", "2"], "1")
+                edited_data['account_type'] = "service" if type_choice == "1" else "interactive"
+        
+        # 4. Edit home directory (for local accounts)
+        if edited_data.get('source') == 'local':
+            current_home = edited_data.get('home_directory', '/home/user')
+            print(f"\n=== Home Directory ===")
+            print(f"Current home directory: {current_home}")
+            if self._confirm("Change home directory?", False):
+                new_home = input(f"Home directory [{current_home}]: ").strip()
+                if new_home:
+                    edited_data['home_directory'] = new_home
+            
+            # Create home directory flag
+            current_create_home = edited_data.get('create_home', True)
+            print(f"Create home directory: {'Yes' if current_create_home else 'No'}")
+            if self._confirm("Toggle create home directory?", False):
+                edited_data['create_home'] = not current_create_home
+        
+        # 5. Context-aware group configuration
+        self._edit_groups_with_context(edited_data, current_user_info)
+        
+        # 6. Context-aware shell configuration (for interactive accounts)
+        if edited_data.get('account_type') in ['interactive', 'admin']:
+            self._edit_shell_with_context(edited_data, current_user_info)
+        
+        # 5. Samba configuration (always available)
+        samba_config = edited_data.get('samba', {'enabled': False})
+        samba_enabled = samba_config.get('enabled', False)
+        print(f"\n=== Samba Configuration ===")
+        print(f"Samba access: {'Enabled' if samba_enabled else 'Disabled'}")
+        if self._confirm("Toggle Samba access?", False):
+            if 'samba' not in edited_data:
+                edited_data['samba'] = {}
+            edited_data['samba']['enabled'] = not samba_enabled
+        
+        # Show full template preview again for confirmation
+        print("\n=== Final Configuration ===")
+        self._display_full_template(edited_data.get('name', template_name), edited_data)
+        
+        if self._confirm("\nApply these changes?", True):
+            return edited_data
+        else:
+            return None
     
     def _add_samba_to_user(self, user: Dict[str, Any], enabled: bool = True, 
                           auth_method: str = 'smbpasswd') -> Dict[str, Any]:
@@ -597,63 +1204,30 @@ class ConfigWizard:
             # Set all components to recommended defaults
             self._add_components_to_instructions(config['components'])
             
-            # Create groups using dynamic function call
-            if config['groups_function'] == 'get_development_admin_group':
+            # Add groups based on mode
+            if standard == 'development':
                 self._add_groups_to_instructions(get_development_admin_group())
-            elif config['groups_function'] == 'get_standard_groups':
+            else:  # production
                 self._add_groups_to_instructions(get_standard_groups())
             
-            # Create users using dynamic method call
-            if config['users_function'] == '_create_default_admin_user':
-                self._create_default_admin_user()
-            elif config['users_function'] == '_create_all_standard_roles_with_defaults':
-                self._create_all_standard_roles_with_defaults()
-            
-            # # Configure paths using dynamic method call  
-            # if config['paths_function'] == '_configure_development_paths':
-            #     self._configure_paths_for_environment('development')
-            # elif config['paths_function'] == '_configure_paths_for_environment':
-            #     self._configure_paths_for_environment('production')
         else:
             print("📋 Step-by-step configuration...")
             # Component selection using unified method
             self._configure_components_interactive(firewall_default=config['firewall_default'])
             
+            # Add groups based on mode
             if standard == 'development':
-                # Create single admin group
                 admin_group_data = {
                     'description': 'Administrative users with full shuttle access',
                     'gid': 5000
                 }
                 self._add_group_to_instructions('shuttle_admins', admin_group_data)
-                
-                # Get admin user details
-                print("Admin User Configuration:")
-                username = input("Enter admin username [shuttle_admin]: ").strip() or "shuttle_admin"
-                
-                user_type = self._get_user_type()
-                
-                # Create admin user with full permissions
-                admin_user = self._new_user(
-                    name=username,
-                    source=user_type,
-                    account_type='admin',
-                    primary_group='shuttle_admins'
-                )
-                
-                # Optional Samba access
-                if self._confirm("Enable Samba access for admin user?", False):
-                    admin_user = self._add_samba_to_user(admin_user, enabled=True, auth_method='smbpasswd')
-                
-                self._add_user_to_instructions(admin_user)
-                
             else:  # production
-                # Create standard groups
                 self._add_groups_to_instructions(get_standard_groups())
-                
-                # Select and create standard roles
-                self._select_and_create_standard_roles()
-                
+
+        # Create users with unified approach - works for both accept_defaults and interactive modes
+        self._create_standard_users(standard, accept_defaults=accept_defaults, allow_edit=(not accept_defaults))
+
         # Configure path permissions
         self._configure_paths_for_environment(standard)
         
@@ -1390,6 +1964,24 @@ class ConfigWizard:
             # Add to instructions using unified method
             self._add_user_to_instructions(user_data)
     
+    def _create_standard_users(self, standard: str, accept_defaults: bool = False, allow_edit: bool = True) -> int:
+        """
+        Create standard users for the specified environment using template processor
+        
+        Unified user creation for both development and production standard modes.
+        Replaces both _create_all_standard_roles_with_defaults and _create_default_admin_user.
+        
+        Args:
+            standard: Environment type - 'development' or 'production'
+            accept_defaults: If True, auto-add recommended users; if False, prompt for each
+            allow_edit: If True, allow editing template values in interactive mode
+            
+        Returns:
+            Number of users added
+        """
+        templates = self._get_user_templates_for_environment(standard)
+        return self._process_user_templates(templates, accept_defaults, allow_edit)
+    
     def _create_path_config(self, actual_path, path_name, owner='root', group='shuttle_data_owners', 
                            mode='2770', acls=None, description=None):
         """
@@ -2040,121 +2632,122 @@ b) Back to Main Custom Configuration Menu
 
 Users in instructions: {len(self.users)}
 {users_list}
-0) Add Standard Users to Instructions
-1) Add Custom User to Instructions
-2) Remove User from Instructions
-3) Edit User in Instructions
+1) Add Standard Production Users
+2) Add Standard Development Users
+3) Add Custom User to Instructions
+4) Remove User from Instructions
+5) Edit User in Instructions
 
 b) Back to Main Custom Configuration Menu
             """
             print(description)
             
-            choice = self._get_choice("Select action", ["0", "1", "2", "3", "b"], "b")
+            choice = self._get_choice("Select action", ["1", "2", "3", "4", "5", "b"], "b")
             print()  # Add spacing between response and next section
             
-            if choice == "0":
-                self._custom_import_standard_users()
-            elif choice == "1":
-                self._custom_add_user()
+            if choice == "1":
+                self._custom_select_individual_users('production')
             elif choice == "2":
-                self._custom_remove_user()
+                self._custom_select_individual_users('development')
             elif choice == "3":
+                self._custom_add_user()
+            elif choice == "4":
+                self._custom_remove_user()
+            elif choice == "5":
                 self._custom_edit_user()
             elif choice == "b":
                 break
     
     def _custom_add_user(self):
-        """Add a new user with full customization"""
+        """Add a new user with template-based creation and full editing"""
         print("\n--- Add New User ---")
+        print("Select a base template, then customize all details in the editor.")
         
-        # Get basic user info
-        username = input("Username: ").strip()
+        # 1. Select template type first using universal menu system
+        base_templates = get_custom_user_base_templates()
+        
+        template_choices = [
+            {
+                'key': '1', 
+                'label': 'Service Account Template\n   For applications and automated processes\n   Default: /usr/sbin/nologin shell, service home directory',
+                'value': 'custom_service'
+            },
+            {
+                'key': '2', 
+                'label': 'Interactive User Template\n   For human users who need shell access\n   Default: /bin/bash shell, /home directory',
+                'value': 'custom_interactive'
+            },
+            {
+                'key': '3', 
+                'label': 'Existing User Template\n   For users already on the system\n   No shell/home changes, groups and permissions only',
+                'value': 'custom_existing'
+            }
+        ]
+        
+        selected_key = self._get_menu_choice(
+            "Select user template type:",
+            template_choices,
+            "1",  # Default to service account
+            include_back=True,
+            back_label="user management menu"
+        )
+        
+        if selected_key == 'b':
+            return
+        
+        template_key = self._get_choice_value(selected_key, template_choices, 'custom_service')
+        
+        # 2. Load base template
+        template_data = base_templates[template_key].copy()
+        
+        # 3. Get username for template
+        username = input("\nUsername: ").strip()
         if not username:
             print("❌ Username cannot be empty")
             return
         
-        # Check if user already exists
+        # Check if user already exists in instructions
         if any(u['name'] == username for u in self.users):
-            print(f"❌ User '{username}' already exists")
+            print(f"❌ User '{username}' already exists in instructions")
             return
         
-        # User source
-        print("\nUser source:")
-        print("1) Existing - Use existing local user")
-        print("2) Local - Create new local user")
-        print("3) Domain - Use domain/LDAP user")
-        source_choice = self._get_choice("Select source", ["1", "2", "3"], "1")
-        source_map = {"1": "existing", "2": "local", "3": "domain"}
-        source = source_map[source_choice]
+        # 4. Set username and basic description in template
+        template_data['name'] = username
+        template_data['description'] = f"Custom {template_data['category']} user - {username}"
         
-        # Account type
-        print("\nAccount type:")
-        print("1) Service - No shell, application access only")
-        print("2) Interactive - Shell access for human users")
-        account_type_choice = self._get_choice("Select type", ["1", "2"], "1")
-        account_type = "service" if account_type_choice == "1" else "interactive"
+        # 5. Default primary group to username if not set (do this early!)
+        if 'groups' not in template_data:
+            template_data['groups'] = {}
+        if template_data.get('groups', {}).get('primary') is None:
+            template_data['groups']['primary'] = username
         
-        # Create user object
-        user = {
-            'name': username,
-            'source': source,
-            'account_type': account_type,
-            'groups': {
-                'primary': None,
-                'secondary': []
-            },
-        }
-        
-        # Shell configuration
-        if source == "local":
-            print("\nShell configuration:")
-            if account_type == "service":
-                default_shell = '/usr/sbin/nologin'
-                default_home = f'/var/lib/shuttle/{username}'
+        # 6. Customize paths for non-existing users
+        if template_key != 'custom_existing':
+            if template_data.get('account_type') == 'service':
+                template_data['home_directory'] = f'/var/lib/shuttle/{username}'
             else:
-                default_shell = '/bin/bash'
-                default_home = f'/home/{username}'
-            
-            shell = input(f"Shell [{default_shell}]: ").strip() or default_shell
-            user['shell'] = shell
-            
-            # Home directory
-            home_dir = input(f"Home directory [{default_home}]: ").strip() or default_home
-            user['home_directory'] = home_dir
-            
-            # Create home directory?
-            if self._confirm("Create home directory?", True):
-                user['create_home'] = True
-            else:
-                user['create_home'] = False
+                template_data['home_directory'] = f'/home/{username}'
         
-        # Primary group
-        if self.groups:
-            user['groups']['primary'] = self._select_group_from_list(
-                "\nSelect primary group:",
-                include_none=True,
-                none_label="No primary group"
-            )
+        print(f"\n✓ Loaded {template_key.replace('custom_', '')} template for '{username}'")
         
-        # Secondary groups
-        if self.groups and self._confirm("\nAdd secondary groups?", False):
-            exclude_primary = [user['groups']['primary']] if user['groups']['primary'] else []
-            user['groups']['secondary'] = self._select_multiple_groups(
-                "Add secondary groups:",
-                already_selected=user['groups']['secondary'],
-                exclude_groups=exclude_primary
-            )
+        # Show the template with defaults before editing
+        self._display_full_template(username, template_data)
         
+        print("\n✓ Going into template editor - you can customize all fields...")
         
-        # Samba access
-        if self._confirm("\nEnable Samba access?", False):
-            self._enable_samba_access(user)
+        # 7. Go directly into comprehensive template editing
+        edited_template = self._edit_template_interactively(username, template_data)
+        if edited_template is None:
+            print("❌ User creation cancelled")
+            return
         
-        self._add_user_to_instructions(user)
+        # 7. Add to instructions
+        self._add_user_to_instructions(edited_template)
+        print(f"✅ Added {username} to instructions")
         
-        # Offer to add permissions
+        # 8. Offer to add permissions
         if self._confirm("\nAdd permissions for this user now?", True):
-            self._custom_edit_user_permissions(user)
+            self._custom_edit_user_permissions(edited_template)
     
     def _custom_remove_user(self):
         """Remove a user"""
@@ -2298,7 +2891,8 @@ b) Back to Main Custom Configuration Menu
             user['groups']['secondary'] = self._select_multiple_groups(
                 "Select secondary groups:",
                 already_selected=user['groups']['secondary'],
-                exclude_groups=exclude_primary
+                exclude_groups=exclude_primary,
+                primary_group=user['groups']['primary']
             )
             print("✅ Updated secondary groups")
     
@@ -2375,136 +2969,103 @@ b) Back to Main Custom Configuration Menu
                     print("❌ Invalid input")
     
     
-    def _build_user_template_menu(self, include_all_option=True):
-        """
-        Build dynamic user template menu from available templates
+    def _custom_select_individual_users(self, environment='production'):
+        """Let user pick individual users from templates with rich descriptions"""
+        templates = self._get_user_templates_for_environment(environment)
         
-        Example of reusable pattern. Other menus could be refactored similarly:
-        
-        # Custom main menu could become:
-        # main_menu_items = [
-        #     {'key': '1', 'label': 'Manage Groups', 'action': self._manage_groups},
-        #     {'key': '2', 'label': 'Manage Users', 'action': self._manage_users},
-        #     {'key': '3', 'label': 'Configure Path Permissions', 'action': self._configure_paths},
-        #     {'key': 's', 'label': 'Save Configuration', 'action': self._save_config}
-        # ]
-        
-        Args:
-            include_all_option: Whether to include "Add All" option
+        while True:
+            # Display menu fresh each time
+            print(f"\n=== {environment.title()} User Templates ===")
             
-        Returns:
-            List of menu item dictionaries
-        """
-        # Template display name mappings
-        template_labels = {
-            'shuttle_runner': 'Service Account - shuttle_runner',
-            'shuttle_defender_test_runner': 'Service Account - defender_test_runner', 
-            'shuttle_in_user': 'Network User - in_user',
-            'shuttle_out_user': 'Network User - out_user',
-            'shuttle_tester': 'Test User - shuttle_tester',
-            'shuttle_admin': 'Admin User - shuttle_admin'
-        }
-        
-        menu_items = []
-        
-        # Add "All" option if requested
-        if include_all_option:
-            menu_items.append({
-                'key': '0',
-                'label': 'Add All Standard Users',
-                'action': self._import_all_standard_users
-            })
-        
-        # Get available templates and build menu items
-        user_templates = get_standard_user_templates()
-        key_counter = 1 if include_all_option else 0
-        
-        for template_name in user_templates.keys():
-            if template_name in template_labels:
-                menu_items.append({
-                    'key': str(key_counter),
-                    'label': template_labels[template_name],
-                    'action': lambda t=template_name: self._import_user_template_interactive(t)
-                })
-                key_counter += 1
-        
-        return menu_items
-    
-    def _custom_import_standard_users(self):
-        """Import standard user templates using generic menu system"""
-        menu_items = self._build_user_template_menu(include_all_option=True)
-        
-        # Find appropriate default (lowest numbered option, typically '0' for "Add All")
-        default_key = self._find_default_key(menu_items)
-        
-        # Use the new generic menu choice function
-        choice = self._get_menu_choice(
-            "--- Import Standard Users ---\nSelect user template to add to instructions:",
-            menu_items,
-            default_key,
-            include_back=True,
-            back_label="User Management"
-        )
-        
-        self._execute_menu_choice(choice, menu_items)
-    
-    def _import_all_standard_users(self):
-        """Add all standard users"""
-        print("")
-        print("=== IMPORT ALL STANDARD USERS ===")
-        print("This will import all standard user templates with default names.")
-        print("")
-        
-        if not self._confirm("Import all standard user templates?", True):
-            return
-        
-        # Get all standard user templates and add them
-        user_templates = get_standard_user_templates()
-        imported_count = 0
-        skipped_count = 0
-        
-        for template_name, template_data in user_templates.items():
-            # Check if user already exists
-            if any(u['name'] == template_name for u in self.users):
-                print(f"✓ {template_name} already exists, skipping")
-                skipped_count += 1
-                continue
+            # Build choice mapping for both removal and addition
+            choice_map = {}
             
-            # Create user data from template
-            user_data = template_data.copy()
-            user_data['name'] = template_name
+            # First section: Currently added users (removable)
+            added_users = [u for u in self.users if u.get('name') in templates]
+            if added_users:
+                print("Currently added users:")
+                for i, user in enumerate(added_users):
+                    user_name = user.get('name', 'Unknown')
+                    template = templates.get(user_name, {})
+                    desc = template.get('description', 'No description')
+                    
+                    print(f"-{i+1}) {user_name} - Remove from instructions ({desc})")
+                    choice_map[f"-{i+1}"] = f"REMOVE:{user_name}"
+                print()
             
-            # Add using unified method
-            print(f"Importing {template_name}...")
-            if self._add_user_to_instructions(user_data):
-                imported_count += 1
-        
-        print(f"\\n✅ Imported {imported_count} new standard users to instructions")
-        if skipped_count > 0:
-            print(f"ℹ️  Skipped {skipped_count} users that already existed")
+            print("Select users to add (you can select multiple or add all):")
+            print()
+            
+            # Add "All" option
+            print(f"0) Add All {environment.title()} Users")
+            choice_map['0'] = 'all'
+            counter = 1
+            
+            # Group by category for better organization
+            by_category = {}
+            for name, template in templates.items():
+                category = template.get('category', 'other')
+                if category not in by_category:
+                    by_category[category] = []
+                by_category[category].append((name, template))
+            
+            # Display by category - only show users not already added
+            for category, users in sorted(by_category.items()):
+                category_users = [(name, template) for name, template in users 
+                                if not any(u['name'] == name for u in self.users)]
+                
+                if category_users:  # Only show category if it has available users
+                    print(f"\n--- {category.replace('_', ' ').title()} ---")
+                    for name, template in category_users:
+                        desc = template.get('description', 'No description')
+                        print(f"{counter}) {name} - {desc}")
+                        choice_map[str(counter)] = f"ADD:{name}"
+                        counter += 1
+            
+            print(f"\nb) Back to Import Menu")
+            
+            # Build valid choices
+            valid_choices = list(choice_map.keys()) + ['b']
+            
+            choice = self._get_choice("Select option", valid_choices, 'b')
+            
+            if choice == 'b':
+                break
+            elif choice == '0':
+                # Add all users from this environment
+                print(f"\n=== Adding All {environment.title()} Users ===")
+                self._process_user_templates(templates, accept_defaults=False, allow_edit=True)
+                break
+            else:
+                # Handle choice based on prefix
+                action_value = choice_map[choice]
+                
+                if action_value.startswith('REMOVE:'):
+                    # Remove user from instructions
+                    user_name = action_value[7:]  # Remove "REMOVE:" prefix
+                    self._remove_user_from_instructions(user_name)
+                    print(f"✅ Removed {user_name} from instructions")
+                    
+                elif action_value.startswith('ADD:'):
+                    # Add individual user
+                    user_name = action_value[4:]  # Remove "ADD:" prefix
+                    if user_name in templates:
+                        selected_template = {user_name: templates[user_name]}
+                        print(f"\n=== Adding {user_name} ===")
+                        added_count = self._process_user_templates(selected_template, accept_defaults=False, allow_edit=True)
+                        
+                        if added_count > 0:
+                            print(f"✅ Added {user_name} to instructions")
+                
+                # Continue the loop to reshow the menu
     
-    def _import_user_template_interactive(self, template_name, default_username=None):
-        """Unified method to import any user template with interactive username selection"""
-        default_username = default_username or template_name
-        username = input(f"Username [{default_username}]: ").strip() or default_username
+    def _remove_user_from_instructions(self, user_name: str):
+        """Remove a user from the instructions"""
+        # Remove from users list
+        self.users = [u for u in self.users if u.get('name') != user_name]
         
-        if any(u['name'] == username for u in self.users):
-            print(f"❌ User '{username}' already exists")
-            return
-        
-        # Get template and create user data
-        user_templates = get_standard_user_templates()
-        if template_name not in user_templates:
-            print(f"❌ Unknown template: {template_name}")
-            return
-        
-        user_data = user_templates[template_name].copy()
-        user_data['name'] = username  # Use the chosen username
-        
-        # Add using unified method
-        self._add_user_to_instructions(user_data)
-        print(f"✅ Imported {username} ({template_name} template)")
-    
+        # Update the instructions document
+        self.instructions['users'] = self.users
     
     def _custom_configure_path_permissions(self):
         """Configure permissions, ownership, and ACLs for shuttle paths"""
@@ -3534,6 +4095,8 @@ def main():
     elif choice.lower() == "x":
         print("\nConfiguration not saved.")
         sys.exit(3)  # Exit code 3 for user cancellation
+
+
 
 
 if __name__ == '__main__':
