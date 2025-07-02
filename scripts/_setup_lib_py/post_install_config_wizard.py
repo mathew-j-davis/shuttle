@@ -472,68 +472,6 @@ class ConfigWizard:
     # User Builder Helper Methods
     # ============================================================================
     
-    def _new_user(self, name: str, source: str = 'local', account_type: str = 'service', 
-                  primary_group: str = None, secondary_groups: List[str] = None,
-                  shell: str = None, home_directory: str = None, create_home: bool = None,
-                  permissions: Dict[str, List] = None) -> Dict[str, Any]:
-        """Create a new user object with standard structure
-        
-        Args:
-            name: Username
-            source: 'local', 'domain', or 'existing'  
-            account_type: 'admin', 'service', 'interactive', 'network'
-            primary_group: Primary group name
-            secondary_groups: List of secondary group names
-            shell: Shell path (defaults based on account_type if None)
-            home_directory: Home directory path (defaults based on name/type if None)
-            create_home: Whether to create home directory (defaults based on source if None)
-            permissions: Permission structure (defaults to empty if None)
-            
-        Returns:
-            User dictionary with standard structure
-        """
-        user = {
-            'name': name,
-            'source': source,
-            'account_type': account_type,
-            'groups': {
-                'primary': primary_group,
-                'secondary': secondary_groups or []
-            }
-        }
-        
-        # Only add permissions if explicitly provided
-        if permissions is not None:
-            user['permissions'] = permissions
-        
-        # Set defaults for shell based on account_type
-        if shell is None:
-            if account_type in ['network', 'service']:
-                shell = '/usr/sbin/nologin'
-            else:
-                shell = '/bin/bash'
-        
-        # Set defaults for home directory
-        if home_directory is None:
-            if account_type == 'network':
-                home_directory = '/dev/null'
-            elif account_type == 'service':
-                home_directory = f'/var/lib/{name}'
-            else:
-                home_directory = f'/home/{name}'
-        
-        # Set defaults for create_home
-        if create_home is None:
-            create_home = source == 'local' and account_type != 'network'
-        
-        # Only add shell/home settings for non-existing users
-        if source != 'existing':
-            user['shell'] = shell
-            user['home_directory'] = home_directory
-            user['create_home'] = create_home
-        
-        return user
-    
     def _add_templated_user(self, template_name: str, name: str = None, source: str = None, 
                            account_type: str = None, primary_group: str = None, 
                            secondary_groups: List[str] = None, shell: str = None, 
@@ -1112,25 +1050,6 @@ class ConfigWizard:
         """Check if Samba is enabled for a user"""
         return user.get('samba', {}).get('enabled', False)
     
-    def _add_permissions_to_user(self, user: Dict[str, Any], 
-                                read_write: List[Dict] = None,
-                                read_only: List[Dict] = None) -> Dict[str, Any]:
-        """Add permissions to user object
-        
-        Args:
-            user: User dictionary to modify
-            read_write: List of read/write permission dictionaries
-            read_only: List of read-only permission dictionaries
-            
-        Returns:
-            Modified user dictionary
-        """
-        if read_write:
-            user['permissions']['read_write'].extend(read_write)
-        if read_only:
-            user['permissions']['read_only'].extend(read_only)
-        return user
-        
     def run(self) -> Dict[str, Any]:
         """Run the interactive wizard"""
         print("\n=== Shuttle Configuration Wizard ===")
@@ -1321,136 +1240,136 @@ class ConfigWizard:
         return self._build_complete_config()
     
     
-    def _select_user_approach(self):
-        """Select user configuration approach"""
-        print("\n4. User Configuration Approach")
-        print("-----------------------------")
-        print("1) Single user for all functions (simplest)")
-        print("2) Separate users by function (most secure)")
-        print("3) Custom configuration (advanced)")
+    # def _select_user_approach(self):
+    #     """Select user configuration approach"""
+    #     print("\n4. User Configuration Approach")
+    #     print("-----------------------------")
+    #     print("1) Single user for all functions (simplest)")
+    #     print("2) Separate users by function (most secure)")
+    #     print("3) Custom configuration (advanced)")
         
-        choice = self._get_choice("Select approach", ["1", "2", "3"], "1")
+    #     choice = self._get_choice("Select approach", ["1", "2", "3"], "1")
         
-        if choice == "1":
-            self._configure_single_user()
-        elif choice == "2":
-            self._configure_separate_users()
-        else:
-            self._configure_custom_users()
+    #     if choice == "1":
+    #         self._configure_single_user()
+    #     elif choice == "2":
+    #         self._configure_separate_users()
+    #     else:
+    #         self._configure_custom_users()
     
-    def _configure_single_user(self):
-        """Configure single user for all functions"""
-        print("\n5. Single User Configuration")
-        print("---------------------------")
+    # def _configure_single_user(self):
+    #     """Configure single user for all functions"""
+    #     print("\n5. Single User Configuration")
+    #     print("---------------------------")
         
-        # User source
-        user_source = self._select_user_source()
+    #     # User source
+    #     user_source = self._select_user_source()
         
-        # Username
-        if user_source == "domain":
-            username = input("Enter domain username (without domain prefix) [shuttle_service]: ").strip() or "shuttle_service"
-            if self._confirm_domain_format():
-                username = f"DOMAIN\\{username}"
-        else:
-            username = input("Enter username [shuttle_all]: ").strip() or "shuttle_all"
+    #     # Username
+    #     if user_source == "domain":
+    #         username = input("Enter domain username (without domain prefix) [shuttle_service]: ").strip() or "shuttle_service"
+    #         if self._confirm_domain_format():
+    #             username = f"DOMAIN\\{username}"
+    #     else:
+    #         username = input("Enter username [shuttle_all]: ").strip() or "shuttle_all"
         
-        # Account type (only relevant for new users)
-        account_type = "service"
-        if self.instructions['metadata']['environment'] == 'development':
-            if user_source != "existing":
-                # Only ask for new users where it actually matters
-                print("\nAccount Type Selection")
-                print("======================")
-                print("Service accounts (recommended for Samba):")
-                print("  - No shell access (/usr/sbin/nologin)")
-                print("  - Can only connect via Samba from other machines")
-                print("  - More secure for file sharing only")
-                print("")
-                print("Interactive accounts:")
-                print("  - Full shell access (/bin/bash)")
-                print("  - Can log in directly to this server")
-                print("  - Needed only if user requires local login")
-                print("")
-                if self._confirm("Create interactive account with shell access?", False):
-                    account_type = "interactive"
-                else:
-                    print("→ Creating service account (Samba access only)")
+    #     # Account type (only relevant for new users)
+    #     account_type = "service"
+    #     if self.instructions['metadata']['environment'] == 'development':
+    #         if user_source != "existing":
+    #             # Only ask for new users where it actually matters
+    #             print("\nAccount Type Selection")
+    #             print("======================")
+    #             print("Service accounts (recommended for Samba):")
+    #             print("  - No shell access (/usr/sbin/nologin)")
+    #             print("  - Can only connect via Samba from other machines")
+    #             print("  - More secure for file sharing only")
+    #             print("")
+    #             print("Interactive accounts:")
+    #             print("  - Full shell access (/bin/bash)")
+    #             print("  - Can log in directly to this server")
+    #             print("  - Needed only if user requires local login")
+    #             print("")
+    #             if self._confirm("Create interactive account with shell access?", False):
+    #                 account_type = "interactive"
+    #             else:
+    #                 print("→ Creating service account (Samba access only)")
         
-        # Create groups
-        self.groups = {
-            'shuttle_all_users': {
-                'description': 'All shuttle functionality'
-            },
-            'shuttle_config_readers': {
-                'description': 'Configuration file readers'
-            }
-        }
+    #     # Create groups
+    #     self.groups = {
+    #         'shuttle_all_users': {
+    #             'description': 'All shuttle functionality'
+    #         },
+    #         'shuttle_config_readers': {
+    #             'description': 'Configuration file readers'
+    #         }
+    #     }
         
-        # Create user
-        user = {
-            'name': username,
-            'source': user_source,
-            'account_type': account_type,
-        }
+    #     # Create user
+    #     user = {
+    #         'name': username,
+    #         'source': user_source,
+    #         'account_type': account_type,
+    #     }
         
-        # Only set shell and home for non-existing users
-        if user_source != "existing":
-            user['shell'] = '/bin/bash' if account_type == 'interactive' else '/usr/sbin/nologin'
-            user['home_directory'] = self._get_home_directory(username, account_type, user_source)
-            user['create_home'] = True
+    #     # Only set shell and home for non-existing users
+    #     if user_source != "existing":
+    #         user['shell'] = '/bin/bash' if account_type == 'interactive' else '/usr/sbin/nologin'
+    #         user['home_directory'] = self._get_home_directory(username, account_type, user_source)
+    #         user['create_home'] = True
         
-        # Continue with groups and permissions
-        user.update({
-            'groups': {
-                'primary': 'shuttle_all_users',
-                'secondary': ['shuttle_config_readers']
-            },
-            'permissions': self._configure_path_permissions("Single User")
-        })
+    #     # Continue with groups and permissions
+    #     user.update({
+    #         'groups': {
+    #             'primary': 'shuttle_all_users',
+    #             'secondary': ['shuttle_config_readers']
+    #         },
+    #         'permissions': self._configure_path_permissions("Single User")
+    #     })
         
-        # Samba configuration
-        print("\nEnable Samba Access for User")
-        print("============================")
-        if self.instructions['components']['configure_samba'] and self._confirm("Enable Samba access for this user?", True):
-            self._enable_samba_access(user)
+    #     # Samba configuration
+    #     print("\nEnable Samba Access for User")
+    #     print("============================")
+    #     if self.instructions['components']['configure_samba'] and self._confirm("Enable Samba access for this user?", True):
+    #         self._enable_samba_access(user)
             
-            # Samba authentication method
-            print("\nSamba authentication method:")
-            print("1) Samba user database (smbpasswd) - separate Samba password")
-            print("2) Domain security - use AD/domain authentication")
-            print("3) Configure later (enable user, set password manually)")
-            print("4) Show other options (PAM sync, Kerberos) - manual setup required")
+    #         # Samba authentication method
+    #         print("\nSamba authentication method:")
+    #         print("1) Samba user database (smbpasswd) - separate Samba password")
+    #         print("2) Domain security - use AD/domain authentication")
+    #         print("3) Configure later (enable user, set password manually)")
+    #         print("4) Show other options (PAM sync, Kerberos) - manual setup required")
             
-            auth_choice = self._get_choice("Select authentication method", ["1", "2", "3", "4"], "1")
+    #         auth_choice = self._get_choice("Select authentication method", ["1", "2", "3", "4"], "1")
             
-            if auth_choice == "1":
-                # Traditional smbpasswd approach
-                user['samba']['auth_method'] = 'smbpasswd'
-                password = self._get_password("Enter Samba password")
-                if password:
-                    user['samba']['password'] = password
+    #         if auth_choice == "1":
+    #             # Traditional smbpasswd approach
+    #             user['samba']['auth_method'] = 'smbpasswd'
+    #             password = self._get_password("Enter Samba password")
+    #             if password:
+    #                 user['samba']['password'] = password
                     
-            elif auth_choice == "2":
-                # Domain security
-                user['samba']['auth_method'] = 'domain'
-                print("\nDomain security selected:")
-                print("- Requires machine to be joined to domain")
-                print("- Users authenticate against domain controller")
-                print("- No separate Samba passwords needed")
+    #         elif auth_choice == "2":
+    #             # Domain security
+    #             user['samba']['auth_method'] = 'domain'
+    #             print("\nDomain security selected:")
+    #             print("- Requires machine to be joined to domain")
+    #             print("- Users authenticate against domain controller")
+    #             print("- No separate Samba passwords needed")
                 
-            elif auth_choice == "3":
-                # Configure later
-                user['samba']['auth_method'] = 'manual'
-                print("\nUser will be enabled for Samba but password must be set manually:")
-                print("sudo smbpasswd -a {username}")
+    #         elif auth_choice == "3":
+    #             # Configure later
+    #             user['samba']['auth_method'] = 'manual'
+    #             print("\nUser will be enabled for Samba but password must be set manually:")
+    #             print("sudo smbpasswd -a {username}")
                 
-            elif auth_choice == "4":
-                # Show other options but don't implement
-                self._show_advanced_samba_options()
-                # Default to manual configuration
-                user['samba']['auth_method'] = 'manual'
+    #         elif auth_choice == "4":
+    #             # Show other options but don't implement
+    #             self._show_advanced_samba_options()
+    #             # Default to manual configuration
+    #             user['samba']['auth_method'] = 'manual'
         
-        self._add_user_to_instructions(user)
+    #     self._add_user_to_instructions(user)
     
     def _show_advanced_samba_options(self):
         """Show advanced Samba authentication options for manual setup"""
@@ -1543,146 +1462,146 @@ class ConfigWizard:
         
         return permissions
     
-    def _configure_separate_users(self):
-        """Configure separate users for each function"""
-        print("\n5. Separate Users Configuration")
-        print("-------------------------------")
+    # def _configure_separate_users(self):
+    #     """Configure separate users for each function"""
+    #     print("\n5. Separate Users Configuration")
+    #     print("-------------------------------")
         
-        # Create groups
-        self.groups = {
-            'shuttle_app_users': {'description': 'Users who run shuttle application'},
-            'shuttle_test_users': {'description': 'Users who run defender tests'},
-            'shuttle_samba_users': {'description': 'Users who access via Samba'},
-            'shuttle_config_readers': {'description': 'Users who can read config files'},
-            'shuttle_ledger_writers': {'description': 'Users who can write to ledger'}
-        }
+    #     # Create groups
+    #     self.groups = {
+    #         'shuttle_app_users': {'description': 'Users who run shuttle application'},
+    #         'shuttle_test_users': {'description': 'Users who run defender tests'},
+    #         'shuttle_samba_users': {'description': 'Users who access via Samba'},
+    #         'shuttle_config_readers': {'description': 'Users who can read config files'},
+    #         'shuttle_ledger_writers': {'description': 'Users who can write to ledger'}
+    #     }
         
-        # Configure each user type
-        if self._confirm("Configure Samba user?", True):
-            self._add_samba_user()
+    #     # Configure each user type
+    #     if self._confirm("Configure Samba user?", True):
+    #         self._add_samba_user()
         
-        if self._confirm("Add shuttle_runner (main application user)?", True):
-            user_template = get_standard_user_templates()['shuttle_runner'].copy()
-            user_template['name'] = 'shuttle_runner'
-            self._add_user_to_instructions(user_template)
+    #     if self._confirm("Add shuttle_runner (main application user)?", True):
+    #         user_template = get_standard_user_templates()['shuttle_runner'].copy()
+    #         user_template['name'] = 'shuttle_runner'
+    #         self._add_user_to_instructions(user_template)
         
-        # Test Users - clarify the different purposes
-        print("\n--- Test User Configuration ---")
-        print("There are two types of test users:")
-        print("1. shuttle_tester: For running automated test suites (development/pre-production)")
-        print("2. shuttle_defender_test_runner: For validating Defender config (production requirement)")
-        print("")
+    #     # Test Users - clarify the different purposes
+    #     print("\n--- Test User Configuration ---")
+    #     print("There are two types of test users:")
+    #     print("1. shuttle_tester: For running automated test suites (development/pre-production)")
+    #     print("2. shuttle_defender_test_runner: For validating Defender config (production requirement)")
+    #     print("")
         
-        if self._confirm("Add shuttle_tester (automated test runner)?", False):
-            user_template = get_standard_user_templates()['shuttle_tester'].copy()
-            user_template['name'] = 'shuttle_tester'
-            self._add_user_to_instructions(user_template)
+    #     if self._confirm("Add shuttle_tester (automated test runner)?", False):
+    #         user_template = get_standard_user_templates()['shuttle_tester'].copy()
+    #         user_template['name'] = 'shuttle_tester'
+    #         self._add_user_to_instructions(user_template)
             
-        if self._confirm("Add shuttle_defender_test_runner (production Defender validation)?", True):
-            user_template = get_standard_user_templates()['shuttle_defender_test_runner'].copy()
-            user_template['name'] = 'shuttle_defender_test_runner'
-            self._add_user_to_instructions(user_template)
+    #     if self._confirm("Add shuttle_defender_test_runner (production Defender validation)?", True):
+    #         user_template = get_standard_user_templates()['shuttle_defender_test_runner'].copy()
+    #         user_template['name'] = 'shuttle_defender_test_runner'
+    #         self._add_user_to_instructions(user_template)
     
-    def _add_samba_user(self):
-        """Add Samba user configuration"""
-        print("\nSamba User Configuration")
+    # def _add_samba_user(self):
+    #     """Add Samba user configuration"""
+    #     print("\nSamba User Configuration")
         
-        user_source = self._select_user_source()
-        username = self._get_username("Samba username", "samba_service", user_source)
+    #     user_source = self._select_user_source()
+    #     username = self._get_username("Samba username", "samba_service", user_source)
         
-        user = self._new_user(
-            name=username,
-            source=user_source,
-            account_type='service',
-            primary_group='shuttle_samba_users',
-            secondary_groups=['shuttle_config_readers'],
-            home_directory='/var/lib/shuttle/samba' if user_source != "existing" else None
-        )
+    #     user = self._new_user(
+    #         name=username,
+    #         source=user_source,
+    #         account_type='service',
+    #         primary_group='shuttle_samba_users',
+    #         secondary_groups=['shuttle_config_readers'],
+    #         home_directory='/var/lib/shuttle/samba' if user_source != "existing" else None
+    #     )
         
-        user = self._add_permissions_to_user(user,
-            read_write=[{'path': 'source_path', 'mode': '755'}],
-            read_only=[{'path': 'shuttle_config_path', 'mode': '644'}]
-        )
+    #     user = self._add_permissions_to_user(user,
+    #         read_write=[{'path': 'source_path', 'mode': '755'}],
+    #         read_only=[{'path': 'shuttle_config_path', 'mode': '644'}]
+    #     )
         
-        user = self._add_samba_to_user(user, enabled=True)
+    #     user = self._add_samba_to_user(user, enabled=True)
         
-        if self._confirm("Set Samba password now?", False):
-            password = self._get_password("Enter Samba password")
-            if password:
-                user['samba']['password'] = password
+    #     if self._confirm("Set Samba password now?", False):
+    #         password = self._get_password("Enter Samba password")
+    #         if password:
+    #             user['samba']['password'] = password
         
-        self._add_user_to_instructions(user)
+    #     self._add_user_to_instructions(user)
     
     
     
-    def _configure_custom_users(self):
-        """Configure custom users"""
-        print("\n5. Custom User Configuration")
-        print("---------------------------")
+    # def _configure_custom_users(self):
+    #     """Configure custom users"""
+    #     print("\n5. Custom User Configuration")
+    #     print("---------------------------")
         
-        # Create default groups
-        self.groups = {
-            'shuttle_users': {'description': 'General shuttle users'},
-            'shuttle_config_readers': {'description': 'Configuration file readers'}
-        }
+    #     # Create default groups
+    #     self.groups = {
+    #         'shuttle_users': {'description': 'General shuttle users'},
+    #         'shuttle_config_readers': {'description': 'Configuration file readers'}
+    #     }
         
-        while True:
-            if not self._confirm("\nAdd a user?", True):
-                break
+    #     while True:
+    #         if not self._confirm("\nAdd a user?", True):
+    #             break
             
-            self._add_custom_user()
+    #         self._add_custom_user()
     
-    def _add_custom_user(self):
-        """Add a custom user interactively"""
-        print("\nCustom User Configuration")
+    # def _add_custom_user(self):
+    #     """Add a custom user interactively"""
+    #     print("\nCustom User Configuration")
         
-        # Basic info
-        user_source = self._select_user_source()
-        username = self._get_username("Username", "user", user_source)
+    #     # Basic info
+    #     user_source = self._select_user_source()
+    #     username = self._get_username("Username", "user", user_source)
         
-        # Account type
-        print("\nAccount type:")
-        print("1) Service account (no shell)")
-        print("2) Interactive account (shell access)")
-        account_type_choice = self._get_choice("Select account type", ["1", "2"], "1")
-        account_type = "service" if account_type_choice == "1" else "interactive"
+    #     # Account type
+    #     print("\nAccount type:")
+    #     print("1) Service account (no shell)")
+    #     print("2) Interactive account (shell access)")
+    #     account_type_choice = self._get_choice("Select account type", ["1", "2"], "1")
+    #     account_type = "service" if account_type_choice == "1" else "interactive"
         
-        # Build user config
-        user = {
-            'name': username,
-            'source': user_source,
-            'account_type': account_type,
-            'groups': {
-                'primary': 'shuttle_users',
-                'secondary': []
-            },
-        }
+    #     # Build user config
+    #     user = {
+    #         'name': username,
+    #         'source': user_source,
+    #         'account_type': account_type,
+    #         'groups': {
+    #             'primary': 'shuttle_users',
+    #             'secondary': []
+    #         },
+    #     }
         
-        # Only set shell and home for non-existing users
-        if user_source != "existing":
-            user['shell'] = '/bin/bash' if account_type == 'interactive' else '/usr/sbin/nologin'
-            user['home_directory'] = self._get_home_directory(username, account_type, user_source)
-            user['create_home'] = True
+    #     # Only set shell and home for non-existing users
+    #     if user_source != "existing":
+    #         user['shell'] = '/bin/bash' if account_type == 'interactive' else '/usr/sbin/nologin'
+    #         user['home_directory'] = self._get_home_directory(username, account_type, user_source)
+    #         user['create_home'] = True
         
-        # Groups
-        if self._confirm("Add to config readers group?", True):
-            user['groups']['secondary'].append('shuttle_config_readers')
+    #     # Groups
+    #     if self._confirm("Add to config readers group?", True):
+    #         user['groups']['secondary'].append('shuttle_config_readers')
         
         
-        # Permissions (simplified)
-        if self._confirm("Read/write access to source directory?", False):
-            user['permissions']['read_write'].append({'path': 'source_path', 'mode': '755'})
-        if self._confirm("Read/write access to test directory?", False):
-            user['permissions']['read_write'].append({'path': 'test_work_dir', 'mode': '755', 'recursive': True})
+    #     # Permissions (simplified)
+    #     if self._confirm("Read/write access to source directory?", False):
+    #         user['permissions']['read_write'].append({'path': 'source_path', 'mode': '755'})
+    #     if self._confirm("Read/write access to test directory?", False):
+    #         user['permissions']['read_write'].append({'path': 'test_work_dir', 'mode': '755', 'recursive': True})
         
-        # Always add config read access
-        user['permissions']['read_only'].append({'path': 'shuttle_config_path', 'mode': '644'})
+    #     # Always add config read access
+    #     user['permissions']['read_only'].append({'path': 'shuttle_config_path', 'mode': '644'})
         
-        # Samba
-        if self._confirm("Enable Samba access?", False):
-            self._enable_samba_access(user)
+    #     # Samba
+    #     if self._confirm("Enable Samba access?", False):
+    #         self._enable_samba_access(user)
         
-        self._add_user_to_instructions(user)
+    #     self._add_user_to_instructions(user)
     
     def _select_user_source(self) -> str:
         """Select user source type using universal menu system"""
@@ -1931,23 +1850,23 @@ class ConfigWizard:
         
         print("")
     
-    def _create_default_admin_user(self):
-        """Create default admin user with standard settings"""
-        admin_user = self._new_user(
-            name='shuttle_admin',
-            source='local',
-            account_type='admin',
-            primary_group='shuttle_admins'
-        )
+    # def _create_default_admin_user(self):
+    #     """Create default admin user with standard settings"""
+    #     admin_user = self._new_user(
+    #         name='shuttle_admin',
+    #         source='local',
+    #         account_type='admin',
+    #         primary_group='shuttle_admins'
+    #     )
         
-        # Include Samba access by default in development
-        if self.instructions['components']['install_samba']:
-            admin_user = self._add_samba_to_user(admin_user, enabled=True, auth_method='smbpasswd')
+    #     # Include Samba access by default in development
+    #     if self.instructions['components']['install_samba']:
+    #         admin_user = self._add_samba_to_user(admin_user, enabled=True, auth_method='smbpasswd')
         
-        self._add_user_to_instructions(admin_user)
+    #     self._add_user_to_instructions(admin_user)
         
-        # Configure development-specific path permissions using the shared method
-        self._configure_paths_for_environment('development')
+    #     # Configure development-specific path permissions using the shared method
+    #     self._configure_paths_for_environment('development')
     
     def _create_all_standard_roles_with_defaults(self):
         """Create all standard roles using default values"""
@@ -1969,7 +1888,7 @@ class ConfigWizard:
         Create standard users for the specified environment using template processor
         
         Unified user creation for both development and production standard modes.
-        Replaces both _create_all_standard_roles_with_defaults and _create_default_admin_user.
+        Replaces both _create_all_standard_roles_with_defaults and #_create_default_admin_user.
         
         Args:
             standard: Environment type - 'development' or 'production'
@@ -2679,7 +2598,7 @@ b) Back to Main Custom Configuration Menu
             },
             {
                 'key': '3', 
-                'label': 'Existing User Template\n   For users already on the system\n   No shell/home changes, groups and permissions only',
+                'label': 'Existing User Template\n   For users already on the system\n   No shell/home changes, groups only',
                 'value': 'custom_existing'
             }
         ]
@@ -2745,9 +2664,6 @@ b) Back to Main Custom Configuration Menu
         self._add_user_to_instructions(edited_template)
         print(f"✅ Added {username} to instructions")
         
-        # 8. Offer to add permissions
-        if self._confirm("\nAdd permissions for this user now?", True):
-            self._custom_edit_user_permissions(edited_template)
     
     def _custom_remove_user(self):
         """Remove a user"""
@@ -2814,11 +2730,10 @@ b) Back to Main Custom Configuration Menu
             print("")
             print("1) Edit Groups")
             print("2) Edit Shell/Home Directory")
-            print("3) Edit Permissions")
-            print("4) Toggle Samba Access")
-            print("5) Back to User Menu")
+            print("3) Toggle Samba Access")
+            print("4) Back to User Menu")
             
-            choice = self._get_choice("Select action", ["1", "2", "3", "4", "5"], "5")
+            choice = self._get_choice("Select action", ["1", "2", "3", "4"], "4")
             print()  # Add spacing between response and next section
             
             if choice == "1":
@@ -2826,10 +2741,8 @@ b) Back to Main Custom Configuration Menu
             elif choice == "2":
                 self._custom_edit_user_shell_home(user)
             elif choice == "3":
-                self._custom_edit_user_permissions(user)
-            elif choice == "4":
                 self._toggle_samba_for_user(user)
-            elif choice == "5":
+            elif choice == "4":
                 break
     
     def _toggle_samba_for_user(self, user: Dict[str, Any]) -> None:
@@ -2895,78 +2808,6 @@ b) Back to Main Custom Configuration Menu
                 primary_group=user['groups']['primary']
             )
             print("✅ Updated secondary groups")
-    
-    def _custom_edit_user_permissions(self, user):
-        """Edit user permissions"""
-        print(f"\n--- Edit Permissions for {user['name']} ---")
-        
-        # Show current permissions
-        print("\nCurrent permissions:")
-        print("Read/Write:")
-        if user['permissions']['read_write']:
-            for perm in user['permissions']['read_write']:
-                print(f"  • {perm['path']} (mode: {perm.get('mode', '755')})")
-        else:
-            print("  None")
-        
-        print("\nRead Only:")
-        if user['permissions']['read_only']:
-            for perm in user['permissions']['read_only']:
-                print(f"  • {perm['path']} (mode: {perm.get('mode', '644')})")
-        else:
-            print("  None")
-        
-        print("\n1) Add Read/Write Permission")
-        print("2) Add Read-Only Permission")
-        print("3) Remove Permission")
-        print("4) Back to User Edit Menu")
-        
-        choice = self._get_choice("Select action", ["1", "2", "3", "4"], "4")
-        print()  # Add spacing between response and next section
-        
-        if choice == "1":
-            path = input("\nPath (or shuttle path name): ").strip()
-            if path:
-                mode = input("Mode [755]: ").strip() or "755"
-                recursive = self._confirm("Recursive?", False)
-                perm = {'path': path, 'mode': mode}
-                if recursive:
-                    perm['recursive'] = True
-                user['permissions']['read_write'].append(perm)
-                print("✅ Added read/write permission")
-        
-        elif choice == "2":
-            path = input("\nPath (or shuttle path name): ").strip()
-            if path:
-                mode = input("Mode [644]: ").strip() or "644"
-                user['permissions']['read_only'].append({'path': path, 'mode': mode})
-                print("✅ Added read-only permission")
-        
-        elif choice == "3":
-            all_perms = []
-            for perm in user['permissions']['read_write']:
-                all_perms.append(('rw', perm))
-            for perm in user['permissions']['read_only']:
-                all_perms.append(('ro', perm))
-            
-            if all_perms:
-                print("\nSelect permission to remove:")
-                for i, (ptype, perm) in enumerate(all_perms, 1):
-                    print(f"{i}) [{ptype}] {perm['path']}")
-                
-                try:
-                    valid_choices = [str(i) for i in range(0, len(all_perms) + 1)]
-                    choice_str = self._get_choice("Select number (0 to cancel)", valid_choices, "0")
-                    idx = int(choice_str)
-                    if 1 <= idx <= len(all_perms):
-                        ptype, perm = all_perms[idx - 1]
-                        if ptype == 'rw':
-                            user['permissions']['read_write'].remove(perm)
-                        else:
-                            user['permissions']['read_only'].remove(perm)
-                        print("✅ Removed permission")
-                except ValueError:
-                    print("❌ Invalid input")
     
     
     def _custom_select_individual_users(self, environment='production'):
