@@ -48,93 +48,8 @@ STANDARD_GROUPS = {
     }
 }
 
-# Development Path Permissions - Catch-all pattern for development environments
-STANDARD_DEVELOPMENT_PATH_PERMISSIONS = {
-    '*': {  # Catch-all pattern for any path
-        'owner': 'root',
-        'group': 'shuttle_admins',
-        'mode': '2775',  # Group writable for development
-        'acls': ['g:shuttle_admins:rwX'],  # Full access for admin group
-        'description': 'Development access'  # Will be customized per path
-    }
-}
-
-# Production Path Permissions - Specific configurations per path type
-STANDARD_PRODUCTION_PATH_PERMISSIONS = {
-    'source_path': {
-        'owner': 'root',
-        'group': 'shuttle_data_owners',
-        'mode': '2770',
-        'acls': ['g:shuttle_samba_in_users:rwX'],
-        'default_acls': {
-            'file': ['u::rw-', 'g::rw-', 'o::---'],
-            'directory': ['u::rwx', 'g::rwx', 'o::---']
-        },
-        'description': 'Source directory (inbound files)'
-    },
-    'destination_path': {
-        'owner': 'root',
-        'group': 'shuttle_data_owners',
-        'mode': '2770',
-        'acls': ['g:shuttle_samba_out_users:r-X'],
-        'default_acls': {
-            'file': ['u::rw-', 'g::rw-', 'o::---'],
-            'directory': ['u::rwx', 'g::rwx', 'o::---']
-        },
-        'description': 'Destination directory (processed files)'
-    },
-    'quarantine_path': {
-        'owner': 'root',
-        'group': 'shuttle_data_owners',
-        'mode': '2770',
-        'default_acls': {
-            'file': ['u::rw-', 'g::rw-', 'o::---'],
-            'directory': ['u::rwx', 'g::rwx', 'o::---']
-        },
-        'description': 'Quarantine directory (files being scanned)'
-    },
-    'hazard_archive_path': {
-        'owner': 'root',
-        'group': 'shuttle_data_owners',
-        'mode': '2770',
-        'default_acls': {
-            'file': ['u::rw-', 'g::rw-', 'o::---'],
-            'directory': ['u::rwx', 'g::rwx', 'o::---']
-        },
-        'description': 'Hazard archive (malware/suspect files)'
-    },
-    'log_path': {
-        'owner': 'root',
-        'group': 'shuttle_log_owners',
-        'mode': '2770',
-        'description': 'Log directory'
-    },
-    'hazard_encryption_key_path': {
-        'owner': 'root',
-        'group': 'shuttle_config_readers',
-        'mode': '0640',
-        'description': 'Encryption key'
-    },
-    'ledger_file_path': {
-        'owner': 'root',
-        'group': 'shuttle_config_readers',
-        'mode': '0640',
-        'acls': ['g:shuttle_ledger_owners:rw-'],
-        'description': 'Ledger file'
-    },
-    'test_work_dir': {
-        'owner': 'root',
-        'group': 'shuttle_testers',
-        'mode': '0775',
-        'description': 'Test work directory'
-    },
-    'test_config_path': {
-        'owner': 'root',
-        'group': 'shuttle_testers',
-        'mode': '0664',
-        'description': 'Test configuration file'
-    }
-}
+# Note: Path permissions are now defined in PATH_PERMISSION_BASE_TEMPLATES below
+# This eliminates duplication and provides a single source of truth
 
 # Development User Templates - For development/testing environments
 STANDARD_DEVELOPMENT_USER_TEMPLATES = {
@@ -343,7 +258,7 @@ STANDARD_MODE_CONFIGS = {
     },
     'production': {
         'title': 'PRODUCTION MODE',
-        'description': 'Setting up standard production users and groups.',
+        'description': 'Setting up standard production security model with standard groups, users and path permissions.',
         'accept_prompt': 'Accept all standard production defaults? (Recommended)',
         'success_message': 'Using all standard production defaults',
         'components': {
@@ -388,20 +303,8 @@ def get_development_admin_group():
     """Get a copy of just the development admin group"""
     return {'shuttle_admins': STANDARD_GROUPS['shuttle_admins'].copy()}
 
-def get_standard_path_permissions(environment='production'):
-    """Get a copy of standard path permissions configuration for the specified environment
-    
-    Args:
-        environment: 'production' or 'development'
-        
-    Returns:
-        Deep copy of the appropriate path permissions configuration
-    """
-    import copy
-    if environment == 'development':
-        return copy.deepcopy(STANDARD_DEVELOPMENT_PATH_PERMISSIONS)
-    else:
-        return copy.deepcopy(STANDARD_PRODUCTION_PATH_PERMISSIONS)
+# Note: get_standard_path_permissions() function removed
+# Use get_path_permission_base_templates()[environment]['templates'] instead
 
 def get_standard_user_templates(environment='production'):
     """Get a copy of standard user templates configuration for the specified environment
@@ -538,6 +441,18 @@ PATH_PERMISSION_BASE_TEMPLATES = {
                 'mode': '0640',
                 'acls': ['g:shuttle_ledger_owners:rw-'],
                 'description': 'Ledger file (config readers + ledger writers)'
+            },
+            'test_work_dir': {
+                'owner': 'root',
+                'group': 'shuttle_testers',
+                'mode': '0775',
+                'description': 'Test work directory'
+            },
+            'test_config_path': {
+                'owner': 'root',
+                'group': 'shuttle_testers',
+                'mode': '0664',
+                'description': 'Test configuration file'
             }
         }
     },

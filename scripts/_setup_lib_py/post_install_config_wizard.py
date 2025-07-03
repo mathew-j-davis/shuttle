@@ -17,9 +17,8 @@ ENHANCED WITH THREE-TIER DEPLOYMENT MODES:
    - Option to customize after standard setup
 
 3. CUSTOM MODE
-   - Full custom permission builder (future implementation)
+   - Full custom permission builder 
    - Template assistance and guided setup
-   - Import from standard model
    - Complete flexibility
 
 Usage:
@@ -31,12 +30,11 @@ Usage:
 import yaml
 import sys
 import os
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Set
 import configparser
 from post_install_config_constants import get_config_filename
-from standard_configs import (
-    get_standard_groups, get_standard_path_permissions, 
-    get_standard_user_templates, get_standard_instruction_template,
+from post_install_standard_configuration_reader import (
+    get_standard_groups, get_standard_user_templates, get_standard_instruction_template,
     get_custom_user_base_templates, get_custom_group_base_templates,
     get_path_permission_base_templates, get_development_admin_group, 
     STANDARD_MODE_CONFIGS, STANDARD_SAMBA_CONFIG
@@ -305,7 +303,7 @@ class ConfigWizard:
     
     def _get_all_available_groups(self) -> Dict[str, Dict[str, Any]]:
         """Get all available groups (standard + instruction groups) with status"""
-        from standard_configs import get_standard_groups
+        from post_install_standard_configuration_reader import get_standard_groups
         
         # Start with standard groups
         standard_groups = get_standard_groups()
@@ -860,46 +858,100 @@ class ConfigWizard:
         """
         added_count = 0
         
+        if accept_defaults:
+            # Auto-add all recommended templates
+            for template_name, template_data in templates.items():
+                if template_data.get('recommended', True):
+                    self._add_user_from_template_data(template_data.copy())
+                    added_count += 1
+                    print(f"   ✓ Added {template_data['name']}")
+        else:
+            # Interactive mode - offer "add all" option first
+            print(f"\n{self._wrap_title('USER CONFIGURATION')}")
+            print(f"Found {len(templates)} standard user templates")
+            
+            # Show summary of available users
+            recommended_users = [name for name, data in templates.items() if data.get('recommended', True)]
+            optional_users = [name for name, data in templates.items() if not data.get('recommended', True)]
+            
+            if recommended_users:
+                print(f"Recommended users: {', '.join(recommended_users)}")
+            if optional_users:
+                print(f"Optional users: {', '.join(optional_users)}")
+            
+            print()
+            
+            # Ask if user wants to add all recommended users
+            if recommended_users and self._confirm("Add all recommended standard users?", True):
+                # Add all recommended users
+                for template_name, template_data in templates.items():
+                    if template_data.get('recommended', True):
+                        self._add_user_from_template_data(template_data.copy())
+                        added_count += 1
+                        print(f"   ✓ Added {template_data['name']}")
+                
+                # Ask how to handle optional users (same pattern as recommended users)
+                if optional_users:
+                    print()
+                    if self._confirm("Add all optional users with defaults?", True):
+                        # Add all optional users with defaults (no individual review)
+                        for template_name, template_data in templates.items():
+                            if not template_data.get('recommended', True):
+                                self._add_user_from_template_data(template_data.copy())
+                                added_count += 1
+                                print(f"   ✓ Added {template_data['name']}")
+                    else:
+                        # Ask if they want to review individually instead
+                        if self._confirm("Review optional users individually instead?", False):
+                            # Process only optional users individually
+                            optional_templates = {name: data for name, data in templates.items() 
+                                                if not data.get('recommended', True)}
+                            added_count += self._process_templates_individually(optional_templates, allow_edit)
+            else:
+                # Process all templates individually
+                added_count = self._process_templates_individually(templates, allow_edit)
+                    
+        return added_count
+    
+    def _process_templates_individually(self, templates: Dict[str, Dict], allow_edit: bool = True) -> int:
+        """Process user templates one by one with individual prompts"""
+        added_count = 0
+        
         for template_name, template_data in templates.items():
             should_add = False
             user_data = None
             
-            if accept_defaults:
-                # Auto-add if recommended
-                should_add = template_data.get('recommended', True)
-                user_data = template_data.copy()
-            else:
-                # Display full template details
-                self._display_full_template(template_name, template_data)
+            # Display full template details
+            self._display_full_template(template_name, template_data)
+            
+            # Three-way choice: yes, no, or edit
+            if allow_edit:
+                choice = self._get_template_action()
                 
-                # Three-way choice: yes, no, or edit
-                if allow_edit:
-                    choice = self._get_template_action(template_data.get('recommended', True))
-                    
-                    if choice == 'y':
+                if choice == 'y':
+                    should_add = True
+                    user_data = template_data.copy()
+                elif choice == 'e':
+                    # Edit the template
+                    edited_data = self._edit_template_interactively(template_name, template_data)
+                    if edited_data:
                         should_add = True
-                        user_data = template_data.copy()
-                    elif choice == 'e':
-                        # Edit the template
-                        edited_data = self._edit_template_interactively(template_name, template_data)
-                        if edited_data:
-                            should_add = True
-                            user_data = edited_data
-                    # 'n' means skip (should_add remains False)
-                else:
-                    # Simple yes/no without edit option
-                    prompt = f"Add {template_name}?"
-                    default = template_data.get('recommended', True)
-                    if self._confirm(prompt, default):
-                        should_add = True
-                        user_data = template_data.copy()
+                        user_data = edited_data
+                # 'n' means skip (should_add remains False)
+            else:
+                # Simple yes/no without edit option
+                prompt = f"Add {template_name}?"
+                default = template_data.get('recommended', True)
+                if self._confirm(prompt, default):
+                    should_add = True
+                    user_data = template_data.copy()
             
             # Core action - single point of user creation
             if should_add and user_data:
                 self._add_user_from_template_data(user_data)
                 added_count += 1
                 print(f"   ✓ Added {user_data['name']}")
-                    
+        
         return added_count
     
     def _get_user_templates_for_environment(self, environment: str = 'production') -> Dict[str, Dict]:
@@ -1332,6 +1384,10 @@ class ConfigWizard:
         
         if mode in ['development', 'production']:
             config = self._run_standard_mode(mode)
+            
+            # Validate configuration before offering customization
+            self._validate_configuration_before_customization()
+            
             # Option to customize standard configuration
             if self._offer_customization():
                 return self._run_custom_mode(base_config=config)
@@ -1398,17 +1454,17 @@ class ConfigWizard:
             # Component selection using unified method
             self._configure_components_interactive(firewall_default=config['firewall_default'])
             
-            # Add groups based on mode
+            # Add groups based on mode - interactive selection
             if standard == 'development':
-                self._add_groups_to_instructions(get_development_admin_group())
+                self._select_standard_groups_interactive(get_development_admin_group(), "development")
             else:  # production
-                self._add_groups_to_instructions(get_standard_groups())
+                self._select_standard_groups_interactive(get_standard_groups(), "production")
 
         # Create users with unified approach - works for both accept_defaults and interactive modes
         self._create_standard_users(standard, accept_defaults=accept_defaults, allow_edit=(not accept_defaults))
 
         # Configure path permissions
-        self._configure_paths_for_environment(standard)
+        self._configure_paths_for_environment(standard, accept_defaults)
         
         print(f"\n✅ {config['completion_message']}")
         
@@ -1419,12 +1475,63 @@ class ConfigWizard:
         
         return self._build_complete_config()
     
+    def _validate_configuration_before_customization(self):
+        """Run validation checks and provide helpful guidance"""
+        print("\n🔍 Validating configuration...")
+        
+        # Validate all paths for safety first
+        print("🔍 Validating path safety...")
+        if not self._validate_all_paths():
+            print("❌ Configuration cancelled due to path safety concerns.")
+            sys.exit(1)
+        print("✅ Path validation complete")
+        
+        # Validate all referenced groups and users exist
+        missing_groups = self._validate_group_references()
+        missing_users = self._validate_user_references()
+        
+        if missing_groups or missing_users:
+            print(f"\n⚠️  WARNING: Configuration has missing references:")
+            
+            if missing_groups:
+                print(f"   Missing groups:")
+                for group in sorted(missing_groups):
+                    print(f"      - {group}")
+            
+            if missing_users:
+                print(f"   Missing users:")
+                for user in sorted(missing_users):
+                    print(f"      - {user}")
+            
+            print("\n💡 These references are used in your configuration but are not defined.")
+            print("   This will cause issues during installation unless these groups/users")
+            print("   already exist on the target system.")
+            print("\n📝 You can fix this by:")
+            print("   • Choose 'Customize this configuration' to add the missing items")
+            print("   • Or ensure these groups/users exist on the target system before installation")
+            
+            if not self._confirm("\nContinue with missing references?", False):
+                print("❌ Configuration cancelled. Please fix the missing references.")
+                sys.exit(1)
+        else:
+            print("✅ All references are properly defined")
     
     def _offer_customization(self) -> bool:
         """Ask if user wants to customize standard configuration"""
         print(f"\n{self._wrap_title('Customization Option')}")
         print("Your standard configuration is ready.")
         print("")
+        
+        print("📋 Customization Options:")
+        print("  1) Use as-is: Deploy this configuration immediately")
+        print("  2) Customize: Enter advanced mode to:")
+        print("     • Add missing groups or users that were referenced")
+        print("     • Modify existing users, groups, or path permissions")
+        print("     • Add new users or groups")
+        print("     • Fine-tune security settings")
+        print("  3) Start over: Return to the beginning and choose a different approach")
+        print("")
+        
         choices = [
             {'key': '1', 'label': 'Use this configuration as-is'},
             {'key': '2', 'label': 'Customize this configuration'},
@@ -1432,7 +1539,7 @@ class ConfigWizard:
         ]
         
         choice = self._get_menu_choice(
-            "Would you like to:",
+            "Select an option:",
             choices,
             default_key='1',
             include_back=False
@@ -1592,20 +1699,25 @@ class ConfigWizard:
     # - Use 'sudo passwd username' or 'sudo smbpasswd -a username' after installation
     
     def _confirm(self, prompt: str, default: bool = True) -> bool:
-        """Get yes/no confirmation"""
+        """Get yes/no confirmation with input validation"""
         # Always add default text for consistency
         default_text = "Yes" if default else "No"
         prompt = f"{prompt} (Default: {default_text})"
         
         default_str = "Y/n/x" if default else "y/N/x"
-        response = input(f"{prompt} [{default_str}]: ").strip().lower()
         
-        if not response:
-            return default
-        elif response == 'x':
-            print("\nExiting wizard...")
-            sys.exit(3)  # Exit code 3 for user cancellation
-        return response in ['y', 'yes']
+        while True:
+            response = input(f"{prompt} [{default_str}]: ").strip().lower()
+            
+            if not response:
+                return default
+            elif response == 'x':
+                print("\nExiting wizard...")
+                sys.exit(3)  # Exit code 3 for user cancellation
+            elif response in ['y', 'yes', 'n', 'no']:
+                return response in ['y', 'yes']
+            else:
+                print(f"❌ Invalid input '{response}'. Please enter 'y' for yes, 'n' for no, or 'x' to exit.")
     
     # Generic Helper Methods
     def _get_user_type(self, default_type: str = "local") -> str:
@@ -1794,6 +1906,118 @@ class ConfigWizard:
                 return False
         
         return True
+    
+    def _validate_group_references(self) -> Set[str]:
+        """Check for groups referenced in users/paths that don't exist in group configuration
+        
+        Returns:
+            Set of missing group names
+        """
+        referenced_groups = set()
+        configured_groups = set(self.groups.keys())
+        
+        # Check groups referenced by users
+        for user in self.users:
+            # Check primary group
+            primary_group = user.get('groups', {}).get('primary')
+            if primary_group:
+                referenced_groups.add(primary_group)
+            
+            # Check secondary groups
+            secondary_groups = user.get('groups', {}).get('secondary', [])
+            for group in secondary_groups:
+                referenced_groups.add(group)
+        
+        # Check groups referenced by paths
+        for path, config in self.paths.items():
+            # Check owner group
+            if 'group' in config:
+                referenced_groups.add(config['group'])
+            
+            # Check ACL entries
+            for acl in config.get('acls', []):
+                if acl.startswith('g:'):
+                    # Extract group name from ACL entry (g:groupname:perms)
+                    parts = acl.split(':')
+                    if len(parts) >= 2:
+                        referenced_groups.add(parts[1])
+            
+            # Check default ACL entries
+            default_acls = config.get('default_acls', {})
+            for acl_list in [default_acls.get('files', []), default_acls.get('directories', [])]:
+                for acl in acl_list:
+                    if acl.startswith('g:'):
+                        parts = acl.split(':')
+                        if len(parts) >= 2:
+                            referenced_groups.add(parts[1])
+        
+        # Return groups that are referenced but not configured
+        return referenced_groups - configured_groups
+    
+    def _validate_user_references(self) -> Set[str]:
+        """Check for users referenced in path configs that don't exist in user configuration
+        
+        Returns:
+            Set of missing user names (excluding standard system users)
+        """
+        referenced_users = set()
+        configured_users = {user['name'] for user in self.users}
+        
+        # Standard system users that should not be flagged as missing
+        standard_system_users = {
+            'root', 'daemon', 'bin', 'sys', 'sync', 'games', 'man', 'lp', 'mail',
+            'news', 'uucp', 'proxy', 'www-data', 'backup', 'list', 'irc', 'gnats',
+            'nobody', 'systemd-network', 'systemd-resolve', 'systemd-timesync',
+            'messagebus', 'syslog', 'bind', 'avahi', 'colord', 'hplip', 'geoclue',
+            'pulse', 'gdm', 'sshd'
+        }
+        
+        # Include standard system users as "configured"
+        configured_users.update(standard_system_users)
+        
+        # Check users referenced by paths
+        for path, config in self.paths.items():
+            # Check owner user
+            if 'owner' in config:
+                referenced_users.add(config['owner'])
+            
+            # Check ACL entries
+            for acl in config.get('acls', []):
+                if acl.startswith('u:'):
+                    # Extract user name from ACL entry (u:username:perms)
+                    parts = acl.split(':')
+                    if len(parts) >= 2:
+                        referenced_users.add(parts[1])
+            
+            # Check default ACL entries
+            default_acls = config.get('default_acls', {})
+            for acl_list in [default_acls.get('files', []), default_acls.get('directories', [])]:
+                for acl in acl_list:
+                    if acl.startswith('u:'):
+                        parts = acl.split(':')
+                        if len(parts) >= 2:
+                            referenced_users.add(parts[1])
+        
+        # Return users that are referenced but not configured (excluding standard system users)
+        return referenced_users - configured_users
+    
+    def _display_missing_references(self, context: str = ""):
+        """Display missing group and user references with context"""
+        missing_groups = self._validate_group_references()
+        missing_users = self._validate_user_references()
+        
+        if missing_groups or missing_users:
+            print(f"\n⚠️  WARNING: Missing references detected{' in ' + context if context else ''}:")
+            
+            if missing_groups:
+                print(f"   📁 Missing groups: {', '.join(sorted(missing_groups))}")
+            
+            if missing_users:
+                print(f"   👤 Missing users: {', '.join(sorted(missing_users))}")
+            
+            print("   💡 These are referenced in your configuration but not defined.")
+            print("      Add them or they must exist on the target system.")
+            print()
     
     def _get_choice(self, prompt: str, valid_choices: List[str], default: str) -> str:
         """Get a choice from valid options"""
@@ -2076,6 +2300,9 @@ r) Reset Custom Configuration
 s) Use this configuration and continue.
         """
         print(description)
+        
+        # Show validation warnings at the top level
+        self._display_missing_references("current configuration")
     
     def _custom_manage_groups(self):
         """Manage groups in custom mode"""
@@ -2102,6 +2329,13 @@ Current groups in instructions: {len(self.groups)}
 b) Back to Main Custom Configuration Menu
             """
             print(description)
+            
+            # Show missing groups validation specific to groups
+            missing_groups = self._validate_group_references()
+            if missing_groups:
+                print(f"⚠️  Missing groups referenced in configuration: {', '.join(sorted(missing_groups))}")
+                print("   💡 Add these groups to fix configuration issues")
+                print()
             
             choice = self._get_choice("Select action", ["1", "2", "3", "4", "b"], "b")
             print()  # Add spacing between response and next section
@@ -2343,6 +2577,13 @@ Users in instructions: {len(self.users)}
 b) Back to Main Custom Configuration Menu
             """
             print(description)
+            
+            # Show missing users validation specific to users
+            missing_users = self._validate_user_references()
+            if missing_users:
+                print(f"⚠️  Missing users referenced in path configurations: {', '.join(sorted(missing_users))}")
+                print("   💡 Add these users to fix configuration issues")
+                print()
             
             choice = self._get_choice("Select action", ["1", "2", "3", "4", "5", "b"], "b")
             print()  # Add spacing between response and next section
@@ -3210,21 +3451,51 @@ b) Back to Main Custom Configuration Menu
     # UNIFIED CONFIGURATION METHODS
     # =============================================
     
-    def _configure_paths_for_environment(self, environment='production'):
-        """Unified path configuration for any environment with catch-all support
+    def _configure_paths_for_environment(self, environment='production', accept_defaults=True):
+        """Unified path configuration for any environment with interactive options
         
         Args:
             environment: 'production' or 'development'
+            accept_defaults: If True, apply standard templates; if False, offer choices
         """
         print(f"\n=== {environment.title()} Path Configuration ===")
-        if environment == 'development':
-            print("Setting up development-friendly permissions for all shuttle paths...")
-        else:
-            print("Setting up standard permissions for all shuttle paths...")
         
-        # Get environment-specific path permissions
-        standard_configs = get_standard_path_permissions(environment)
-        paths_to_add = {}
+        if accept_defaults:
+            # Auto-apply standard configurations
+            if environment == 'development':
+                print("Setting up development-friendly permissions for all shuttle paths...")
+            else:
+                print("Setting up standard permissions for all shuttle paths...")
+            
+            # Get environment-specific path permissions
+            base_templates = get_path_permission_base_templates()
+            standard_configs = base_templates[environment]['templates']
+            paths_to_add = {}
+        else:
+            # Interactive path configuration - offer same choices as custom mode
+            print("Choose how to configure path permissions:")
+            print("")
+            
+            choices = [
+                {'key': '1', 'label': 'Apply standard template to all paths'},
+                {'key': '2', 'label': 'Configure each path individually'}
+            ]
+            
+            choice = self._get_menu_choice(
+                "Select path configuration approach:",
+                choices,
+                default_key='1',
+                include_back=False
+            )
+            
+            if choice == '1':
+                # Use template selector like custom mode
+                self._apply_path_templates_to_all_paths_linear(environment)
+                return
+            else:
+                # Individual path configuration
+                self._configure_paths_individually_linear(environment)
+                return
         
         # Iterate through discovered paths (inverted loop)
         for path_name, actual_path in self.shuttle_paths.items():
@@ -3252,6 +3523,85 @@ b) Back to Main Custom Configuration Menu
         else:
             print(f"✅ Configured {added_count} standard paths")
     
+    def _apply_path_templates_to_all_paths_linear(self, environment: str):
+        """Apply permission templates to all paths in linear mode"""
+        print(f"\n{self._wrap_title('PATH TEMPLATE SELECTION')}")
+        print("Select permission template to apply to all shuttle paths:")
+        
+        # Get base templates
+        base_templates = get_path_permission_base_templates()
+        
+        # Build template choices, prioritizing environment-appropriate defaults
+        template_choices = []
+        for template_key, template_data in base_templates.items():
+            if template_data['category'] == 'standard':
+                # Mark production template as recommended for production environment
+                is_recommended = (
+                    (environment == 'production' and template_key == 'production') or
+                    (environment == 'development' and template_key == 'development')
+                )
+                
+                recommended = "✓ Recommended" if is_recommended else ""
+                label = f"{template_data['name']}\n   {template_data['description']}"
+                if recommended:
+                    label += f"\n   {recommended}"
+                
+                template_choices.append({
+                    'key': str(len(template_choices) + 1),
+                    'label': label,
+                    'value': template_key
+                })
+        
+        # Get template choice
+        default_key = '1' if environment == 'production' else '2' if environment == 'development' else '1'
+        choice_key = self._get_menu_choice("Select template for all paths", template_choices, default_key, include_back=False)
+        choice_value = self._get_choice_value(choice_key, template_choices, 'production')
+        
+        # Apply selected template to all paths
+        selected_template = base_templates[choice_value]
+        
+        paths_to_configure = []
+        for path_name, actual_path in self.shuttle_paths.items():
+            # Find the specific path template or use wildcard
+            if path_name in selected_template['templates']:
+                path_template = selected_template['templates'][path_name]
+                paths_to_configure.append((path_name, actual_path, path_template))
+            elif '*' in selected_template['templates']:
+                path_template = selected_template['templates']['*'].copy()
+                path_template['description'] = f"{path_name}: {path_template['description']}"
+                paths_to_configure.append((path_name, actual_path, path_template))
+        
+        print(f"\n✅ Applying {selected_template['name']} template to {len(paths_to_configure)} paths...")
+        
+        applied_count = 0
+        for path_name, actual_path, path_template in paths_to_configure:
+            self.paths[actual_path] = path_template.copy()
+            applied_count += 1
+        
+        print(f"✅ Applied {selected_template['name']} template to {applied_count} paths")
+    
+    def _configure_paths_individually_linear(self, environment: str):
+        """Configure each path individually in linear mode"""
+        print(f"\n{self._wrap_title('INDIVIDUAL PATH CONFIGURATION')}")
+        print("Configure permissions for each shuttle path:")
+        print("")
+        
+        configured_count = 0
+        for path_name, actual_path in self.shuttle_paths.items():
+            print(f"\n--- Configuring {path_name} ---")
+            print(f"Path: {actual_path}")
+            
+            if self._confirm(f"Configure permissions for {path_name}?", True):
+                # Use the same path template configuration as custom mode
+                self._configure_path_permission_with_templates(actual_path, path_name)
+                configured_count += 1
+            else:
+                print(f"   Skipped {path_name}")
+        
+        if configured_count == 0:
+            print("\n⚠️  WARNING: No paths configured. Default system permissions will be used.")
+        else:
+            print(f"\n✅ Configured {configured_count} of {len(self.shuttle_paths)} paths")
     
     def _configure_components_interactive(self, firewall_default=True):
         """Unified component configuration for all modes"""
@@ -3324,6 +3674,36 @@ b) Back to Main Custom Configuration Menu
             if self._add_group_to_instructions(group_name, group_data):
                 added_count += 1
         return added_count
+    
+    def _select_standard_groups_interactive(self, groups_dict: dict, environment: str):
+        """Interactively select which standard groups to add"""
+        print(f"\n{self._wrap_title('Group Configuration')}")
+        print(f"Select which {environment} groups to configure:")
+        print("")
+        
+        # Offer to add all groups at once
+        if self._confirm("Add all recommended standard groups?", True):
+            count = self._add_groups_to_instructions(groups_dict)
+            print(f"✅ Added all {count} standard {environment} groups")
+        else:
+            # Let user approve each group
+            added_count = 0
+            for group_name, group_data in groups_dict.items():
+                description = group_data.get('description', 'No description available')
+                
+                print(f"\n{group_name}:")
+                print(f"   {description}")
+                
+                if self._confirm(f"Add group '{group_name}'?", True):
+                    if self._add_group_to_instructions(group_name, group_data):
+                        added_count += 1
+                else:
+                    print(f"   Skipped group '{group_name}'")
+            
+            if added_count == 0:
+                print("\n⚠️  WARNING: No groups added. Users may not function correctly without groups.")
+            else:
+                print(f"\n✅ Added {added_count} of {len(groups_dict)} available groups")
     
     def _add_user_to_instructions(self, user_data: dict) -> bool:
         """Universal method to add any user to the instruction set"""
@@ -3406,11 +3786,7 @@ b) Back to Main Custom Configuration Menu
     
     def _build_complete_config(self) -> List[Dict[str, Any]]:
         """Build complete configuration documents"""
-        # Validate all paths for safety before building config
-        print("\n🔍 Validating path safety...")
-        if not self._validate_all_paths():
-            print("❌ Configuration cancelled due to path safety concerns.")
-            sys.exit(1)
+        print("\n🔍 Finalizing configuration...")
         
         documents = []
         
@@ -3643,12 +4019,10 @@ def main():
         test_config_path=args.test_config_path
     )
     
-    print(f"{wizard._wrap_title('Shuttle Post-Install Configuration Wizard')}")
     config = wizard.run()
     
     # Configuration Summary with standardized formatting
-    title = wizard._wrap_title("Configuration Summary")
-    print(f"\n{title}")
+    print(wizard._wrap_title("Configuration Summary"))
     print(f"Environment: {config[0]['metadata']['environment']}")
     
     # Count different document types using reusable function
