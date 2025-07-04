@@ -519,6 +519,55 @@ execute_smbpasswd_with_fd() {
 # DRY RUN HELPER FUNCTIONS
 # ============================================================================
 
+# Function to break down complex commands for better visibility in verbose mode
+log_command_breakdown() {
+    local cmd="$1"
+    
+    # Only show breakdown for complex commands (more than 3 parameters)
+    local param_count=$(echo "$cmd" | wc -w)
+    if [[ $param_count -le 3 ]]; then
+        return 0
+    fi
+    
+    # Parse command into base command and parameters
+    local base_cmd=$(echo "$cmd" | awk '{print $1}')
+    local params=$(echo "$cmd" | cut -d' ' -f2-)
+    
+    log DEBUG "  Command breakdown:"
+    log DEBUG "    Base command: $base_cmd"
+    
+    # Simple parameter parsing - handles common patterns
+    local current_param=""
+    local param_value=""
+    local in_quotes=false
+    local quote_char=""
+    
+    echo "$params" | while read -r word; do
+        if [[ "$word" =~ ^-- ]]; then
+            # Long option
+            if [[ "$word" == *"="* ]]; then
+                # Option with value (--option=value)
+                log DEBUG "    Parameter: ${word%%=*} = ${word#*=}"
+            else
+                # Option without value or separate value
+                log DEBUG "    Parameter: $word"
+            fi
+        elif [[ "$word" =~ ^- ]]; then
+            # Short option
+            log DEBUG "    Parameter: $word"
+        elif [[ "$word" =~ ^[0-9]+$ ]]; then
+            # Numeric value
+            log DEBUG "    Value: $word"
+        elif [[ "$word" =~ ^[\'\"] ]]; then
+            # Quoted string
+            log DEBUG "    Value: $word"
+        else
+            # Regular argument
+            log DEBUG "    Argument: $word"
+        fi
+    done 2>/dev/null || true  # Suppress any parsing errors
+}
+
 # Function to execute command or show what would be done in dry-run mode
 # Note: Command should already include sudo prefix if needed
 # History file for command logging
@@ -577,6 +626,9 @@ execute_or_dryrun() {
     
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY RUN] Would execute: $cmd"
+        if [[ "${VERBOSE:-false}" == "true" ]]; then
+            log_command_breakdown "$cmd"
+        fi
         log_command_history "$timestamp" "$cmd" "$explanation" "DRY RUN" "true"
         return 0
     fi
@@ -584,6 +636,7 @@ execute_or_dryrun() {
     # Log command when verbose
     if [[ "${VERBOSE:-false}" == "true" ]]; then
         log DEBUG "Executing: $cmd"
+        log_command_breakdown "$cmd"
     fi
     
     if eval "$cmd"; then
@@ -612,6 +665,7 @@ execute() {
     # Log command when verbose
     if [[ "${VERBOSE:-false}" == "true" ]]; then
         log DEBUG "Executing (read-only): $cmd"
+        log_command_breakdown "$cmd"
     fi
     
     if eval "$cmd"; then
@@ -640,16 +694,21 @@ execute_or_execute_dryrun() {
         log INFO "Explanation: $explanation"
     fi
     
-    # Modify command based on dry-run mode
+    # Modify command based on dry-run and verbose modes
     local actual_cmd="$cmd"
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         # Append --dry-run to our own scripts
         actual_cmd="$cmd --dry-run"
     fi
+    if [[ "${VERBOSE:-false}" == "true" ]]; then
+        # Append --verbose to our own scripts
+        actual_cmd="$actual_cmd --verbose"
+    fi
     
     # Log command when verbose
     if [[ "${VERBOSE:-false}" == "true" ]]; then
         log DEBUG "Executing script: $actual_cmd"
+        log_command_breakdown "$actual_cmd"
     fi
     
     if eval "$actual_cmd"; then
