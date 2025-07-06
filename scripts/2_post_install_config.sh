@@ -680,10 +680,24 @@ phase_configure_firewall() {
     print_header "🔥 Phase 5: Configuring firewall"
     echo ""
     
-    execute_or_execute_dryrun "$PRODUCTION_DIR/14_configure_firewall.sh show-status" \
-                              "Firewall configuration complete" \
-                              "Firewall configuration check completed with warnings" \
-                              "Check and configure firewall settings for Shuttle security requirements"
+    # Use Python module to configure firewall from YAML
+    local dry_run_flag=""
+    if [[ "$DRY_RUN" == "true" ]]; then
+        dry_run_flag="--dry-run"
+    fi
+    
+    local interactive_flag=""
+    if [[ "$INTERACTIVE_MODE" == "false" ]]; then
+        interactive_flag="--non-interactive"
+    fi
+    
+    python3 -m firewall_manager "$INSTRUCTIONS_FILE" "$PRODUCTION_DIR" $dry_run_flag $interactive_flag
+
+    if [[ $? -ne 0 ]]; then
+        print_warn "⚠️  Some firewall configuration may have failed"
+    else
+        print_success "Firewall configuration complete"
+    fi
 }
 
 # Run configuration wizard

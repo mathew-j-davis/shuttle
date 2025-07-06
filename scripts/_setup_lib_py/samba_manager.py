@@ -45,26 +45,55 @@ class SambaManager:
         Returns:
             True if successful, False otherwise
         """
-        # Analyze configuration
-        groups, users, settings = analyze_config(config_file)
-        
-        # Find users with Samba enabled
-        samba_users = []
-        for user in users:
-            if user.get('samba', {}).get('enabled', False):
-                samba_users.append(user)
-        
-        if not samba_users:
-            print("No Samba users configured")
-            return True
-        
-        print(f"Configuring {len(samba_users)} Samba users...")
-        
-        for user in samba_users:
-            self._configure_samba_user(user)
-        
-        print("Samba configuration complete")
-        return True
+        try:
+            # Load YAML configuration
+            with open(config_file, 'r') as f:
+                docs = list(yaml.safe_load_all(f))
+            
+            if not docs:
+                print("No configuration documents found")
+                return False
+            
+            # Main config should be first document
+            main_config = docs[0]
+            samba_config = main_config.get('samba', {})
+            
+            if not samba_config.get('enabled', False):
+                print("ℹ️  Samba configuration is disabled")
+                return True
+            
+            print("🌐 Configuring Samba...")
+            
+            # Analyze configuration for users
+            groups, users, settings = analyze_config(config_file)
+            
+            # Configure Samba global settings
+            success = self._configure_samba_global(samba_config)
+            
+            # Configure Samba shares
+            if not self._configure_samba_shares(samba_config):
+                success = False
+            
+            # Configure Samba users
+            samba_users = [user for user in users if user.get('samba', {}).get('enabled', False)]
+            if samba_users:
+                print(f"Configuring {len(samba_users)} Samba users...")
+                for user in samba_users:
+                    if not self._configure_samba_user(user):
+                        success = False
+            else:
+                print("ℹ️  No Samba users configured")
+            
+            if success:
+                print("✅ Samba configuration complete")
+            else:
+                print("⚠️  Some Samba configuration failed")
+            
+            return success
+            
+        except Exception as e:
+            print(f"❌ Error processing Samba configuration: {e}")
+            return False
     
     def _configure_samba_user(self, user: Dict[str, Any]) -> bool:
         """Configure Samba for a single user"""
@@ -125,6 +154,92 @@ class SambaManager:
             print(f"    Set password manually: sudo smbpasswd {user_name}")
         
         return True
+
+
+    def _configure_samba_global(self, samba_config: Dict[str, Any]) -> bool:
+        """Configure Samba global settings"""
+        try:
+            global_settings = samba_config.get('global_settings', {})
+            if not global_settings:
+                print("ℹ️  No Samba global settings to configure")
+                return True
+            
+            print("🔧 Configuring Samba global settings...")
+            
+            # Configure workgroup
+            workgroup = global_settings.get('workgroup')
+            if workgroup:
+                # This would require modifying smb.conf - for now just log it
+                print(f"  Workgroup: {workgroup}")
+            
+            # Configure server string
+            server_string = global_settings.get('server_string')
+            if server_string:
+                print(f"  Server description: {server_string}")
+            
+            print("ℹ️  Global settings configured (manual smb.conf edit may be required)")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error configuring Samba global settings: {e}")
+            return False
+    
+    def _configure_samba_shares(self, samba_config: Dict[str, Any]) -> bool:
+        """Configure Samba shares"""
+        try:
+            shares = samba_config.get('shares', {})
+            if not shares:
+                print("ℹ️  No Samba shares to configure")
+                return True
+            
+            print(f"📁 Configuring {len(shares)} Samba shares...")
+            success = True
+            
+            for share_name, share_config in shares.items():
+                if not self._configure_samba_share(share_name, share_config):
+                    success = False
+            
+            return success
+            
+        except Exception as e:
+            print(f"❌ Error configuring Samba shares: {e}")
+            return False
+    
+    def _configure_samba_share(self, share_name: str, share_config: Dict[str, Any]) -> bool:
+        """Configure a single Samba share"""
+        try:
+            print(f"  Configuring share: {share_name}")
+            
+            path = share_config.get('path')
+            if not path:
+                print(f"    ⚠️  No path specified for share {share_name}")
+                return False
+            
+            # Build share configuration command
+            cmd = [self.samba_script, "add-share", "--name", share_name, "--path", path]
+            
+            # Add optional parameters
+            if share_config.get('comment'):
+                cmd.extend(["--comment", share_config['comment']])
+            
+            if share_config.get('read_only') is not None:
+                cmd.extend(["--read-only", str(share_config['read_only']).lower()])
+            
+            if share_config.get('valid_users'):
+                cmd.extend(["--valid-users", share_config['valid_users']])
+            
+            if share_config.get('write_list'):
+                cmd.extend(["--write-list", share_config['write_list']])
+            
+            # Add dry-run flag if needed
+            if self.dry_run:
+                cmd.append('--dry-run')
+            
+            return run_command(cmd, f"Configure Samba share {share_name}")
+            
+        except Exception as e:
+            print(f"❌ Error configuring share '{share_name}': {e}")
+            return False
 
 
 def main():

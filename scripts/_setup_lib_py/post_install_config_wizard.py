@@ -40,6 +40,20 @@ from post_install_standard_configuration_reader import (
     STANDARD_MODE_CONFIGS, STANDARD_SAMBA_CONFIG
 )
 
+# Import domain user validation and integration
+import subprocess
+import re
+from pathlib import Path
+
+# Domain user integration imports
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '2_post_install_config_steps'))
+try:
+    from wizard_domain_integration import WizardDomainIntegration
+    DOMAIN_INTEGRATION_AVAILABLE = True
+except ImportError:
+    print("ℹ️  Domain user integration not available (wizard_domain_integration.py not found)")
+    DOMAIN_INTEGRATION_AVAILABLE = False
+
 # Safety validation constants
 SAFE_PREFIXES = [
     '/var/shuttle/',
@@ -84,6 +98,18 @@ class ConfigWizard:
         
         # Load shuttle configuration to get actual paths
         self._load_shuttle_config()
+        
+        # Set config base path for domain integration
+        self.config_base_path = self._get_config_base_path()
+        
+        # Initialize domain user integration if available
+        self.domain_integration = None
+        if DOMAIN_INTEGRATION_AVAILABLE:
+            try:
+                self.domain_integration = WizardDomainIntegration(self)
+            except Exception as e:
+                print(f"⚠️  Failed to initialize domain integration: {e}")
+                self.domain_integration = None
     
     def _load_shuttle_config(self):
         """Load shuttle configuration to extract actual paths"""
@@ -136,6 +162,15 @@ class ConfigWizard:
         except Exception as e:
             print(f"ERROR: Failed to parse shuttle config: {e}")
             sys.exit(1)
+    
+    def _get_config_base_path(self):
+        """Get the base directory where shuttle config is stored"""
+        if self.shuttle_config_path:
+            # Extract directory from shuttle config file path
+            return os.path.dirname(os.path.abspath(self.shuttle_config_path))
+        else:
+            # Fallback to default if no shuttle config path
+            return '/etc/shuttle'
     
     # =============================================
     # UTILITY METHODS
@@ -1578,7 +1613,7 @@ class ConfigWizard:
         # Main custom mode loop
         while True:
             self._show_custom_menu()
-            choice = self._get_choice("Select action", ["1", "2", "3", "4", "5", "6", "d", "r", "s"], "1")
+            choice = self._get_choice("Select action", ["1", "2", "3", "4", "5", "6", "7", "d", "r", "s"], "1")
             print()  # Add spacing between response and next section
             
             if choice == "1":
@@ -1593,6 +1628,8 @@ class ConfigWizard:
                 self._custom_show_configuration()
             elif choice == "6":
                 self._custom_validate_configuration()
+            elif choice == "7":
+                self._custom_manage_domain_users()
             elif choice == "d":
                 # Delete configuration and return to main menu
                 if self._confirm("Delete custom configuration and return to main menu?", False):
@@ -1777,7 +1814,20 @@ class ConfigWizard:
             Number of users added
         """
         templates = self._get_user_templates_for_environment(standard)
-        return self._process_user_templates(templates, accept_defaults, allow_edit)
+        users_added = self._process_user_templates(templates, accept_defaults, allow_edit)
+        
+        # NEW: Domain user validation and configuration
+        if self.domain_integration and not accept_defaults:
+            print("\n🔍 Checking for domain user requirements...")
+            try:
+                domain_success = self.domain_integration.validate_and_configure_domain_users()
+                if not domain_success:
+                    print("⚠️  Domain user configuration incomplete")
+                    print("   Domain users may not be importable until configuration is completed")
+            except Exception as e:
+                print(f"⚠️  Domain validation failed: {e}")
+        
+        return users_added
     
     def _apply_mode_specific_defaults(self, mode):
         """
@@ -2294,6 +2344,7 @@ Current configuration:
 4) Configure Components
 5) Show Current Configuration
 6) Validate Configuration
+7) Domain User Configuration
 
 d) Delete Custom Configuration and return to main menu
 r) Reset Custom Configuration
@@ -3447,6 +3498,76 @@ b) Back to Main Custom Configuration Menu
         
         return len(errors) == 0
     
+    def _custom_manage_domain_users(self):
+        """Manage domain user configuration in custom mode"""
+        if not self.domain_integration:
+            print(f"\n{self._wrap_title('Domain User Configuration')}")
+            print("❌ Domain user integration is not available")
+            print("   This feature requires domain integration components")
+            input("\nPress Enter to continue...")
+            return
+        
+        while True:
+            print(f"\n{self._wrap_title('Domain User Configuration')}")
+            
+            # Show current domain user status
+            print("Current domain user status:")
+            try:
+                has_domain_users, domain_users = self.domain_integration.validator._detect_domain_users()
+                if has_domain_users:
+                    print(f"✅ Found {len(domain_users)} domain users:")
+                    for user in domain_users:
+                        print(f"   • {user}")
+                    
+                    config_exists, config_path = self.domain_integration.validator._check_domain_config()
+                    if config_exists:
+                        print(f"✅ Domain configuration: {config_path}")
+                        if self.domain_integration.validator._validate_domain_config_file(config_path):
+                            print("✅ Configuration is valid")
+                        else:
+                            print("⚠️  Configuration needs setup (contains placeholder)")
+                    else:
+                        print("❌ No domain configuration found")
+                else:
+                    print("ℹ️  No domain users detected")
+            except Exception as e:
+                print(f"❌ Error checking domain users: {e}")
+            
+            print("\nDomain User Actions:")
+            print("1) Detect domain users in configuration")
+            print("2) Create domain configuration template")
+            print("3) Test domain configuration")
+            print("4) Import specific domain user")
+            print("5) Validate domain setup")
+            print("6) Generate domain config interactively")
+            print("b) Back to main menu")
+            
+            choice = self._get_choice("Select action", ["1", "2", "3", "4", "5", "6", "b"], "1")
+            print()
+            
+            try:
+                if choice == "1":
+                    self.domain_integration._detect_and_report_domain_users()
+                elif choice == "2":
+                    self.domain_integration._create_domain_template_interactive()
+                elif choice == "3":
+                    self.domain_integration._test_domain_configuration_interactive()
+                elif choice == "4":
+                    self.domain_integration._import_domain_user_interactive()
+                elif choice == "5":
+                    self.domain_integration._validate_domain_setup_interactive()
+                elif choice == "6":
+                    self.domain_integration._configure_domain_import_interactive()
+                elif choice == "b":
+                    break
+                
+                if choice != "b":
+                    input("\nPress Enter to continue...")
+                    
+            except Exception as e:
+                print(f"❌ Domain operation failed: {e}")
+                input("\nPress Enter to continue...")
+    
     # =============================================
     # UNIFIED CONFIGURATION METHODS
     # =============================================
@@ -3617,6 +3738,11 @@ b) Back to Main Custom Configuration Menu
         if samba_install:
             samba_configure = self._confirm("  Configure Samba users and shares?", True)
             self._add_component_to_instructions('configure_samba', samba_configure)
+            
+            if samba_configure:
+                # Configure detailed Samba settings
+                if self._confirm("  Configure detailed Samba settings?", False):
+                    self._configure_samba_details_interactive()
         else:
             self._add_component_to_instructions('configure_samba', False)
         print("")
@@ -3631,6 +3757,11 @@ b) Back to Main Custom Configuration Menu
         print("🛡️ Security:")
         firewall_config = self._confirm("  Configure firewall settings?", firewall_default)
         self._add_component_to_instructions('configure_firewall', firewall_config)
+        
+        if firewall_config:
+            # Configure detailed firewall settings
+            if self._confirm("  Configure detailed firewall rules?", False):
+                self._configure_firewall_details_interactive()
         print("")
         
         # Always configure users/groups in all modes
@@ -3642,6 +3773,131 @@ b) Back to Main Custom Configuration Menu
             print(f"✅ {len(enabled_components)} components will be configured")
         else:
             print("⚠️  No additional components selected")
+    
+    def _configure_samba_details_interactive(self):
+        """Configure detailed Samba settings interactively"""
+        print(f"\n{self._wrap_title('Samba Configuration Details')}")
+        
+        # Import the configuration template
+        from post_install_standard_configuration_reader import get_standard_samba_config
+        samba_config = get_standard_samba_config()
+        
+        # Configure workgroup
+        workgroup = input(f"  Workgroup [{samba_config['global_settings']['workgroup']}]: ").strip()
+        if workgroup:
+            samba_config['global_settings']['workgroup'] = workgroup
+        
+        # Configure server description
+        server_string = input(f"  Server description [{samba_config['global_settings']['server_string']}]: ").strip()
+        if server_string:
+            samba_config['global_settings']['server_string'] = server_string
+        
+        # Configure shares
+        print("\n📁 Samba Shares:")
+        configure_shares = self._confirm("  Configure default shuttle shares?", True)
+        
+        if configure_shares:
+            # Configure inbound share
+            print("\n  Inbound Share (file submission):")
+            inbound_path = input(f"    Path [{samba_config['shares']['shuttle_inbound']['path']}]: ").strip()
+            if inbound_path:
+                samba_config['shares']['shuttle_inbound']['path'] = inbound_path
+            
+            # Configure outbound share
+            print("\n  Outbound Share (file retrieval):")
+            outbound_path = input(f"    Path [{samba_config['shares']['shuttle_outbound']['path']}]: ").strip()
+            if outbound_path:
+                samba_config['shares']['shuttle_outbound']['path'] = outbound_path
+        
+        # Save configuration to instructions
+        self.instructions['samba'] = samba_config
+        print("\n✅ Samba configuration saved")
+    
+    def _configure_firewall_details_interactive(self):
+        """Configure detailed firewall settings interactively"""
+        print(f"\n{self._wrap_title('Firewall Configuration Details')}")
+        
+        # Import the configuration template
+        from post_install_standard_configuration_reader import get_standard_firewall_config
+        firewall_config = get_standard_firewall_config()
+        
+        # Configure default policies
+        print("\n🛡️ Default Policies:")
+        default_incoming = self._get_choice(
+            "  Default incoming policy",
+            ['deny', 'allow', 'reject'],
+            firewall_config['default_policy']['incoming']
+        )
+        firewall_config['default_policy']['incoming'] = default_incoming
+        
+        # Configure logging
+        logging_level = self._get_choice(
+            "  Firewall logging level",
+            ['off', 'low', 'medium', 'high', 'full'],
+            firewall_config['logging']
+        )
+        firewall_config['logging'] = logging_level
+        
+        # Configure network topology
+        print("\n🌐 Network Topology:")
+        if self._confirm("  Configure management networks?", True):
+            self._configure_network_list(
+                firewall_config['network_topology'],
+                'management_networks',
+                'Management networks (SSH, admin access)'
+            )
+        
+        if self._confirm("  Configure client networks?", True):
+            self._configure_network_list(
+                firewall_config['network_topology'],
+                'client_networks', 
+                'Client networks (Samba access)'
+            )
+        
+        # Configure specific firewall rules
+        print("\n🔧 Firewall Rules:")
+        if self._confirm("  Restrict SSH to management networks?", True):
+            if firewall_config['network_topology']['management_networks']:
+                firewall_config['rules']['ssh_access']['sources'] = firewall_config['network_topology']['management_networks']
+            else:
+                print("    ⚠️  No management networks configured - SSH will remain open")
+        
+        if self._confirm("  Configure Samba access rules?", True):
+            if firewall_config['network_topology']['client_networks']:
+                firewall_config['rules']['samba_access']['sources'] = firewall_config['network_topology']['client_networks']
+            else:
+                print("    ⚠️  No client networks configured - Samba will be blocked")
+        
+        # Save configuration to instructions
+        self.instructions['firewall'] = firewall_config
+        print("\n✅ Firewall configuration saved")
+    
+    def _configure_network_list(self, config_dict, key, description):
+        """Configure a list of networks interactively"""
+        print(f"\n  {description}:")
+        networks = []
+        
+        while True:
+            network = input("    Enter network (CIDR format, e.g., 192.168.1.0/24): ").strip()
+            if not network:
+                break
+            
+            # Basic validation
+            if '/' in network or network == 'any':
+                networks.append(network)
+                print(f"    Added: {network}")
+            else:
+                print("    ⚠️  Use CIDR format (e.g., 192.168.1.0/24) or 'any'")
+                continue
+            
+            if not self._confirm("    Add another network?", False):
+                break
+        
+        config_dict[key] = networks
+        if networks:
+            print(f"    ✅ Configured {len(networks)} networks")
+        else:
+            print("    ℹ️  No networks configured")
     
     # =============================================
     # UNIFIED INSTRUCTION BUILDERS

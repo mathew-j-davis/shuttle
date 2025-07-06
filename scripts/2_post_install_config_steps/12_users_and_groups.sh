@@ -33,6 +33,8 @@ source "$SCRIPT_DIR/lib/_cmd_delete_acl_from_path.source.sh"
 source "$SCRIPT_DIR/lib/_cmd_show_path_owner_permissions_and_acl.source.sh"
 source "$SCRIPT_DIR/lib/_cmd_set_path_owner.source.sh"
 source "$SCRIPT_DIR/lib/_cmd_set_path_permissions.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_import_domain_user.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_generate_domain_config.source.sh"
 
 
 
@@ -174,6 +176,8 @@ User Management:
   list-users                  List users with filtering and formatting options
   show-user                   Display detailed information about a specific user
   list-user-groups            List all groups that a specific user belongs to
+  import-domain-user          Import domain user into local passwd (configurable)
+  generate-domain-config      Generate domain import configuration and setup files
 
 Group Management:
   add-group                   Create a new group
@@ -211,6 +215,12 @@ EXAMPLES:
   
   # Create a new user
   $SCRIPT_NAME add-user --user alice --home /home/alice
+  
+  # Import domain user
+  $SCRIPT_NAME import-domain-user --username alice.domain
+  
+  # Generate domain config templates
+  $SCRIPT_NAME generate-domain-config --output-dir /etc/shuttle --interactive
   
   # List all regular users
   $SCRIPT_NAME list-users --filter regular --format detailed
@@ -344,6 +354,12 @@ main() {
             ;;
         "delete-acl-from-path")
             cmd_delete_acl_from_path "$@"
+            ;;
+        "import-domain-user")
+            cmd_import_domain_user "$@"
+            ;;
+        "generate-domain-config")
+            cmd_generate_domain_config "$@"
             ;;
         "--help" | "-h" | "help")
             show_usage

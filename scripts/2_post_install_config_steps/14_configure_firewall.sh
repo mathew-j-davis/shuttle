@@ -12,10 +12,21 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 # Source required libraries - simple and direct
 source "$SCRIPT_DIR/_sources.sh"
 
+# Source all firewall command modules
 source "$SCRIPT_DIR/lib/_cmd_detect_firewall.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_enable_firewall.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_disable_firewall.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_list_firewall_rules.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_delete_firewall_rule.source.sh"
 source "$SCRIPT_DIR/lib/_cmd_allow_samba_from.source.sh"
 source "$SCRIPT_DIR/lib/_cmd_deny_samba_from.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_allow_service_from.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_deny_service_from.source.sh"
 source "$SCRIPT_DIR/lib/_cmd_list_samba_rules.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_list_service_rules.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_isolate_host.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_unisolate_host.source.sh"
+source "$SCRIPT_DIR/lib/_cmd_list_isolated_hosts.source.sh"
 source "$SCRIPT_DIR/lib/_cmd_show_status.source.sh"
 
 # Global variables
@@ -34,23 +45,28 @@ Tool for managing host-based firewall rules, focusing on Samba access control.
 
 COMMANDS:
 
+Firewall Management:
+  enable-firewall            Enable UFW firewall with security settings
+  disable-firewall           Disable UFW firewall (use with caution)
+  detect-firewall            Detect installed firewall type
+  show-status                Show firewall status and active rules
+  list-firewall-rules        List all firewall rules (various formats)
+  delete-firewall-rule       Delete specific firewall rules
+
 Samba Access Control:
   allow-samba-from           Allow Samba access from specific IP/network
   deny-samba-from            Deny Samba access from specific IP/network
   list-samba-rules           List current Samba firewall rules
-  clear-samba-rules          Remove all Samba firewall rules
 
-General Firewall:
-  detect-firewall            Detect installed firewall type
-  show-status                Show firewall status and active rules
-  enable-firewall            Enable firewall service
-  disable-firewall           Disable firewall service (use with caution)
+Service Access Control:
+  allow-service-from         Allow service access from specific sources
+  deny-service-from          Deny service access from specific sources
+  list-service-rules         List service-specific firewall rules
 
-Rule Management:
-  allow-port                 Allow access to specific port/service
-  deny-port                  Deny access to specific port/service
-  list-rules                 List all firewall rules
-  save-rules                 Save current rules (make persistent)
+Host Isolation:
+  isolate-host               Isolate host to specific services only
+  unisolate-host             Remove host isolation
+  list-isolated-hosts        List currently isolated hosts
 
 GLOBAL OPTIONS:
   --dry-run                  Show what would be done without making changes
@@ -135,6 +151,26 @@ main() {
     
     # Dispatch to appropriate command function
     case "$COMMAND" in
+        # Firewall Management
+        "enable-firewall")
+            cmd_enable_firewall "$@"
+            ;;
+        "disable-firewall")
+            cmd_disable_firewall "$@"
+            ;;
+        "detect-firewall")
+            cmd_detect_firewall "$@"
+            ;;
+        "show-status")
+            cmd_show_status "$@"
+            ;;
+        "list-firewall-rules")
+            cmd_list_firewall_rules "$@"
+            ;;
+        "delete-firewall-rule")
+            cmd_delete_firewall_rule "$@"
+            ;;
+        # Samba Access Control
         "allow-samba-from")
             cmd_allow_samba_from "$@"
             ;;
@@ -144,32 +180,25 @@ main() {
         "list-samba-rules")
             cmd_list_samba_rules "$@"
             ;;
-        "clear-samba-rules")
-            cmd_clear_samba_rules "$@"
+        # Service Access Control
+        "allow-service-from")
+            cmd_allow_service_from "$@"
             ;;
-        "detect-firewall")
-            cmd_detect_firewall "$@"
+        "deny-service-from")
+            cmd_deny_service_from "$@"
             ;;
-        "show-status")
-            cmd_show_status "$@"
+        "list-service-rules")
+            cmd_list_service_rules "$@"
             ;;
-        "enable-firewall")
-            cmd_enable_firewall "$@"
+        # Host Isolation
+        "isolate-host")
+            cmd_isolate_host "$@"
             ;;
-        "disable-firewall")
-            cmd_disable_firewall "$@"
+        "unisolate-host")
+            cmd_unisolate_host "$@"
             ;;
-        "allow-port")
-            cmd_allow_port "$@"
-            ;;
-        "deny-port")
-            cmd_deny_port "$@"
-            ;;
-        "list-rules")
-            cmd_list_rules "$@"
-            ;;
-        "save-rules")
-            cmd_save_rules "$@"
+        "list-isolated-hosts")
+            cmd_list_isolated_hosts "$@"
             ;;
         "--help" | "-h" | "help")
             show_usage

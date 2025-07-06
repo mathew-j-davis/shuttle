@@ -191,7 +191,67 @@ _BASE_COMPONENTS = {
 
 # Standard Samba configuration
 STANDARD_SAMBA_CONFIG = {
-    'enabled': True
+    'enabled': True,
+    'shares': {
+        'shuttle_inbound': {
+            'path': '/var/shuttle/source',
+            'comment': 'Shuttle inbound file submission',
+            'read_only': False,
+            'valid_users': '@shuttle_samba_in_users',
+            'write_list': '@shuttle_samba_in_users',
+            'create_mask': '0644',
+            'directory_mask': '0755',
+            'force_user': 'shuttle_runner',
+            'force_group': 'shuttle_data_owners'
+        },
+        'shuttle_outbound': {
+            'path': '/var/shuttle/destination',
+            'comment': 'Shuttle processed file retrieval',
+            'read_only': True,
+            'valid_users': '@shuttle_samba_out_users',
+            'create_mask': '0644',
+            'directory_mask': '0755'
+        }
+    },
+    'global_settings': {
+        'workgroup': 'WORKGROUP',
+        'server_string': 'Shuttle File Transfer Server',
+        'security': 'user',
+        'map_to_guest': 'Bad User',
+        'log_level': '1',
+        'max_log_size': '1000',
+        'encrypt_passwords': True,
+        'unix_password_sync': False
+    }
+}
+
+# Standard Firewall configuration
+STANDARD_FIREWALL_CONFIG = {
+    'enabled': True,
+    'default_policy': {
+        'incoming': 'deny',
+        'outgoing': 'allow'
+    },
+    'logging': 'low',
+    'rules': {
+        'ssh_access': {
+            'service': 'ssh',
+            'action': 'allow',
+            'sources': ['any'],  # Will be restricted in production
+            'comment': 'SSH administrative access'
+        },
+        'samba_access': {
+            'service': 'samba',
+            'action': 'allow',
+            'sources': [],  # To be configured based on network topology
+            'comment': 'Samba file sharing access'
+        }
+    },
+    'network_topology': {
+        'management_networks': [],  # e.g., ['10.10.5.0/24', '192.168.100.0/24']
+        'client_networks': [],      # e.g., ['192.168.1.0/24']
+        'isolated_hosts': []        # e.g., ['10.10.1.100', '10.10.1.101']
+    }
 }
 
 # Custom User Base Templates - For custom user creation
@@ -291,7 +351,9 @@ STANDARD_INSTRUCTION_TEMPLATE = {
         'backup_existing_users': True,
         'validate_before_apply': True
     },
-    'components': _BASE_COMPONENTS.copy()
+    'components': _BASE_COMPONENTS.copy(),
+    'samba': STANDARD_SAMBA_CONFIG.copy(),
+    'firewall': STANDARD_FIREWALL_CONFIG.copy()
     # Note: groups, users, paths are separate collections that become separate YAML documents
 }
 
@@ -302,6 +364,14 @@ def get_standard_groups():
 def get_development_admin_group():
     """Get a copy of just the development admin group"""
     return {'shuttle_admins': STANDARD_GROUPS['shuttle_admins'].copy()}
+
+def get_standard_samba_config():
+    """Get a copy of standard Samba configuration"""
+    return STANDARD_SAMBA_CONFIG.copy()
+
+def get_standard_firewall_config():
+    """Get a copy of standard firewall configuration"""
+    return STANDARD_FIREWALL_CONFIG.copy()
 
 # Note: get_standard_path_permissions() function removed
 # Use get_path_permission_base_templates()[environment]['templates'] instead
