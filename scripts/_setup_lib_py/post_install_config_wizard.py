@@ -1045,14 +1045,15 @@ class ConfigWizard:
             # Primary group reconciliation
             if current_primary != template_primary:
                 print(f"\n⚠️  Primary group mismatch!")
+                print(f"\nChoose how to handle primary group:")
+                print(f"1) Keep current system group: {current_primary}")
+                print(f"2) Use template group: {template_primary}")
+                print(f"3) Copy current to instructions: {current_primary}")
+                print(f"4) Choose new group")
+                
                 choice = self._get_choice(
-                    "How to handle primary group:",
-                    [
-                        ("1", "Keep current system group", current_primary),
-                        ("2", "Use template group", template_primary),
-                        ("3", "Copy current to instructions", current_primary),
-                        ("4", "Choose new group", None)
-                    ],
+                    "Select option",
+                    ["1", "2", "3", "4"],
                     "1"
                 )
                 
@@ -1075,14 +1076,15 @@ class ConfigWizard:
             template_set = set(template_secondary)
             if current_set != template_set:
                 print(f"\n⚠️  Secondary groups differ!")
+                print(f"\nChoose how to handle secondary groups:")
+                print(f"1) Keep current system groups: {', '.join(current_secondary) if current_secondary else 'None'}")
+                print(f"2) Use template groups: {', '.join(template_secondary) if template_secondary else 'None'}")
+                print(f"3) Copy current to instructions: {', '.join(current_secondary) if current_secondary else 'None'}")
+                print(f"4) Choose new groups")
+                
                 choice = self._get_choice(
-                    "How to handle secondary groups:",
-                    [
-                        ("1", "Keep current system groups", current_secondary),
-                        ("2", "Use template groups", template_secondary),
-                        ("3", "Copy current to instructions", current_secondary),
-                        ("4", "Choose new groups", None)
-                    ],
+                    "Select option",
+                    ["1", "2", "3", "4"],
                     "1"
                 )
                 
@@ -1137,14 +1139,15 @@ class ConfigWizard:
             
             if current_shell != template_shell:
                 print(f"\n⚠️  Shell mismatch!")
+                print(f"\nChoose how to handle shell:")
+                print(f"1) Keep current system shell: {current_shell}")
+                print(f"2) Use template shell: {template_shell}")
+                print(f"3) Copy current to instructions: {current_shell}")
+                print(f"4) Choose new shell")
+                
                 choice = self._get_choice(
-                    "How to handle shell:",
-                    [
-                        ("1", "Keep current system shell", current_shell),
-                        ("2", "Use template shell", template_shell),
-                        ("3", "Copy current to instructions", current_shell),
-                        ("4", "Choose new shell", None)
-                    ],
+                    "Select option",
+                    ["1", "2", "3", "4"],
                     "1"
                 )
                 
