@@ -137,30 +137,64 @@ class UserGroupManager:
         success = True
         
         # Set primary group if specified (None means use system default)
-        if 'primary' in groups_config and groups_config['primary'] is not None:
+        primary_group = groups_config.get('primary')
+        if primary_group and primary_group != '__NO_CHANGE__':
             cmd = [self.users_groups_script, "add-user-to-group", 
-                   "--user", user_name, "--group", groups_config['primary']]
+                   "--user", user_name, "--group", primary_group]
             if user['source'] == 'domain':
                 cmd.append("--domain")
             
-            if not run_command(cmd, f"Add '{user_name}' to primary group '{groups_config['primary']}'", 
+            if not run_command(cmd, f"Add '{user_name}' to primary group '{primary_group}'", 
                               self.dry_run):
                 print(f"Warning: Failed to add {user_name} to primary group")
                 success = False
+        elif primary_group == '__NO_CHANGE__':
+            print(f"  Skipping primary group change for '{user_name}' (marked as __NO_CHANGE__)")
         
-        # Add to secondary groups using comma-separated list for efficiency
+        # Handle secondary groups with special markers
         secondary_groups = groups_config.get('secondary', [])
         if secondary_groups:
-            # Use add-user with --groups parameter for multiple groups at once
-            groups_list = ','.join(secondary_groups)
-            cmd = [self.users_groups_script, "modify-user", 
-                   "--user", user_name, "--add-groups", groups_list]
-            if user['source'] == 'domain':
-                cmd.append("--domain")
-            
-            if not run_command(cmd, f"Add '{user_name}' to secondary groups: {groups_list}", self.dry_run):
-                print(f"Warning: Failed to add {user_name} to secondary groups")
-                success = False
+            # Check for special markers
+            if secondary_groups == ['__NO_CHANGE__']:
+                print(f"  Skipping secondary group changes for '{user_name}' (marked as __NO_CHANGE__)")
+            else:
+                # Process groups with __ADD_GROUP__ markers
+                groups_to_add = []
+                for group in secondary_groups:
+                    if group.startswith('__ADD_GROUP__'):
+                        # Extract group name from __ADD_GROUP__groupname
+                        actual_group = group.replace('__ADD_GROUP__', '')
+                        groups_to_add.append(actual_group)
+                    elif not group.startswith('__'):
+                        # Regular group (full replacement mode)
+                        groups_to_add.append(group)
+                
+                if groups_to_add:
+                    # Determine if this is additive or replacement mode
+                    is_additive = any(g.startswith('__ADD_GROUP__') for g in secondary_groups)
+                    
+                    if is_additive:
+                        # Add individual groups without removing existing ones
+                        for group in groups_to_add:
+                            cmd = [self.users_groups_script, "add-user-to-group", 
+                                   "--user", user_name, "--group", group]
+                            if user['source'] == 'domain':
+                                cmd.append("--domain")
+                            
+                            if not run_command(cmd, f"Add '{user_name}' to group '{group}'", self.dry_run):
+                                print(f"Warning: Failed to add {user_name} to group {group}")
+                                success = False
+                    else:
+                        # Replace all secondary groups (original behavior)
+                        groups_list = ','.join(groups_to_add)
+                        cmd = [self.users_groups_script, "modify-user", 
+                               "--user", user_name, "--add-groups", groups_list]
+                        if user['source'] == 'domain':
+                            cmd.append("--domain")
+                        
+                        if not run_command(cmd, f"Add '{user_name}' to secondary groups: {groups_list}", self.dry_run):
+                            print(f"Warning: Failed to add {user_name} to secondary groups")
+                            success = False
         
         return success
     

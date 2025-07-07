@@ -678,7 +678,8 @@ class ConfigWizard:
             print(f"✅ Updated {acl_type} default ACLs")
     
     def _select_multiple_groups(self, prompt: str, already_selected: List[str] = None,
-                               exclude_groups: List[str] = None, primary_group: str = None) -> List[str]:
+                               exclude_groups: List[str] = None, primary_group: str = None,
+                               available_groups_list: List[str] = None) -> List[str]:
         """
         Enhanced multiple group selection with add/remove capability
         
@@ -689,7 +690,12 @@ class ConfigWizard:
         
         while True:
             # Build combined menu with selected groups (removable) and available groups (addable)
-            all_groups = self._get_all_available_groups()
+            if available_groups_list:
+                # Use specific list of groups (e.g., current user's groups for removal)
+                all_groups = {name: {'description': f'Current user group'} for name in available_groups_list}
+            else:
+                # Use all available groups
+                all_groups = self._get_all_available_groups()
             
             # Apply exclusions
             excluded_set = set(exclude_groups) if exclude_groups else set()
@@ -732,22 +738,23 @@ class ConfigWizard:
                     'value': 'SELECT_ALL'
                 })
             
-            # Sort: standard first, then custom
-            standard_groups = [(k, v) for k, v in available_groups.items() if v['source'] == 'standard']
-            custom_groups = [(k, v) for k, v in available_groups.items() if v['source'] == 'custom']
-            all_sorted = sorted(standard_groups) + sorted(custom_groups)
+            # Sort: standard first, then custom (handle groups without 'source' field)
+            standard_groups = [(k, v) for k, v in available_groups.items() if v.get('source') == 'standard']
+            custom_groups = [(k, v) for k, v in available_groups.items() if v.get('source') == 'custom']
+            other_groups = [(k, v) for k, v in available_groups.items() if 'source' not in v]
+            all_sorted = sorted(standard_groups) + sorted(custom_groups) + sorted(other_groups)
             
             # Add available groups
             for i, (group_name, group_data) in enumerate(all_sorted, 1):
                 # Build label with status indicator
                 label = group_name
-                if group_data['in_instructions']:
+                if group_data.get('in_instructions'):
                     label += " ✓"  # In instructions
-                else:
+                elif 'in_instructions' in group_data:
                     label += " ○"  # Available but not in instructions
                 
                 # Add description
-                if group_data['description']:
+                if group_data.get('description'):
                     label += f" - {group_data['description']}"
                 
                 menu_items.append({
@@ -1042,14 +1049,17 @@ class ConfigWizard:
             print(f"Template primary group: {template_primary}")
             print(f"Template secondary groups: {', '.join(template_secondary) if template_secondary else 'None'}")
             
-            # Primary group reconciliation
+            # Primary group configuration
+            print(f"\n🔑 Primary Group Configuration")
+            print(f"Current system group: {current_primary}")
+            print(f"Template group: {template_primary}")
+            
             if current_primary != template_primary:
-                print(f"\n⚠️  Primary group mismatch!")
                 print(f"\nChoose how to handle primary group:")
-                print(f"1) Keep current system group: {current_primary}")
-                print(f"2) Use template group: {template_primary}")
-                print(f"3) Copy current to instructions: {current_primary}")
-                print(f"4) Choose new group")
+                print(f"1) Don't change primary group (instructions will not modify primary group)")
+                print(f"2) Set primary group to: {template_primary} (instructions will change primary group)")
+                print(f"3) Copy current to template (saves current group for reuse in wizard)")
+                print(f"4) Choose different group (instructions will set to chosen group)")
                 
                 choice = self._get_choice(
                     "Select option",
@@ -1058,50 +1068,98 @@ class ConfigWizard:
                 )
                 
                 if choice == "1":
-                    # Remove from instructions (keep current)
-                    template_groups['primary'] = None
+                    # Don't change - store special marker
+                    template_groups['primary'] = '__NO_CHANGE__'
                 elif choice == "2":
-                    # Keep template value (no change)
-                    pass
+                    # Set to template group
+                    template_groups['primary'] = template_primary
                 elif choice == "3":
-                    # Copy current to instructions
+                    # Copy current to template
                     template_groups['primary'] = current_primary
                 elif choice == "4":
                     # Choose new value
                     new_primary = self._select_group_from_list("Select new primary group:")
                     template_groups['primary'] = new_primary
-            
-            # Secondary groups reconciliation
-            current_set = set(current_secondary)
-            template_set = set(template_secondary)
-            if current_set != template_set:
-                print(f"\n⚠️  Secondary groups differ!")
-                print(f"\nChoose how to handle secondary groups:")
-                print(f"1) Keep current system groups: {', '.join(current_secondary) if current_secondary else 'None'}")
-                print(f"2) Use template groups: {', '.join(template_secondary) if template_secondary else 'None'}")
-                print(f"3) Copy current to instructions: {', '.join(current_secondary) if current_secondary else 'None'}")
-                print(f"4) Choose new groups")
+            else:
+                # Groups match, but still ask what to do
+                print(f"\nPrimary groups match. Choose action:")
+                print(f"1) Don't change primary group (instructions will not modify primary group)")
+                print(f"2) Keep current configuration (instructions will set primary group)")
                 
                 choice = self._get_choice(
                     "Select option",
-                    ["1", "2", "3", "4"],
+                    ["1", "2"],
                     "1"
                 )
                 
                 if choice == "1":
-                    template_groups['secondary'] = []
+                    # Don't change - store special marker
+                    template_groups['primary'] = '__NO_CHANGE__'
                 elif choice == "2":
-                    pass
-                elif choice == "3":
-                    template_groups['secondary'] = current_secondary
-                elif choice == "4":
-                    new_secondary = self._select_multiple_groups(
-                        "Select secondary groups:",
-                        already_selected=template_secondary,
-                        exclude_groups=[template_primary] if template_primary else [],
-                        primary_group=template_primary
-                    )
-                    template_groups['secondary'] = new_secondary
+                    # Set to current group (they match)
+                    template_groups['primary'] = current_primary
+            
+            # Secondary groups configuration
+            print(f"\n📝 Secondary Groups Configuration")
+            print(f"Current system groups: {', '.join(current_secondary) if current_secondary else 'None'}")
+            print(f"Template groups: {', '.join(template_secondary) if template_secondary else 'None'}")
+            
+            print(f"\nChoose how to handle secondary groups:")
+            print(f"1) Don't change secondary groups (instructions will not modify secondary groups)")
+            print(f"2) Add groups to user (instructions will add specified groups to user)")
+            print(f"3) Remove groups from user (instructions will remove specified groups from user) [DISABLED FOR SAFETY]")
+            print(f"4) Set complete group list (instructions will replace all secondary groups)")
+            print(f"5) Choose complete group list (instructions will set to chosen groups)")
+            print(f"6) Copy current to template (saves current groups for reuse in wizard)")
+            
+            choice = self._get_choice(
+                "Select option",
+                ["1", "2", "3", "4", "5", "6"],
+                "1"
+            )
+                
+            if choice == "1":
+                # Leave groups untouched - store special marker
+                template_groups['secondary'] = ['__NO_CHANGE__']
+            elif choice == "2":
+                # Add specific groups
+                groups_to_add = self._select_multiple_groups(
+                    "Select groups to ADD to current groups:",
+                    already_selected=[],
+                    exclude_groups=current_secondary + ([template_primary] if template_primary else []),
+                    primary_group=template_primary
+                )
+                if groups_to_add:
+                    template_groups['secondary'] = [f'__ADD_GROUP__{g}' for g in groups_to_add]
+                else:
+                    template_groups['secondary'] = ['__NO_CHANGE__']
+            elif choice == "3":
+                # Show safety message for remove groups
+                print(f"\n⚠️  SAFETY NOTICE: Removing groups from users via instructions is not implemented")
+                print(f"    in the wizard for safety reasons.")
+                print(f"")
+                print(f"    To remove groups from a user, use the direct command after installation:")
+                print(f"")
+                print(f"    ./scripts/2_post_install_config_steps/12_users_and_groups.sh delete-user-from-group --help")
+                print(f"")
+                input("Press Enter to continue...")
+                # Fallback to no change
+                template_groups['secondary'] = ['__NO_CHANGE__']
+            elif choice == "4":
+                # Replace with template groups
+                template_groups['secondary'] = template_secondary
+            elif choice == "5":
+                # Replace with custom selection
+                new_secondary = self._select_multiple_groups(
+                    "Select all secondary groups (replaces current):",
+                    already_selected=template_secondary,
+                    exclude_groups=[template_primary] if template_primary else [],
+                    primary_group=template_primary
+                )
+                template_groups['secondary'] = new_secondary
+            elif choice == "6":
+                # Copy current to template
+                template_groups['secondary'] = current_secondary
         else:
             # No current user info - standard template editing
             print(f"\n=== Group Configuration ===")
