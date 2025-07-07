@@ -1033,8 +1033,8 @@ class ConfigWizard:
         template_secondary = template_groups.get('secondary', [])
         
         if current_user_info:
-            current_primary = current_user_info['primary_group']
-            current_secondary = current_user_info['secondary_groups']
+            current_primary = current_user_info['groups']['primary']
+            current_secondary = current_user_info['groups']['secondary']
             
             print(f"\n=== Group Configuration ===")
             print(f"Current system primary group: {current_primary}")
