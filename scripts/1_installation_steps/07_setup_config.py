@@ -47,6 +47,14 @@ def parse_arguments():
     parser.add_argument('--defender-handles-suspect-files', action='store_true', default=True, help='Let Microsoft Defender handle suspect files')
     parser.add_argument('--no-defender-handles-suspect-files', action='store_false', dest='defender_handles_suspect_files', help='Don\'t let Defender handle suspect files')
     
+    # Malware scan timeout configuration
+    parser.add_argument('--malware-scan-timeout-seconds', type=int, default=300, 
+                        help='Timeout for malware scans in seconds (default: 300, 0 = no timeout)')
+    parser.add_argument('--malware-scan-retry-wait-seconds', type=int, default=30,
+                        help='Wait time between scan retries in seconds (default: 30, 0 = no wait)')
+    parser.add_argument('--malware-scan-retry-count', type=int, default=3,
+                        help='Maximum scan timeouts before shutdown (default: 3, 0 = unlimited)')
+    
     # File processing options
     parser.add_argument('--delete-source-files-after-copying', action='store_true', default=True, help='Delete source files after copying')
     parser.add_argument('--no-delete-source-files-after-copying', action='store_false', dest='delete_source_files_after_copying', help='Keep source files after copying')
@@ -138,6 +146,12 @@ def create_config_file(config_path, args, paths, config_dir):
 
     config['logging'] = {
             'log_level': args.log_level
+        }
+
+    config['scanning'] = {
+            'malware_scan_timeout_seconds': str(args.malware_scan_timeout_seconds),
+            'malware_scan_retry_wait_seconds': str(args.malware_scan_retry_wait_seconds),
+            'malware_scan_retry_count': str(args.malware_scan_retry_count)
         }
 
     config['notification'] = {
@@ -254,6 +268,13 @@ def create_test_config_file(test_config_path, config_dir):
     # Logging settings
     test_config['logging'] = {
         'log_level': 'INFO'
+    }
+    
+    # Scanning settings for tests - shorter timeouts
+    test_config['scanning'] = {
+        'malware_scan_timeout_seconds': '30',  # Shorter timeout for tests
+        'malware_scan_retry_wait_seconds': '5',  # Quick retries for tests
+        'malware_scan_retry_count': '2'  # Fewer retries for tests
     }
     
     # Notifications disabled

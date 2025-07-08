@@ -13,6 +13,11 @@ from typing import List, Callable, Any, Optional
 from . import files
 from .logger_injection import get_logger
 
+# Custom exceptions
+class ScanTimeoutError(Exception):
+    """Raised when a malware scan times out"""
+    pass
+
 # Define commands for real defender and simulator
 REAL_DEFENDER_COMMAND = "mdatp"
 DEFENDER_COMMAND = "mdatp"
@@ -157,7 +162,7 @@ def get_mdatp_version() -> Optional[str]:
         return None
 
 
-def run_malware_scan(cmd, path, result_handler):
+def run_malware_scan(cmd, path, result_handler, timeout_seconds=None):
     """
     Run a malware scan using the specified command and process the results.
     SECURITY NOTE: This function executes external commands. Only use with trusted,
@@ -167,9 +172,13 @@ def run_malware_scan(cmd, path, result_handler):
         cmd (list): Command to run as a list of strings (not shell string)
         path (str): Path to file being scanned
         result_handler (callable): Function to process scan results
+        timeout_seconds (int, optional): Timeout in seconds (None for no timeout)
         
     Returns:
         int: scan_result_types value
+        
+    Raises:
+        ScanTimeoutError: If scan times out
     """
     logger = get_logger()
     
@@ -190,12 +199,19 @@ def run_malware_scan(cmd, path, result_handler):
         logger.info(f"Scanning file {path} for malware...")
         
         start_time = time.time()
-        result = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            check=False
-        )
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=timeout_seconds
+            )
+        except subprocess.TimeoutExpired:
+            scan_time = time.time() - start_time
+            logger.error(f"Scan timed out after {timeout_seconds} seconds for {path} (actual time: {scan_time:.2f}s)")
+            raise ScanTimeoutError(f"Scan timed out for {path}")
+            
         scan_time = time.time() - start_time
         
         logger.debug(f"Scan completed in {scan_time:.2f} seconds")
@@ -204,6 +220,9 @@ def run_malware_scan(cmd, path, result_handler):
         
         return result_handler(result.returncode, result.stdout)
         
+    except ScanTimeoutError:
+        # Re-raise timeout errors so they can be handled by retry logic
+        raise
     except Exception as e:
         logger.error(f"Exception during malware scan: {e}")
         return scan_result_types.FILE_SCAN_FAILED
@@ -245,18 +264,17 @@ def parse_defender_scan_result(returncode, output):
     return scan_result_types.FILE_SCAN_FAILED
 
 
-def scan_for_malware_using_defender(path):
-    """Scan a file using Microsoft Defender.
+def scan_for_malware_using_defender(path, config=None):
+    """
+    Scan a file using Microsoft Defender with retry logic for timeouts.
     
     Args:
         path (str): Path to the file to scan
-            
+        config: CommonConfig object with timeout settings
+        
     Returns:
-        The result from the handler function
+        Scan result or raises ScanTimeoutError after all retries
     """
-
-    # path appended to cmd after safety check in run_malware_scan
-    
     cmd = [
         DEFENDER_COMMAND,
         "scan",
@@ -264,8 +282,41 @@ def scan_for_malware_using_defender(path):
         "--ignore-exclusions",
         "--path"
     ]
-
-    return run_malware_scan(cmd, path, parse_defender_scan_result)
+    
+    # Get timeout settings from config (config defaults are already set in CommonConfig)
+    timeout = config.malware_scan_timeout_seconds if config else 300
+    retry_wait = config.malware_scan_retry_wait_seconds if config else 30
+    retry_count = config.malware_scan_retry_count if config else 3
+    
+    logger = get_logger()
+    
+    # Handle special cases for zero values
+    if timeout == 0:
+        timeout = None  # No timeout
+        
+    # If retry_count is 0, use unlimited retries
+    attempt = 0
+    while True:
+        try:
+            return run_malware_scan(cmd, path, parse_defender_scan_result, timeout)
+        except ScanTimeoutError:
+            attempt += 1
+            
+            # Check if we should retry
+            if retry_count > 0 and attempt >= retry_count:
+                logger.error(f"Defender scan timeout after {retry_count} attempts for {path}")
+                raise
+            
+            # Log retry attempt
+            if retry_count > 0:
+                logger.warning(f"Defender scan timeout on attempt {attempt}/{retry_count} for {path}")
+            else:
+                logger.warning(f"Defender scan timeout on attempt {attempt} (unlimited retries) for {path}")
+            
+            # Wait before retry (unless wait time is 0)
+            if retry_wait > 0:
+                logger.debug(f"Waiting {retry_wait}s before retry")
+                time.sleep(retry_wait)
 
 def handle_clamav_scan_result(returncode, output):
     """
@@ -301,18 +352,53 @@ def handle_clamav_scan_result(returncode, output):
     return scan_result_types.FILE_SCAN_FAILED
 
 
-def scan_for_malware_using_clam_av(path):
-    """Scan a file using ClamAV.
+def scan_for_malware_using_clam_av(path, config=None):
+    """
+    Scan a file using ClamAV with retry logic for timeouts.
     
     Args:
         path (str): Path to the file to scan
+        config: CommonConfig object with timeout settings
         
     Returns:
-        The result from the handler function
+        Scan result or raises ScanTimeoutError after all retries
     """
-    # path appended to cmd after safety check in run_malware_scan
     cmd = [
         "clamdscan",
         "--fdpass"  # temp until permissions issues resolved
     ]
-    return run_malware_scan(cmd, path, handle_clamav_scan_result)
+    
+    # Get timeout settings from config (config defaults are already set in CommonConfig)
+    timeout = config.malware_scan_timeout_seconds if config else 300
+    retry_wait = config.malware_scan_retry_wait_seconds if config else 30
+    retry_count = config.malware_scan_retry_count if config else 3
+    
+    logger = get_logger()
+    
+    # Handle special cases for zero values
+    if timeout == 0:
+        timeout = None  # No timeout
+        
+    # If retry_count is 0, use unlimited retries
+    attempt = 0
+    while True:
+        try:
+            return run_malware_scan(cmd, path, handle_clamav_scan_result, timeout)
+        except ScanTimeoutError:
+            attempt += 1
+            
+            # Check if we should retry
+            if retry_count > 0 and attempt >= retry_count:
+                logger.error(f"ClamAV scan timeout after {retry_count} attempts for {path}")
+                raise
+            
+            # Log retry attempt
+            if retry_count > 0:
+                logger.warning(f"ClamAV scan timeout on attempt {attempt}/{retry_count} for {path}")
+            else:
+                logger.warning(f"ClamAV scan timeout on attempt {attempt} (unlimited retries) for {path}")
+            
+            # Wait before retry (unless wait time is 0)
+            if retry_wait > 0:
+                logger.debug(f"Waiting {retry_wait}s before retry")
+                time.sleep(retry_wait)

@@ -29,12 +29,22 @@ from .post_scan_processing import (
     handle_suspect_scan_result
 )
 
+# Timeout result class
+class ScanTimeoutResult:
+    """Result object for scan timeout"""
+    def __init__(self, quarantine_path, source_path):
+        self.quarantine_path = quarantine_path
+        self.source_path = source_path
+        self.is_timeout = True
+        self.is_suspect = False  # Treat timeouts as failures, not suspects
+
 # Import scan utilities from common module
 from shuttle_common.scan_utils import (
     scan_for_malware_using_defender,
     run_malware_scan,
     scan_result_types,
     handle_clamav_scan_result,
+    ScanTimeoutError,
     scan_for_malware_using_clam_av,
     DefenderScanResult,
     process_defender_result,
@@ -59,7 +69,8 @@ def scan_and_process_file(
         delete_source_files, 
         on_demand_defender, 
         on_demand_clam_av, 
-        defender_handles_suspect_files
+        defender_handles_suspect_files,
+        config=None
     ):
     """
     Scan a file for malware and process it accordingly.
@@ -108,31 +119,43 @@ def scan_and_process_file(
     if on_demand_defender:
         # Scan the file for malware
         logger.info(f"Scanning file {quarantine_file_path} for malware...")
-        defender_result = scan_for_malware_using_defender(quarantine_file_path)
-        
-        # Process the scan result with our helper
-        scan_result = process_defender_result(
-            defender_result,
-            quarantine_file_path,
-            defender_handles_suspect_files
-        )
-        
-        # Update our status flags based on the scan result
-        suspect_file_detected = scan_result.suspect_detected
-        scanner_handling_suspect_file = scan_result.scanner_handles_suspect
-        
-        # Return early if scan failed (not completed) and no threat detected
-        # This happens when file is not found and we're not letting defender handle it
-        if not scan_result.scan_completed and not scan_result.suspect_detected:
-            return False
+        try:
+            defender_result = scan_for_malware_using_defender(quarantine_file_path, config)
+            
+            # Process the scan result with our helper
+            scan_result = process_defender_result(
+                defender_result,
+                quarantine_file_path,
+                defender_handles_suspect_files
+            )
+            
+            # Update our status flags based on the scan result
+            suspect_file_detected = scan_result.suspect_detected
+            scanner_handling_suspect_file = scan_result.scanner_handles_suspect
+            
+            # Return early if scan failed (not completed) and no threat detected
+            # This happens when file is not found and we're not letting defender handle it
+            if not scan_result.scan_completed and not scan_result.suspect_detected:
+                return False
+                
+        except ScanTimeoutError:
+            # Treat timeout as scan failure
+            logger.error(f"Defender scan timed out for {quarantine_file_path}")
+            return ScanTimeoutResult(quarantine_file_path, source_file_path)
 
         
     if ((not suspect_file_detected) and on_demand_clam_av):
-        clam_av_result = scan_for_malware_using_clam_av(quarantine_file_path)
+        try:
+            clam_av_result = scan_for_malware_using_clam_av(quarantine_file_path, config)
 
-        if clam_av_result == scan_result_types.FILE_IS_SUSPECT:
-            suspect_file_detected = True
-            logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
+            if clam_av_result == scan_result_types.FILE_IS_SUSPECT:
+                suspect_file_detected = True
+                logger.warning(f"Threats found in {quarantine_file_path}, handling internally")
+                
+        except ScanTimeoutError:
+            # Treat timeout as scan failure
+            logger.error(f"ClamAV scan timed out for {quarantine_file_path}")
+            return ScanTimeoutResult(quarantine_file_path, source_file_path)
 
 
 
@@ -163,7 +186,7 @@ def scan_and_process_file(
         logger.warning(f"Scan failed on {quarantine_file_path}")
         return False
 
-def call_scan_and_process_file(file_paths, hazard_key_path, hazard_path, delete_source, use_defender, use_clamav, defender_handles_suspect):
+def call_scan_and_process_file(file_paths, hazard_key_path, hazard_path, delete_source, use_defender, use_clamav, defender_handles_suspect, config=None):
     """
     Wrapper function for parallel scanning to avoid using lambdas which can't be pickled
     """
@@ -174,7 +197,8 @@ def call_scan_and_process_file(file_paths, hazard_key_path, hazard_path, delete_
             delete_source, 
             use_defender, 
             use_clamav, 
-            defender_handles_suspect
+            defender_handles_suspect,
+            config
         )
 
 def log_processing_progress(processed_count, total_files):
@@ -205,7 +229,7 @@ def log_final_status(mode, processed_count, failed_count):
     logger.info(f"{mode} processing completed: {processed_count} files processed, "
                 f"{failed_count} failures, {success_count} successes")
                 
-def process_task_result(task_result, file_data, results, processed_count, failed_count, total_files, logger, daily_processing_tracker=None):
+def process_task_result(task_result, file_data, results, processed_count, failed_count, total_files, logger, daily_processing_tracker=None, timeout_count=0):
     """
     Process a task result, handle errors, and update counters
     
@@ -220,7 +244,7 @@ def process_task_result(task_result, file_data, results, processed_count, failed
         daily_processing_tracker: Optional DailyProcessingTracker to update
     
     Returns:
-        tuple: Updated (processed_count, failed_count)
+        tuple: Updated (processed_count, failed_count, timeout_count)
     """
 
     logger = get_logger()
@@ -230,7 +254,26 @@ def process_task_result(task_result, file_data, results, processed_count, failed
     
     processed_count += 1
     
-    if isinstance(task_result, Exception):
+    # Check for timeout result first
+    if hasattr(task_result, 'is_timeout') and task_result.is_timeout:
+        timeout_count += 1
+        failed_count += 1
+        logger.error(f"Scan timeout for file {file_path}")
+        results.append(task_result)  # Keep timeout result for cleanup
+        
+        # Mark as failed in tracker
+        if daily_processing_tracker is not None:
+            try:
+                daily_processing_tracker.complete_pending_file(
+                    relative_file_path=relative_file_path,
+                    outcome='failed',
+                    error='Scan timeout'
+                )
+                logger.debug(f"Marked timeout file as failed in daily processing tracker: {file_path}")
+            except Exception as e:
+                logger.warning(f"Failed to mark timeout file as failed in tracker: {e}")
+                
+    elif isinstance(task_result, Exception):
         # Handle errors for individual tasks without failing everything
         failed_count += 1
         logger.error(f"Error processing file {file_path}: {task_result}")
@@ -267,7 +310,7 @@ def process_task_result(task_result, file_data, results, processed_count, failed
     # Log progress periodically
     log_processing_progress(processed_count, total_files)
     
-    return processed_count, failed_count
+    return processed_count, failed_count, timeout_count
 
 def quarantine_files_for_scanning(source_path, quarantine_path, destination_path, hazard_archive_path, throttle, throttle_free_space_mb, throttle_max_file_count_per_day=0, throttle_max_file_volume_per_day_mb=0, daily_processing_tracker=None, notifier=None, skip_stability_check=False):
     """
@@ -447,51 +490,114 @@ def send_summary_notification(notifier, source_path, destination_path, successfu
     logger.info(f"Sent summary notification: {failed_files} failed, {successful_files} successful")
 
 
-def clean_up_source_files(quarantine_files, results, source_path, delete_source_files):
+def cleanup_after_processing(quarantine_files, results, source_path, delete_source_files, quarantine_path, is_timeout_shutdown=False):
     """
-    Clean up empty source directories after successful file transfers.
+    Unified cleanup for both normal completion and timeout shutdown scenarios.
+    
+    Comprehensive cleanup operations:
+    1. Remove source files based on processing results
+    2. Clean quarantine directory  
+    3. Remove empty source directories
     
     Args:
-        quarantine_files: List of file transfer tuples (quarantine_path, source_path, destination_path)
-        results: List of task results (True/False for each file)
+        quarantine_files: List of file transfer tuples (quarantine_path, source_path, destination_path, hash, rel_path)
+        results: List of task results (True/False/result objects for each file)
         source_path: Original source path (root directory)
         delete_source_files: Flag indicating if source cleanup is enabled
-        options
+        quarantine_path: Path to quarantine directory to clean
+        is_timeout_shutdown: Whether this is cleanup after timeout shutdown (affects logging)
     """
-    if not delete_source_files:
-        return
-        
     logger = get_logger()
-    directories_to_remove = []
-
-    # Collect directories that might be empty after file transfers
-    for counter, file_transfer in enumerate(quarantine_files):
-        if counter >= len(results):
-            break
-
-        # Only consider successful transfers
-        if results[counter]:
-            source_file_dir = os.path.dirname(quarantine_files[counter][1])  # source_file_path
-
-            # Skip the root source directory
-            if normalize_path(source_file_dir) == normalize_path(source_path):
-                continue
-
-            # Add directory to removal list if not already present and it exists
-            if not source_file_dir in directories_to_remove and os.path.exists(source_file_dir):
-                directories_to_remove.append(source_file_dir)
     
-    # Remove empty directories
-    for directory_to_remove in directories_to_remove:
-        # Only remove if directory is empty
-        if len(os.listdir(directory_to_remove)) == 0:
-            if not remove_directory(directory_to_remove):
-                logger.error(f"Could not remove directory during cleanup: {directory_to_remove}")
-            else:
-                logger.info(f"Directory removed during cleanup: {directory_to_remove}")
+    if is_timeout_shutdown:
+        logger.info("Starting cleanup after timeout shutdown")
+    else:
+        logger.debug("Starting normal cleanup after processing")
+    
+    # 1. Remove source files based on processing results
+    if delete_source_files:
+        for i, (q_path, s_path, d_path, file_hash, rel_path) in enumerate(quarantine_files):
+            if i >= len(results):
+                # File was never processed - leave source intact
+                logger.debug(f"File never processed: {s_path}")
+                continue
+                
+            result = results[i]
+            
+            if result is True:
+                # Successfully moved to destination
+                try:
+                    if os.path.exists(s_path):
+                        os.remove(s_path)
+                        logger.info(f"Removed source file after successful transfer: {s_path}")
+                except Exception as e:
+                    logger.error(f"Failed to remove source file {s_path}: {e}")
+                    
+            elif hasattr(result, 'is_suspect') and result.is_suspect:
+                # File was moved to hazard - ensure source is removed
+                try:
+                    if os.path.exists(s_path):
+                        os.remove(s_path)
+                        logger.info(f"Removed source file after hazard detection: {s_path}")
+                except Exception as e:
+                    logger.error(f"Failed to remove hazard source {s_path}: {e}")
+                    
+            elif hasattr(result, 'is_timeout') and result.is_timeout:
+                # Timeout occurred - leave source file intact (safe default)
+                if is_timeout_shutdown:
+                    logger.info(f"Timeout occurred for {s_path}, leaving source file intact")
+                else:
+                    logger.debug(f"Timeout result for {s_path}, leaving source file intact")
+            
+            # For other failure cases (result is None, False, etc.), leave source intact
+    
+    # 2. Clean quarantine directory
+    try:
+        from shuttle_common.files import remove_directory_contents
+        remove_directory_contents(quarantine_path)
+        if is_timeout_shutdown:
+            logger.info("Cleaned quarantine directory after timeout shutdown")
+        else:
+            logger.debug("Cleaned quarantine directory after normal processing")
+    except Exception as e:
+        logger.error(f"Failed to clean quarantine directory: {e}")
+    
+    # 3. Remove empty source directories (original clean_up_source_files logic)
+    if delete_source_files:
+        directories_to_remove = []
+        
+        # Collect directories that might be empty after file transfers
+        for counter, file_transfer in enumerate(quarantine_files):
+            if counter >= len(results):
+                break
+
+            # Only consider successful transfers
+            if results[counter] is True:
+                source_file_dir = os.path.dirname(quarantine_files[counter][1])  # source_file_path
+
+                # Skip the root source directory
+                if normalize_path(source_file_dir) == normalize_path(source_path):
+                    continue
+
+                # Add directory to removal list if not already present and it exists
+                if source_file_dir not in directories_to_remove and os.path.exists(source_file_dir):
+                    directories_to_remove.append(source_file_dir)
+        
+        # Remove empty directories
+        for directory_to_remove in directories_to_remove:
+            try:
+                # Only remove if directory is empty
+                if len(os.listdir(directory_to_remove)) == 0:
+                    if not remove_directory(directory_to_remove):
+                        logger.error(f"Could not remove directory during cleanup: {directory_to_remove}")
+                    else:
+                        logger.info(f"Directory removed during cleanup: {directory_to_remove}")
+            except Exception as e:
+                logger.warning(f"Error checking/removing directory {directory_to_remove}: {e}")
 
 
-def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=None):
+
+def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=None, config=None):
     """
     Process a list of scan tasks either sequentially or in parallel based on max_scan_threads.
     
@@ -501,15 +607,23 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
         options
         
     Returns:
-        tuple: (results, successful_files, failed_files)
+        tuple: (results, successful_files, failed_files, timeout_shutdown)
             - results: List of task results (True/False for each file)
             - successful_files: Count of successfully processed files
             - failed_files: Count of files that failed processing
+            - timeout_shutdown: Whether processing was stopped due to timeouts
     """
     results = []
     total_files = len(scan_tasks)
     processed_count = 0
     failed_count = 0
+    timeout_count = 0
+    timeout_shutdown = False
+    
+    # Get max timeouts from config (0 means unlimited, so set high number)
+    max_timeouts = config.malware_scan_retry_count if config else 3
+    if max_timeouts == 0:
+        max_timeouts = float('inf')  # Unlimited retries means no shutdown
     
     logger = get_logger()
     
@@ -522,7 +636,7 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
                 # Submit all tasks and track them with their source file
                 futures_to_files = {}
                 for task in scan_tasks:
-                    future = executor.submit(call_scan_and_process_file, *task)
+                    future = executor.submit(call_scan_and_process_file, *task, config)
                     futures_to_files[future] = task[0]  # Map future to its source file
                 
                 # Process results as they complete (not in submission order)
@@ -532,14 +646,79 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
                     try:
                         # Get the result (or raises exception if the task failed)
                         result = future.result()
-                        processed_count, failed_count = process_task_result(
-                            result, file_path, results, processed_count, failed_count, total_files, logger, daily_processing_tracker
+                        processed_count, failed_count, timeout_count = process_task_result(
+                            result, file_path, results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
                         )
                     except Exception as task_error:
                         # For exceptions from future.result(), pass the exception to the processor
-                        processed_count, failed_count = process_task_result(
-                            task_error, file_path, results, processed_count, failed_count, total_files, logger, daily_processing_tracker
+                        processed_count, failed_count, timeout_count = process_task_result(
+                            task_error, file_path, results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
                         )
+                    
+                    # Check if we should shutdown due to too many timeouts
+                    if timeout_count >= max_timeouts:
+                        logger.error(f"Reached maximum timeout count ({max_timeouts}), shutting down processing")
+                        timeout_shutdown = True
+                        
+                        # Graceful shutdown: let running scans complete (they're bounded by scan timeout)
+                        # but don't submit any new tasks
+                        running_count = sum(1 for f in futures_to_files if not f.done())
+                        if running_count > 0:
+                            scan_timeout = config.malware_scan_timeout_seconds if config else 300
+                            # Allow extra time for post-scan processing (file moves, encryption, etc.)
+                            max_wait_time = scan_timeout * 2
+                            logger.info(f"Waiting for {running_count} running scans to complete (max {max_wait_time}s total)...")
+                            
+                            # Process remaining completed futures with bounded timeout
+                            remaining_futures = [f for f in futures_to_files if not f.done()]
+                            completed_count = 0
+                            
+                            import concurrent.futures
+                            try:
+                                # Use timeout to prevent infinite hang if worker process gets stuck
+                                for future in as_completed(remaining_futures, timeout=max_wait_time):
+                                    completed_count += 1
+                                    try:
+                                        # Get result with short timeout to avoid hanging on result retrieval
+                                        result = future.result(timeout=5)
+                                        processed_count, failed_count, timeout_count = process_task_result(
+                                            result, futures_to_files[future], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
+                                        )
+                                    except concurrent.futures.CancelledError:
+                                        # Future was cancelled during shutdown
+                                        logger.info(f"Scan was cancelled during shutdown: {futures_to_files[future]}")
+                                        failed_count += 1
+                                        results.append(None)  # Mark as failed
+                                    except concurrent.futures.TimeoutError:
+                                        # Result retrieval timed out
+                                        logger.warning(f"Scan result retrieval timeout during shutdown: {futures_to_files[future]}")
+                                        failed_count += 1
+                                        results.append(None)  # Mark as failed
+                                    except Exception as task_error:
+                                        # Any other exception from the task
+                                        logger.error(f"Error processing scan result during shutdown: {task_error}")
+                                        processed_count, failed_count, timeout_count = process_task_result(
+                                            task_error, futures_to_files[future], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
+                                        )
+                                
+                                logger.info(f"Graceful shutdown: {completed_count} running scans completed naturally")
+                                
+                            except concurrent.futures.TimeoutError:
+                                still_running = len(remaining_futures) - completed_count
+                                logger.warning(f"Graceful shutdown timeout after {max_wait_time}s, {still_running} scans still running")
+                                logger.warning("Proceeding with shutdown - stuck processes will be terminated by executor cleanup")
+                        
+                        # Only cancel futures that haven't started yet (can't be cancelled once running)
+                        cancelled_count = 0
+                        for remaining_future in futures_to_files:
+                            if not remaining_future.done():
+                                if remaining_future.cancel():  # Only succeeds if not yet started
+                                    cancelled_count += 1
+                        
+                        if cancelled_count > 0:
+                            logger.info(f"Cancelled {cancelled_count} unstarted scan tasks")
+                        
+                        break
                 
                 # Final status report
                 log_final_status("Parallel", processed_count, failed_count)
@@ -557,15 +736,21 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
         for i, task in enumerate(scan_tasks):
             try:
                 # Call the processing function with unpacked parameters
-                result = call_scan_and_process_file(*task)
-                processed_count, failed_count = process_task_result(
-                    result, task[0], results, processed_count, failed_count, total_files, logger, daily_processing_tracker
+                result = call_scan_and_process_file(*task, config)
+                processed_count, failed_count, timeout_count = process_task_result(
+                    result, task[0], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
                 )
             except Exception as e:
                 # For exceptions from the call itself, pass the exception to the processor
-                processed_count, failed_count = process_task_result(
-                    e, task[0], results, processed_count, failed_count, total_files, logger, daily_processing_tracker
+                processed_count, failed_count, timeout_count = process_task_result(
+                    e, task[0], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
                 )
+            
+            # Check if we should shutdown due to too many timeouts
+            if timeout_count >= max_timeouts:
+                logger.error(f"Reached maximum timeout count ({max_timeouts}), shutting down processing")
+                timeout_shutdown = True
+                break
         
         # Final status report
         log_final_status("Sequential", processed_count, failed_count)
@@ -585,7 +770,7 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
         failed_files = len(results) - successful_files
         suspect_files = 0
     
-    return results, successful_files, failed_files
+    return results, successful_files, failed_files, timeout_shutdown
 
 
 def scan_and_process_directory(
@@ -608,7 +793,8 @@ def scan_and_process_directory(
     
     notifier=None,
     notify_summary=False,
-    skip_stability_check=False
+    skip_stability_check=False,
+    config=None
     
     ):
     """
@@ -693,17 +879,49 @@ def scan_and_process_directory(
         failed_count = 0
         
         # Process all scan tasks
-        results, successful_files, failed_files = process_scan_tasks(
+        results, successful_files, failed_files, timeout_shutdown = process_scan_tasks(
             scan_tasks,
             max_scan_threads,
-            daily_processing_tracker
+            daily_processing_tracker,
+            config
         )
 
-        # After processing all files, remove contents of quarantine directory
-        remove_directory_contents(quarantine_path)
+        # Handle timeout shutdown with proper cleanup
+        if timeout_shutdown:
+            logger.error("Processing stopped due to excessive scan timeouts")
+            
+            # CRITICAL: Perform cleanup for processed files
+            cleanup_after_processing(
+                quarantine_files,
+                results,
+                source_path,
+                delete_source_files,
+                quarantine_path,
+                is_timeout_shutdown=True
+            )
+            
+            # Send critical error notification
+            if notifier:
+                notifier.notify_error(
+                    "Shuttle: Critical Timeout Error",
+                    f"Processing stopped due to excessive malware scanner timeouts.\n"
+                    f"Processed {successful_files} files successfully before shutdown.\n"
+                    f"Failed files: {failed_files}\n"
+                    f"Please check malware scanner service health."
+                )
+            
+            return  # Exit early
 
-        # Clean up empty source directories if requested
-        clean_up_source_files(quarantine_files, results, source_path, delete_source_files)
+        # Normal cleanup continues...
+        # Perform comprehensive cleanup after successful processing
+        cleanup_after_processing(
+            quarantine_files,
+            results,
+            source_path,
+            delete_source_files,
+            quarantine_path,
+            is_timeout_shutdown=False
+        )
 
         # Check if all files were processed successfully
         if not all(results):
