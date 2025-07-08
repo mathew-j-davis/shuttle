@@ -39,6 +39,7 @@ from post_install_standard_configuration_reader import (
     get_path_permission_base_templates, get_development_admin_group, 
     STANDARD_MODE_CONFIGS, STANDARD_SAMBA_CONFIG
 )
+from config_wizard_validation import ConfigWizardValidation
 
 # Import domain user validation and integration
 import subprocess
@@ -77,7 +78,7 @@ DANGEROUS_PREFIXES = [
     '/dev/', '/proc/', '/sys/', '/etc/systemd/', '/etc/ssh/'
 ]
 
-class ConfigWizard:
+class ConfigWizard(ConfigWizardValidation):
     """Interactive configuration wizard"""
     
     def __init__(self, shuttle_config_path=None, test_work_dir=None, test_config_path=None):
@@ -188,49 +189,6 @@ class ConfigWizard:
         """Get sorted list of group names"""
         return sorted(self.groups.keys())
     
-    def _validate_group_name(self, group_name: str, check_users: bool = True) -> tuple[bool, str]:
-        """Validate group name against rules and existing entities
-        
-        Returns:
-            (is_valid, error_message)
-        """
-        if not group_name:
-            return False, "Group name cannot be empty"
-        
-        if group_name in self.groups:
-            return False, f"Group '{group_name}' already exists"
-        
-        if check_users:
-            # Check against existing usernames to avoid conflicts
-            for user in self.users:
-                if user['name'] == group_name:
-                    return False, f"Group name '{group_name}' conflicts with existing username"
-        
-        # Add more validation rules (e.g., valid characters, length)
-        if not group_name.replace('_', '').replace('-', '').isalnum():
-            return False, "Group name must contain only letters, numbers, underscores, and hyphens"
-        
-        return True, ""
-    
-    def _validate_gid(self, gid: int, group_name: str = None) -> tuple[bool, str]:
-        """Validate GID value and check for conflicts
-        
-        Returns:
-            (is_valid, error_message)
-        """
-        if gid < 0:
-            return False, "GID must be non-negative"
-        
-        # Check for GID conflicts
-        for name, data in self.groups.items():
-            if name != group_name and data.get('gid') == gid:
-                return False, f"GID {gid} already used by group '{name}'"
-        
-        # Warning for system GIDs
-        if gid < 1000:
-            return True, "WARNING: GID < 1000 is typically for system groups"
-        
-        return True, ""
     
     def _find_users_using_group(self, group_name: str) -> List[str]:
         """Find all users that reference a group
@@ -4144,10 +4102,13 @@ b) Back to Main Custom Configuration Menu
             else:
                 print(f"\n✅ Added {added_count} of {len(groups_dict)} available groups")
     
+    
     def _add_user_to_instructions(self, user_data: dict) -> bool:
         """Universal method to add any user to the instruction set"""
-        if not isinstance(user_data, dict) or 'name' not in user_data:
-            print(f"❌ Invalid user data: must be dictionary with 'name' field")
+        # Validate user data
+        is_valid, error_msg = ConfigWizardValidation._validate_user_data(user_data)
+        if not is_valid:
+            print(f"❌ {error_msg}")
             return False
         
         username = user_data['name']
@@ -4156,17 +4117,6 @@ b) Back to Main Custom Configuration Menu
         for existing_user in self.users:
             if existing_user['name'] == username:
                 print(f"⚠️  User '{username}' already exists in instructions")
-                return False
-        
-        # Validate required fields
-        required_fields = ['name', 'source', 'groups']
-        # Shell is only required for new users (local source), not existing users who chose "no change"
-        if user_data.get('source') == 'local':
-            required_fields.append('shell')
-        
-        for field in required_fields:
-            if field not in user_data:
-                print(f"❌ Invalid user data for '{username}': missing '{field}'")
                 return False
         
         # Add to instructions
@@ -4402,14 +4352,10 @@ def validate_yaml_config(filename: str) -> bool:
                     validation_errors.append(f"Document {i+1}: Missing 'user' section")
                 else:
                     user = doc['user']
-                    required_user_fields = ['name', 'source', 'groups']
-                    # Shell is only required for new users (local source), not existing users who chose "no change"
-                    if user.get('source') == 'local':
-                        required_user_fields.append('shell')
-                    
-                    for field in required_user_fields:
-                        if field not in user:
-                            validation_errors.append(f"User {user.get('name', 'unnamed')}: Missing required field '{field}'")
+                    # Use the shared validation logic
+                    is_valid, error_msg = ConfigWizardValidation._validate_user_data(user)
+                    if not is_valid:
+                        validation_errors.append(error_msg)
         
         # Validate paths
         if path_docs:

@@ -356,6 +356,30 @@ class ConfigWizardValidation:
         
         return True, ""
     
+    @staticmethod
+    def _validate_user_data(user_data: dict) -> tuple[bool, str]:
+        """Validate user data structure and required fields
+        
+        Returns:
+            (is_valid, error_message)
+        """
+        if not isinstance(user_data, dict) or 'name' not in user_data:
+            return False, "Invalid user data: must be dictionary with 'name' field"
+        
+        username = user_data['name']
+        
+        # Validate required fields
+        required_fields = ['name', 'source', 'groups']
+        # Shell is only required for new users (local source), not existing users who chose "no change"
+        if user_data.get('source') == 'local':
+            required_fields.append('shell')
+        
+        for field in required_fields:
+            if field not in user_data:
+                return False, f"User {username}: Missing required field '{field}'"
+        
+        return True, ""
+    
     def get_validation_summary(self) -> Dict[str, Any]:
         """Get summary of current validation state"""
         missing_groups = self._validate_group_references()
