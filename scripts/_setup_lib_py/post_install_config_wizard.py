@@ -827,7 +827,7 @@ class ConfigWizard:
 
     def _add_user_from_template_data(self, template_data: Dict[str, Any], 
                                     name: str = None, source: str = None, 
-                                    account_type: str = None, primary_group: str = None, 
+                                    primary_group: str = None, 
                                     secondary_groups: List[str] = None, shell: str = None, 
                                     home_directory: str = None, create_home: bool = None,
                                     auth_method: str = None) -> None:
@@ -841,7 +841,6 @@ class ConfigWizard:
             template_data: Complete user template dictionary
             name: Override username (optional)
             source: Override user source (optional) 
-            account_type: Override account type (optional)
             primary_group: Override primary group (optional)
             secondary_groups: Override secondary groups (optional)
             shell: Override shell (optional)
@@ -857,8 +856,6 @@ class ConfigWizard:
             user_template['name'] = name
         if source is not None:
             user_template['source'] = source
-        if account_type is not None:
-            user_template['account_type'] = account_type
         if shell is not None:
             user_template['shell'] = shell
         if home_directory is not None:
@@ -1068,8 +1065,8 @@ class ConfigWizard:
                 )
                 
                 if choice == "1":
-                    # Don't change - store special marker
-                    template_groups['primary'] = '__NO_CHANGE__'
+                    # Don't change - use null to indicate no action
+                    template_groups['primary'] = None
                 elif choice == "2":
                     # Set to template group
                     template_groups['primary'] = template_primary
@@ -1093,8 +1090,8 @@ class ConfigWizard:
                 )
                 
                 if choice == "1":
-                    # Don't change - store special marker
-                    template_groups['primary'] = '__NO_CHANGE__'
+                    # Don't change - use null to indicate no action
+                    template_groups['primary'] = None
                 elif choice == "2":
                     # Set to current group (they match)
                     template_groups['primary'] = current_primary
@@ -1107,22 +1104,19 @@ class ConfigWizard:
             print(f"\nChoose how to handle secondary groups:")
             print(f"1) Don't change secondary groups (instructions will not modify secondary groups)")
             print(f"2) Add groups to user (instructions will add specified groups to user)")
-            print(f"3) Remove groups from user (instructions will remove specified groups from user) [DISABLED FOR SAFETY]")
-            print(f"4) Set complete group list (instructions will replace all secondary groups)")
-            print(f"5) Choose complete group list (instructions will set to chosen groups)")
-            print(f"6) Copy current to template (saves current groups for reuse in wizard)")
+            print(f"3) Set groups from template (instructions will add: {', '.join(template_secondary) if template_secondary else 'None'})")
             
             choice = self._get_choice(
                 "Select option",
-                ["1", "2", "3", "4", "5", "6"],
+                ["1", "2", "3"],
                 "1"
             )
                 
             if choice == "1":
-                # Leave groups untouched - store special marker
-                template_groups['secondary'] = ['__NO_CHANGE__']
+                # Leave groups untouched - use null
+                template_groups['secondary'] = None
             elif choice == "2":
-                # Add specific groups
+                # Add specific groups - use structured format
                 groups_to_add = self._select_multiple_groups(
                     "Select groups to ADD to current groups:",
                     already_selected=[],
@@ -1130,36 +1124,15 @@ class ConfigWizard:
                     primary_group=template_primary
                 )
                 if groups_to_add:
-                    template_groups['secondary'] = [f'__ADD_GROUP__{g}' for g in groups_to_add]
+                    template_groups['secondary'] = {'add': groups_to_add}
                 else:
-                    template_groups['secondary'] = ['__NO_CHANGE__']
+                    template_groups['secondary'] = None
             elif choice == "3":
-                # Show safety message for remove groups
-                print(f"\n⚠️  SAFETY NOTICE: Removing groups from users via instructions is not implemented")
-                print(f"    in the wizard for safety reasons.")
-                print(f"")
-                print(f"    To remove groups from a user, use the direct command after installation:")
-                print(f"")
-                print(f"    ./scripts/2_post_install_config_steps/12_users_and_groups.sh delete-user-from-group --help")
-                print(f"")
-                input("Press Enter to continue...")
-                # Fallback to no change
-                template_groups['secondary'] = ['__NO_CHANGE__']
-            elif choice == "4":
-                # Replace with template groups
-                template_groups['secondary'] = template_secondary
-            elif choice == "5":
-                # Replace with custom selection
-                new_secondary = self._select_multiple_groups(
-                    "Select all secondary groups (replaces current):",
-                    already_selected=template_secondary,
-                    exclude_groups=[template_primary] if template_primary else [],
-                    primary_group=template_primary
-                )
-                template_groups['secondary'] = new_secondary
-            elif choice == "6":
-                # Copy current to template
-                template_groups['secondary'] = current_secondary
+                # Add template groups
+                if template_secondary:
+                    template_groups['secondary'] = {'add': template_secondary}
+                else:
+                    template_groups['secondary'] = None
         else:
             # No current user info - standard template editing
             print(f"\n=== Group Configuration ===")
@@ -1180,7 +1153,10 @@ class ConfigWizard:
                         exclude_groups=[template_primary] if template_primary else [],
                         primary_group=template_primary
                     )
-                    template_groups['secondary'] = new_secondary
+                    if new_secondary:
+                        template_groups['secondary'] = {'add': new_secondary}
+                    else:
+                        template_groups['secondary'] = None
         
         edited_data['groups'] = template_groups
 
@@ -1195,48 +1171,51 @@ class ConfigWizard:
             print(f"Current system shell: {current_shell}")
             print(f"Template shell: {template_shell}")
             
+            print(f"\nChoose how to handle shell:")
             if current_shell != template_shell:
-                print(f"\n⚠️  Shell mismatch!")
-                print(f"\nChoose how to handle shell:")
-                print(f"1) Keep current system shell: {current_shell}")
-                print(f"2) Use template shell: {template_shell}")
-                print(f"3) Copy current to instructions: {current_shell}")
-                print(f"4) Choose new shell")
-                
+                print(f"1) Don't change shell (instructions will not modify shell)")
+                print(f"2) Set shell to template value: {template_shell} (instructions will change shell)")
+                print(f"3) Copy current to template (saves current shell for reuse in wizard)")
+                print(f"4) Choose different shell (instructions will set to chosen shell)")
+            else:
+                print(f"1) Don't change shell (instructions will not modify shell)")
+                print(f"2) Keep current shell setting (instructions will set shell to: {current_shell})")
+                print(f"3) Choose different shell (instructions will set to chosen shell)")
+            
+            if current_shell != template_shell:
                 choice = self._get_choice(
                     "Select option",
                     ["1", "2", "3", "4"],
                     "1"
                 )
+            else:
+                choice = self._get_choice(
+                    "Select option",
+                    ["1", "2", "3"],
+                    "1"
+                )
                 
-                if choice == "1":
-                    # Remove from instructions (keep current)
-                    if 'shell' in edited_data:
-                        del edited_data['shell']
-                elif choice == "2":
-                    # Keep template value (no change)
-                    pass
-                elif choice == "3":
-                    # Copy current to instructions
+            if choice == "1":
+                # Don't change shell - remove from instructions
+                if 'shell' in edited_data:
+                    del edited_data['shell']
+            elif choice == "2":
+                if current_shell != template_shell:
+                    # Use template shell
+                    edited_data['shell'] = template_shell
+                else:
+                    # Keep current shell (they match)
                     edited_data['shell'] = current_shell
-                elif choice == "4":
-                    # Choose new value
-                    common_shells = ['/bin/bash', '/bin/sh', '/usr/sbin/nologin', '/bin/zsh']
-                    print("Common shells:")
-                    for i, shell in enumerate(common_shells, 1):
-                        print(f"  {i}) {shell}")
-                    print(f"  {len(common_shells) + 1}) Custom")
-                    
-                    shell_choice = self._get_choice("Select shell:", 
-                                                   [str(i) for i in range(1, len(common_shells) + 2)], "1")
-                    
-                    if shell_choice == str(len(common_shells) + 1):
-                        new_shell = input("Enter shell path: ").strip()
-                    else:
-                        new_shell = common_shells[int(shell_choice) - 1]
-                    
-                    if new_shell:
-                        edited_data['shell'] = new_shell
+            elif choice == "3":
+                if current_shell != template_shell:
+                    # Copy current to template
+                    edited_data['shell'] = current_shell
+                else:
+                    # Choose new shell
+                    self._choose_new_shell(edited_data)
+            elif choice == "4":
+                # Choose new shell (only available when shells don't match)
+                self._choose_new_shell(edited_data)
         else:
             # No current user info - standard template editing
             print(f"\n=== Shell Configuration ===")
@@ -1259,6 +1238,25 @@ class ConfigWizard:
                 if new_shell:
                     edited_data['shell'] = new_shell
     
+    def _choose_new_shell(self, edited_data: Dict[str, Any]):
+        """Helper method to choose a new shell"""
+        common_shells = ['/bin/bash', '/bin/sh', '/usr/sbin/nologin', '/bin/zsh']
+        print("Common shells:")
+        for i, shell in enumerate(common_shells, 1):
+            print(f"  {i}) {shell}")
+        print(f"  {len(common_shells) + 1}) Custom")
+        
+        shell_choice = self._get_choice("Select shell:", 
+                                       [str(i) for i in range(1, len(common_shells) + 2)], "1")
+        
+        if shell_choice == str(len(common_shells) + 1):
+            new_shell = input("Enter shell path: ").strip()
+        else:
+            new_shell = common_shells[int(shell_choice) - 1]
+        
+        if new_shell:
+            edited_data['shell'] = new_shell
+    
     def _display_full_template(self, template_name: str, template_data: Dict[str, Any]):
         """Display complete template information for user review"""
         category = template_data.get('category', 'unknown')
@@ -1269,44 +1267,93 @@ class ConfigWizard:
         
         # Show key template details
         source = template_data.get('source', 'local')
-        account_type = template_data.get('account_type', 'unknown')
-        print(f"   Source: {source}, Type: {account_type}")
+        
+        # Show source info
+        if source == 'existing':
+            print(f"   Existing user")
+        elif source == 'local':
+            print(f"   New local user")
+        elif source == 'domain':
+            print(f"   Domain user reference")
+        else:
+            print(f"   Source: {source}")
         
         # Show groups
         groups = template_data.get('groups', {})
-        primary_group = groups.get('primary', 'None')
-        secondary_groups = groups.get('secondary', [])
-        print(f"   Primary group: {primary_group}")
-        if secondary_groups:
-            print(f"   Secondary groups: {', '.join(secondary_groups)}")
+        if groups is None:
+            print(f"   Groups: No changes")
         else:
-            print(f"   Secondary groups: None")
+            # Primary group
+            primary_group = groups.get('primary')
+            if primary_group is None:
+                print(f"   Primary group: No change")
+            else:
+                print(f"   Primary group: {primary_group}")
+            
+            # Secondary groups - handle new structure
+            secondary_config = groups.get('secondary')
+            if secondary_config is None:
+                print(f"   Secondary groups: No change")
+            elif isinstance(secondary_config, dict):
+                if 'add' in secondary_config:
+                    print(f"   Secondary groups: Add {', '.join(secondary_config['add'])}")
+                else:
+                    print(f"   Secondary groups: Unknown format")
+            elif isinstance(secondary_config, list):
+                # Legacy format - now treated as additive
+                print(f"   Secondary groups: Add {', '.join(secondary_config) if secondary_config else 'None'}")
+            else:
+                print(f"   Secondary groups: None")
         
-        # Show shell (for interactive accounts)
-        if account_type in ['interactive', 'admin']:
-            shell = template_data.get('shell', '/bin/bash')
+        # Show shell (always show for transparency)
+        shell = template_data.get('shell')
+        if shell is None:
+            print(f"   Shell: No change")
+        else:
             print(f"   Shell: {shell}")
         
-        # Show home directory (for local accounts)
+        # Show home directory
         if source == 'local':
             home_dir = template_data.get('home_directory', 'Not specified')
             create_home = template_data.get('create_home', False)
             print(f"   Home directory: {home_dir} ({'will create' if create_home else 'no creation'})")
         elif source == 'existing':
             print(f"   Home directory: Using existing user's home directory")
+        elif source == 'domain':
+            home_dir = template_data.get('home_directory', 'Not specified')
+            create_home = template_data.get('create_home', False)
+            if create_home:
+                print(f"   Home directory: {home_dir} (will create local home for domain user)")
+            else:
+                print(f"   Home directory: Domain-managed (or {home_dir} if specified)")
         
-        # Show Samba access (default to disabled if not specified)
-        samba_enabled = template_data.get('samba', {}).get('enabled', False)
-        print(f"   Samba access: {'Enabled' if samba_enabled else 'Disabled'}")
+        # Show Samba access
+        samba_config = template_data.get('samba')
+        if samba_config is None:
+            samba_enabled = False  # Default for display purposes when no change
+            print(f"   Samba access: No change")
+        else:
+            samba_enabled = samba_config.get('enabled', False)
+            print(f"   Samba access: {'Enabled' if samba_enabled else 'Disabled'}")
         
         # Show password setup guidance
-        if account_type in ['interactive', 'admin']:
+        shell_value = template_data.get('shell', '/bin/bash')
+        is_nologin = shell_value and 'nologin' in shell_value
+        
+        if source == 'local' and not is_nologin:
             print(f"   ⚠️  Password setup: Manual setup required after installation")
             print(f"        sudo passwd {template_name}")
             if samba_enabled:
                 print(f"        sudo smbpasswd -a {template_name}")
-        elif account_type == 'service':
+        elif source == 'local' and is_nologin:
             print(f"   🔒 Password: None (service account uses nologin shell)")
+        elif source == 'existing':
+            if samba_enabled:
+                print(f"   ℹ️  Samba password: May need sudo smbpasswd -a {template_name} if not already set")
+            else:
+                print(f"   🔑 Password: Using existing user's password")
+        elif source == 'domain':
+            print(f"   🌐 Password: Managed by domain controller")
         else:
             print(f"   ℹ️  Password: Manual setup may be required after installation")
 
@@ -1346,6 +1393,14 @@ class ConfigWizard:
         # Start with a copy
         edited_data = template_data.copy()
         
+        # For existing users, set shell=None by default instead of using template shell
+        if edited_data.get('source') == 'existing' and 'shell' in edited_data:
+            edited_data['shell'] = None
+        
+        # For existing users, set samba=None by default for consistency
+        if edited_data.get('source') == 'existing' and 'samba' in edited_data:
+            edited_data['samba'] = None
+        
         # 1. Edit name (always allow)
         current_name = edited_data.get('name', template_name)
         new_name = input(f"Username [{current_name}]: ").strip()
@@ -1356,30 +1411,38 @@ class ConfigWizard:
         current_source = edited_data.get('source', 'local')
         print(f"\nCurrent source: {current_source}")
         if self._confirm("Change source type?", False):
-            edited_data['source'] = self._get_user_type()
+            edited_data['source'] = self._select_user_source()
         
         # Get current system info if this is an existing user
         current_user_info = None
         if edited_data.get('source') == 'existing':
             current_user_info = self._get_current_user_info(edited_data['name'])
         
-        # 3. Edit account type (for local accounts)
+        # 3. For new local users, configure shell explicitly based on user purpose
         if edited_data.get('source') == 'local':
-            current_account_type = edited_data.get('account_type', 'service')
-            print(f"\n=== Account Type ===")
-            print(f"Current account type: {current_account_type}")
-            if self._confirm("Change account type?", False):
-                choices = [
-                    {'key': '1', 'label': 'Service - No shell, application access only'},
-                    {'key': '2', 'label': 'Interactive - Shell access for human users'}
-                ]
-                type_choice = self._get_menu_choice(
-                    "Select account type",
-                    choices,
-                    default_key='1',
-                    include_back=False
-                )
-                edited_data['account_type'] = "service" if type_choice == "1" else "interactive"
+            print(f"\n=== Shell Configuration ===")
+            current_shell = edited_data.get('shell', '/bin/bash')
+            print(f"Default shell: {current_shell}")
+            
+            print(f"\nChoose shell for new user:")
+            print(f"1) Interactive shell (/bin/bash) - For human users")
+            print(f"2) No login shell (/usr/sbin/nologin) - For service accounts")
+            print(f"3) Custom shell")
+            
+            choice = self._get_choice("Select shell option", ["1", "2", "3"], "1")
+            
+            if choice == "1":
+                edited_data['shell'] = '/bin/bash'
+            elif choice == "2":
+                edited_data['shell'] = '/usr/sbin/nologin'
+            elif choice == "3":
+                self._choose_new_shell(edited_data)
+        elif edited_data.get('source') == 'existing':
+            # For existing users, remove home directory fields - they already have homes
+            if 'home_directory' in edited_data:
+                del edited_data['home_directory']
+            if 'create_home' in edited_data:
+                del edited_data['create_home']
         
         # 4. Edit home directory (for local accounts)
         if edited_data.get('source') == 'local':
@@ -1400,19 +1463,44 @@ class ConfigWizard:
         # 5. Context-aware group configuration
         self._edit_groups_with_context(edited_data, current_user_info)
         
-        # 6. Context-aware shell configuration (for interactive accounts)
-        if edited_data.get('account_type') in ['interactive', 'admin']:
-            self._edit_shell_with_context(edited_data, current_user_info)
+        # 6. Context-aware shell configuration (for all users)
+        self._edit_shell_with_context(edited_data, current_user_info)
         
         # 5. Samba configuration (always available)
-        samba_config = edited_data.get('samba', {'enabled': False})
-        samba_enabled = samba_config.get('enabled', False)
+        samba_config = edited_data.get('samba')
+        if samba_config is None:
+            samba_config = {'enabled': False}
+            samba_enabled = False
+        else:
+            samba_enabled = samba_config.get('enabled', False)
         print(f"\n=== Samba Configuration ===")
         print(f"Samba access: {'Enabled' if samba_enabled else 'Disabled'}")
-        if self._confirm("Toggle Samba access?", False):
+        
+        print(f"\nChoose how to handle Samba access:")
+        print(f"1) Don't change Samba access (instructions will not modify Samba settings)")
+        print(f"2) Enable Samba access (instructions will enable Samba for user)")
+        print(f"3) Disable Samba access (instructions will disable Samba for user)")
+        
+        choice = self._get_choice(
+            "Select option",
+            ["1", "2", "3"],
+            "1"
+        )
+        
+        if choice == "1":
+            # Don't change Samba - remove from instructions
+            if 'samba' in edited_data:
+                del edited_data['samba']
+        elif choice == "2":
+            # Enable Samba
             if 'samba' not in edited_data:
                 edited_data['samba'] = {}
-            edited_data['samba']['enabled'] = not samba_enabled
+            edited_data['samba']['enabled'] = True
+        elif choice == "3":
+            # Disable Samba
+            if 'samba' not in edited_data:
+                edited_data['samba'] = {}
+            edited_data['samba']['enabled'] = False
         
         # Show full template preview again for confirmation
         print(f"\n{self._wrap_title('Final Configuration')}")
@@ -1664,10 +1752,34 @@ class ConfigWizard:
         else:
             print(f"\n{self._wrap_title('CUSTOM MODE')}")
             print("Building a custom permission model from scratch.")
-            self.instructions['metadata']['mode'] = 'custom'
-            # Set basic defaults
-            self.instructions['metadata']['environment'] = 'custom'
-            self.instructions['settings']['interactive_mode'] = 'interactive'
+            
+            # For true custom mode, create minimal instruction document
+            from datetime import datetime
+            self.instructions = {
+                'version': '1.0',
+                'metadata': {
+                    'description': 'Shuttle post-install user configuration',
+                    'environment': 'custom',
+                    'mode': 'custom',
+                    'generated_by': 'Configuration Wizard',
+                    'created': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                },
+                'settings': {
+                    'interactive_mode': 'interactive'
+                },
+                'components': {
+                    'install_samba': False,
+                    'install_acl': False,
+                    'configure_users_groups': False,
+                    'configure_samba': False,
+                    'configure_firewall': False
+                }
+            }
+            
+            # Start with empty collections
+            self.groups = {}
+            self.users = []
+            self.paths = {}
         
         print("")
         
@@ -2132,19 +2244,23 @@ class ConfigWizard:
     
     def _get_choice(self, prompt: str, valid_choices: List[str], default: str) -> str:
         """Get a choice from valid options"""
-        # Add exit option to the display
-        print("x) Exit - Quit the wizard")
-        print()
+        # Only add exit option if 'x' is not already in valid choices
+        if 'x' not in valid_choices:
+            print("x) Exit - Quit the wizard")
+            print()
+        else:
+            print()
         
         while True:
             choice = input(f"{prompt} (Default: {default}): ").strip() or default
-            if choice.lower() == 'x':
+            if choice.lower() == 'x' and 'x' not in valid_choices:
                 print("\nExiting wizard...")
                 sys.exit(3)  # Exit code 3 for user cancellation
             if choice in valid_choices:
                 print()
                 return choice
-            print(f"Invalid choice. Please select from: {', '.join(valid_choices)} or x to exit")
+            valid_options = valid_choices + (['x'] if 'x' not in valid_choices else [])
+            print(f"Invalid choice. Please select from: {', '.join(valid_options)}")
     
     def _get_menu_choice(self, title: str, choices: List[Dict[str, Any]], 
                         default_key: str, include_back: bool = True, 
@@ -2373,18 +2489,19 @@ class ConfigWizard:
             else:
                 print("Invalid choice. Please enter: y/yes, n/no, s/-/skip, or x/exit")
     
-    def _get_home_directory(self, username: str, account_type: str, user_source: str) -> str:
-        """Determine appropriate home directory based on user type and source"""
+    def _get_home_directory(self, username: str, shell: str, user_source: str) -> str:
+        """Determine appropriate home directory based on shell and source"""
         if user_source == "existing":
             # For existing users, don't specify home directory - use what exists
             # The configuration system will handle this appropriately
             return ""
-        elif account_type == "interactive":
+        elif shell and shell != '/usr/sbin/nologin':
+            # Users with login shells get home directories under /home
             # Clean username for home directory (remove domain prefix if present)
             clean_username = username.split("\\")[-1] if "\\" in username else username
             return f"/home/{clean_username}"
         else:
-            # Service accounts go in /var/lib/shuttle
+            # Service accounts (nologin shell) go in /var/lib/shuttle
             return "/var/lib/shuttle"
     
     # Custom Mode Methods
@@ -2673,7 +2790,8 @@ b) Back to Main Custom Configuration Menu
             if self.users:
                 users_list = "\nUsers to be created:\n"
                 for user in self.users:
-                    users_list += f"  • {user['name']} ({user['source']}) - {user['account_type']}\n"
+                    shell_type = 'service' if user.get('shell') == '/usr/sbin/nologin' else 'interactive'
+                users_list += f"  • {user['name']} ({user['source']}) - {shell_type}\n"
             
             description = f"""
 {self._wrap_title("USER MANAGEMENT")}
@@ -2778,7 +2896,9 @@ b) Back to Main Custom Configuration Menu
         
         # 6. Customize paths for non-existing users
         if template_key != 'custom_existing':
-            if template_data.get('account_type') == 'service':
+            # Determine home directory based on shell
+            shell = template_data.get('shell', '/usr/sbin/nologin')
+            if shell == '/usr/sbin/nologin':
                 template_data['home_directory'] = f'/var/lib/shuttle/{username}'
             else:
                 template_data['home_directory'] = f'/home/{username}'
@@ -3489,7 +3609,8 @@ b) Back to Main Custom Configuration Menu
                 groups.append(f"secondary: {', '.join(user['groups']['secondary'])}")
             group_str = f" ({'; '.join(groups)})" if groups else ""
             
-            print(f"  • {user['name']} - {user['source']}/{user['account_type']}{group_str}")
+            shell_type = 'service' if user.get('shell') == '/usr/sbin/nologin' else 'interactive'
+            print(f"  • {user['name']} - {user['source']}/{shell_type}{group_str}")
         
         print(f"\nPaths ({len(self.instructions.get('paths', {}))}):")
         if self.instructions.get('paths'):
@@ -3535,9 +3656,10 @@ b) Back to Main Custom Configuration Menu
                 if group not in self.groups:
                     errors.append(f"User '{user['name']}': secondary group '{group}' does not exist")
             
-            # Check for service accounts with shell access
-            if user['account_type'] == 'service' and user.get('shell') == '/bin/bash':
-                warnings.append(f"User '{user['name']}': service account has shell access")
+            # Check for unexpected shell configurations
+            # Service accounts should have nologin shell
+            if user['source'] == 'new' and 'service' in user['name'].lower() and user.get('shell') == '/bin/bash':
+                warnings.append(f"User '{user['name']}': appears to be a service account but has shell access")
             
             # Check for Samba users without Samba component
             if user.get('samba', {}).get('enabled') and not self.instructions['components']['install_samba']:
@@ -4037,7 +4159,11 @@ b) Back to Main Custom Configuration Menu
                 return False
         
         # Validate required fields
-        required_fields = ['name', 'source', 'account_type', 'groups']
+        required_fields = ['name', 'source', 'groups']
+        # Shell is only required for new users (local source), not existing users who chose "no change"
+        if user_data.get('source') == 'local':
+            required_fields.append('shell')
+        
         for field in required_fields:
             if field not in user_data:
                 print(f"❌ Invalid user data for '{username}': missing '{field}'")
@@ -4127,15 +4253,17 @@ b) Back to Main Custom Configuration Menu
                 'user': user
             })
         
-        # Path documents
-        for path, path_config in self.paths.items():
-            documents.append({
-                'type': 'path',
-                'path': {
-                    'location': path,
-                    **path_config
-                }
-            })
+        # Path documents - only include if user explicitly configured paths
+        # In custom mode, paths should only be added if user went to "Configure Path Permissions"
+        if self.paths:
+            for path, path_config in self.paths.items():
+                documents.append({
+                    'type': 'path',
+                    'path': {
+                        'location': path,
+                        **path_config
+                    }
+                })
         
         print("✅ Path validation complete - configuration is ready")
         return documents
@@ -4251,10 +4379,12 @@ def validate_yaml_config(filename: str) -> bool:
             else:
                 validation_errors.append(f"Document {i+1}: Invalid or missing type '{doc_type}'")
         
-        # Validate groups
-        if not group_docs:
-            validation_errors.append("No groups defined")
-        else:
+        # Ensure configuration has some content (at least one of: groups, users, or paths)
+        if not group_docs and not user_docs and not path_docs:
+            validation_errors.append("Configuration must define at least one group, user, or path")
+        
+        # Validate groups (if any are defined)
+        if group_docs:
             for i, doc in group_docs:
                 if 'group' not in doc:
                     validation_errors.append(f"Document {i+1}: Missing 'group' section")
@@ -4265,16 +4395,18 @@ def validate_yaml_config(filename: str) -> bool:
                     if 'gid' not in group:
                         validation_errors.append(f"Document {i+1}: Group missing 'gid' field")
         
-        # Validate users
-        if not user_docs:
-            validation_errors.append("No users defined")
-        else:
+        # Validate users (if any are defined)
+        if user_docs:
             for i, doc in user_docs:
                 if 'user' not in doc:
                     validation_errors.append(f"Document {i+1}: Missing 'user' section")
                 else:
                     user = doc['user']
-                    required_user_fields = ['name', 'source', 'account_type', 'groups']
+                    required_user_fields = ['name', 'source', 'groups']
+                    # Shell is only required for new users (local source), not existing users who chose "no change"
+                    if user.get('source') == 'local':
+                        required_user_fields.append('shell')
+                    
                     for field in required_user_fields:
                         if field not in user:
                             validation_errors.append(f"User {user.get('name', 'unnamed')}: Missing required field '{field}'")
@@ -4347,7 +4479,7 @@ def main():
     
     # Password setup guidance for users
     has_interactive_users = any(
-        user.get('account_type') in ['interactive', 'admin'] 
+        user.get('shell') not in ['/usr/sbin/nologin', None] 
         for doc in config for user in doc.get('users', [])
     )
     if has_interactive_users:

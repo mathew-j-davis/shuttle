@@ -59,7 +59,6 @@ STANDARD_DEVELOPMENT_USER_TEMPLATES = {
         'category': 'admin',
         'recommended': True,
         'source': 'local',
-        'account_type': 'admin',
         'groups': {
             'primary': 'shuttle_admins',
             'secondary': []
@@ -81,7 +80,6 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'category': 'core_services',
         'recommended': True,
         'source': 'local',
-        'account_type': 'service',
         'groups': {
             'primary': 'shuttle_runners',
             'secondary': ['shuttle_config_readers', 'shuttle_data_owners', 'shuttle_log_owners']
@@ -97,7 +95,6 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'category': 'core_services',
         'recommended': True,
         'source': 'local',
-        'account_type': 'service',
         'groups': {
             'primary': 'shuttle_defender_test_runners',
             'secondary': ['shuttle_config_readers', 'shuttle_log_owners', 'shuttle_ledger_owners']
@@ -113,7 +110,6 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'category': 'network_services',
         'recommended': True,
         'source': 'local',
-        'account_type': 'service',
         'groups': {
             'primary': 'shuttle_samba_in_users',
             'secondary': []
@@ -132,7 +128,6 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'category': 'network_services',
         'recommended': True,
         'source': 'local',
-        'account_type': 'service',
         'groups': {
             'primary': 'shuttle_samba_out_users',
             'secondary': []
@@ -151,7 +146,6 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'category': 'testing',
         'recommended': False,
         'source': 'local',
-        'account_type': 'interactive',
         'groups': {
             'primary': 'shuttle_testers',
             'secondary': ['shuttle_runners', 'shuttle_config_readers']
@@ -166,7 +160,6 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'category': 'admin',
         'recommended': False,
         'source': 'local',
-        'account_type': 'interactive',
         'groups': {
             'primary': None,
             'secondary': [
@@ -262,7 +255,6 @@ CUSTOM_USER_BASE_TEMPLATES = {
         'category': 'custom',
         'recommended': True,
         'source': 'local',
-        'account_type': 'service',
         'groups': {'primary': None, 'secondary': []},
         'shell': '/usr/sbin/nologin',
         'home_directory': '/var/lib/shuttle/custom',
@@ -275,7 +267,6 @@ CUSTOM_USER_BASE_TEMPLATES = {
         'category': 'custom',
         'recommended': True,
         'source': 'local',
-        'account_type': 'interactive',
         'groups': {'primary': None, 'secondary': []},
         'shell': '/bin/bash',
         'home_directory': '/home/custom',
@@ -288,7 +279,7 @@ CUSTOM_USER_BASE_TEMPLATES = {
         'category': 'custom', 
         'recommended': True,
         'source': 'existing',
-        'account_type': 'interactive',  # Default, may not matter for existing
+        # Note: shell configuration is not needed for existing users - they already have them
         'groups': {'primary': None, 'secondary': []},
         # No shell/home defaults for existing users - they already have them
         'samba': {'enabled': False}
