@@ -49,7 +49,6 @@ from shuttle_common.files import (
     remove_file_with_logging,
     is_directory_empty,
     is_safe_to_remove_directory,
-    collect_empty_directories_for_cleanup,
     cleanup_empty_directories
 )
 
@@ -97,7 +96,6 @@ __all__ = [
     'remove_file_with_logging',
     'is_directory_empty',
     'is_safe_to_remove_directory',
-    'collect_empty_directories_for_cleanup',
     'cleanup_empty_directories',
     
     # Throttling functionality

@@ -563,16 +563,19 @@ def cleanup_after_processing(quarantine_files, results, source_path, delete_sour
     except Exception as e:
         logger.error(f"Failed to clean quarantine directory: {e}")
     
-    # 3. Enhanced empty directory cleanup with comprehensive safety checks
+    # 3. Empty directory cleanup
     if delete_source_files:
-        # Use enhanced directory cleanup with 5-minute stability check
+        # Clean up ALL empty directories in source that pass safety checks
         # This prevents cleaning up directories that users are actively working with
-        root_paths = [source_path, quarantine_path]
         stability_seconds = 300  # 5 minutes - configurable in future
         
-        cleanup_results = cleanup_empty_directories(root_paths, stability_seconds)
+        # Do full cleanup of all empty dirs
+        cleanup_results = cleanup_empty_directories(
+            [source_path],  # Only clean source, not quarantine
+            stability_seconds
+        )
         
-        logger.info(f"Directory cleanup completed: {cleanup_results['directories_removed']} removed, "
+        logger.info(f"Source directory cleanup completed: {cleanup_results['directories_removed']} removed, "
                    f"{cleanup_results['directories_failed']} failed")
 
 
