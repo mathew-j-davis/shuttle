@@ -392,8 +392,10 @@ def would_directory_be_empty_after_removals(directory_path, planned_removals):
     Returns:
         bool: True if directory would be empty after removals
     """
+    logger = get_logger()
     try:
         contents = os.listdir(directory_path)
+        logger.debug(f"Checking if {directory_path} would be empty. Contents: {contents}")
         
         # Check each item in the directory
         for item in contents:
@@ -401,18 +403,28 @@ def would_directory_be_empty_after_removals(directory_path, planned_removals):
             
             # If this item is NOT planned for removal, directory won't be empty
             if item_path not in planned_removals:
+                logger.debug(f"Item {item_path} not in planned removals")
                 # Check if it's a directory that would become empty
                 if os.path.isdir(item_path):
+                    logger.debug(f"Item {item_path} is a directory, checking recursively")
                     if not would_directory_be_empty_after_removals(item_path, planned_removals):
+                        logger.debug(f"Directory {item_path} would not be empty, so {directory_path} won't be empty")
                         return False
+                    else:
+                        logger.debug(f"Directory {item_path} would be empty")
                 else:
                     # It's a file, so directory won't be empty
+                    logger.debug(f"Item {item_path} is a file, so {directory_path} won't be empty")
                     return False
+            else:
+                logger.debug(f"Item {item_path} is planned for removal")
         
         # All contents are either planned for removal or would be empty
+        logger.debug(f"Directory {directory_path} would be empty after removals")
         return True
         
-    except (OSError, PermissionError):
+    except (OSError, PermissionError) as e:
+        logger.debug(f"Error checking directory {directory_path}: {e}")
         return False
 
 def collect_all_removable_directories(empty_directories, root_paths, stability_seconds=300, max_depth=131):
@@ -461,13 +473,19 @@ def collect_all_removable_directories(empty_directories, root_paths, stability_s
         
         # Check each parent
         for parent in parents_to_check:
+            logger.debug(f"Iteration {iteration}: Checking parent {parent}")
             # Check if parent passes safety checks
             if is_safe_to_remove_directory(parent, root_paths, stability_seconds):
+                logger.debug(f"Parent {parent} passes safety checks")
                 # Check if parent would be empty after planned removals
                 if would_directory_be_empty_after_removals(parent, removable_dirs):
                     removable_dirs.add(parent)
                     changed = True
                     logger.debug(f"Parent {parent} would be empty after removals, adding to cleanup")
+                else:
+                    logger.debug(f"Parent {parent} would NOT be empty after removals")
+            else:
+                logger.debug(f"Parent {parent} does not pass safety checks")
     
     logger.info(f"Collected {len(removable_dirs)} directories for removal after {iteration} iterations")
     return removable_dirs
