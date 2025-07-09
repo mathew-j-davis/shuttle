@@ -381,22 +381,21 @@ def is_safe_to_remove_directory(directory_path, root_paths, stability_seconds=30
     
     return True
 
-def cleanup_empty_directories_recursive(directory_path, root_paths, stability_seconds=300, max_depth=131):
+def collect_removable_directory_chain(directory_path, root_paths, stability_seconds=300, max_depth=131):
     """
-    Recursively remove empty directories up the tree.
-    After removing a directory, check if its parent is now empty.
+    Collect all parent directories that would become empty after removing a directory.
+    Does NOT remove anything - just plans the removal.
     
     Args:
-        directory_path (str): Directory to start cleanup from
+        directory_path (str): Directory to start from
         root_paths (list): List of root paths we should never go above
         stability_seconds (int): Minimum seconds since last modification
-        max_depth (int): Maximum levels to traverse upward (default 131 for Windows path compatibility)
+        max_depth (int): Maximum levels to traverse upward
         
     Returns:
-        int: Number of directories removed
+        list: List of directories that can be removed (ordered from deepest to shallowest)
     """
-    logger = get_logger()
-    removed_count = 0
+    removable_dirs = []
     current_path = directory_path
     
     for depth in range(max_depth):
@@ -414,20 +413,27 @@ def cleanup_empty_directories_recursive(directory_path, root_paths, stability_se
             
         # Check if current directory is safe to remove
         if is_safe_to_remove_directory(current_path, root_paths, stability_seconds):
-            if remove_directory(current_path):
-                removed_count += 1
-                logger.info(f"Removed empty directory: {current_path}")
-                
-                # Move up to parent directory for next iteration
-                current_path = os.path.dirname(current_path)
-            else:
-                logger.warning(f"Failed to remove directory: {current_path}")
+            removable_dirs.append(current_path)
+            
+            # Check parent directory
+            parent_path = os.path.dirname(current_path)
+            
+            # Would parent be empty after we remove current?
+            try:
+                parent_contents = os.listdir(parent_path)
+                # If parent only contains the current directory, it would be empty after removal
+                if len(parent_contents) == 1 and parent_contents[0] == os.path.basename(current_path):
+                    current_path = parent_path
+                else:
+                    # Parent would not be empty
+                    break
+            except (OSError, PermissionError):
                 break
         else:
-            # Directory not safe to remove or not empty
+            # Directory not safe to remove
             break
     
-    return removed_count
+    return removable_dirs
 
 def cleanup_empty_directories(root_paths, stability_seconds=300):
     """
@@ -465,20 +471,39 @@ def cleanup_empty_directories(root_paths, stability_seconds=300):
     else:
         logger.info(f"Found {len(directories_to_check)} empty directories for cleanup")
     
-    # Single-pass cleanup with recursive parent removal
+    # Phase 1: Plan all removals (no mtime changes yet)
+    all_removable_dirs = set()
+    
     # Sort directories by depth (deepest first) to avoid conflicts
     sorted_dirs = sorted(directories_to_check, key=lambda x: x.count('/'), reverse=True)
     
     for directory in sorted_dirs:
-        if not os.path.exists(directory):
-            # Already removed as a parent of another directory
+        if directory in all_removable_dirs:
+            # Already planned for removal as part of another chain
             continue
             
-        # Recursively remove empty directories up the tree
-        removed_count = cleanup_empty_directories_recursive(
+        # Collect the chain of directories that would become empty
+        removable_chain = collect_removable_directory_chain(
             directory, root_paths, stability_seconds, max_depth=131
         )
-        cleanup_results['directories_removed'] += removed_count
+        
+        # Add all directories in the chain to our removal set
+        all_removable_dirs.update(removable_chain)
+    
+    # Phase 2: Execute removals (deepest first to avoid conflicts)
+    sorted_removals = sorted(all_removable_dirs, key=lambda x: x.count('/'), reverse=True)
+    
+    for directory in sorted_removals:
+        if not os.path.exists(directory):
+            # Already removed as a subdirectory of another removal
+            continue
+            
+        if remove_directory(directory):
+            cleanup_results['directories_removed'] += 1
+            logger.info(f"Removed empty directory: {directory}")
+        else:
+            cleanup_results['directories_failed'] += 1
+            logger.warning(f"Failed to remove directory: {directory}")
     
     cleanup_results['root_paths_processed'] = len(root_paths)
     
