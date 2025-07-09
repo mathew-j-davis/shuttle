@@ -19,7 +19,8 @@ from shuttle_common.files import (
     remove_directory,
     remove_directory_contents,
     remove_empty_directories,
-    get_file_hash
+    get_file_hash,
+    cleanup_empty_directories
 )
 
 from .throttler import Throttler
@@ -562,38 +563,17 @@ def cleanup_after_processing(quarantine_files, results, source_path, delete_sour
     except Exception as e:
         logger.error(f"Failed to clean quarantine directory: {e}")
     
-    # 3. Remove empty source directories (original clean_up_source_files logic)
+    # 3. Enhanced empty directory cleanup with comprehensive safety checks
     if delete_source_files:
-        directories_to_remove = []
+        # Use enhanced directory cleanup with 5-minute stability check
+        # This prevents cleaning up directories that users are actively working with
+        root_paths = [source_path, quarantine_path]
+        stability_seconds = 300  # 5 minutes - configurable in future
         
-        # Collect directories that might be empty after file transfers
-        for counter, file_transfer in enumerate(quarantine_files):
-            if counter >= len(results):
-                break
-
-            # Only consider successful transfers
-            if results[counter] is True:
-                source_file_dir = os.path.dirname(quarantine_files[counter][1])  # source_file_path
-
-                # Skip the root source directory
-                if normalize_path(source_file_dir) == normalize_path(source_path):
-                    continue
-
-                # Add directory to removal list if not already present and it exists
-                if source_file_dir not in directories_to_remove and os.path.exists(source_file_dir):
-                    directories_to_remove.append(source_file_dir)
+        cleanup_results = cleanup_empty_directories(root_paths, stability_seconds)
         
-        # Remove empty directories
-        for directory_to_remove in directories_to_remove:
-            try:
-                # Only remove if directory is empty
-                if len(os.listdir(directory_to_remove)) == 0:
-                    if not remove_directory(directory_to_remove):
-                        logger.error(f"Could not remove directory during cleanup: {directory_to_remove}")
-                    else:
-                        logger.info(f"Directory removed during cleanup: {directory_to_remove}")
-            except Exception as e:
-                logger.warning(f"Error checking/removing directory {directory_to_remove}: {e}")
+        logger.info(f"Directory cleanup completed: {cleanup_results['directories_removed']} removed, "
+                   f"{cleanup_results['directories_failed']} failed")
 
 
 

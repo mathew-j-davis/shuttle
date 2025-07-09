@@ -39,14 +39,18 @@ from shuttle_common.files import (
     compare_file_hashes,
     copy_temp_then_rename,
     normalize_path,
-    is_file_open,
-    is_file_stable,
+    is_path_open,
+    is_path_stable,
     remove_directory_contents,
     remove_directory,
     remove_empty_directories,
     verify_file_integrity,
     encrypt_file,
-    remove_file_with_logging
+    remove_file_with_logging,
+    is_directory_empty,
+    is_safe_to_remove_directory,
+    collect_empty_directories_for_cleanup,
+    cleanup_empty_directories
 )
 
 # Import throttler for disk space management
@@ -83,14 +87,18 @@ __all__ = [
     'compare_file_hashes',
     'copy_temp_then_rename',
     'normalize_path',
-    'is_file_open',
-    'is_file_stable',
+    'is_path_open',
+    'is_path_stable',
     'remove_directory_contents',
     'remove_directory',
     'remove_empty_directories',
     'verify_file_integrity',
     'encrypt_file',
     'remove_file_with_logging',
+    'is_directory_empty',
+    'is_safe_to_remove_directory',
+    'collect_empty_directories_for_cleanup',
+    'cleanup_empty_directories',
     
     # Throttling functionality
     'Throttler',

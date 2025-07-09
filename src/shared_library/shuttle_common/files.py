@@ -200,9 +200,8 @@ def verify_file_integrity(source_file_path, comparison_file_path):
     result['a'] = None
     result['b'] = None
  
-    if os.path.getsize(source_file_path) == 0 or os.path.getsize(comparison_file_path) == 0:
-        logger.error("One of the files is empty")
-        return result
+    # Zero-length files are valid and can be verified by comparing hashes
+    # Remove the check that rejected empty files
 
     source_hash = get_file_hash(source_file_path)
     comparison_hash = get_file_hash(comparison_file_path)
@@ -295,6 +294,185 @@ def remove_empty_directories(root, keep_root=False):
         except OSError as ex:
             logger.debug(f"Could not remove directory: {path}, {ex}")
 
+def is_directory_empty(directory_path):
+    """
+    Check if a directory is empty.
+    
+    Args:
+        directory_path (str): Path to the directory to check
+        
+    Returns:
+        bool: True if directory exists and is empty, False otherwise
+    """
+    try:
+        if not os.path.exists(directory_path):
+            return False
+        if not os.path.isdir(directory_path):
+            return False
+        return len(os.listdir(directory_path)) == 0
+    except (OSError, PermissionError):
+        return False
+
+def is_safe_to_remove_directory(directory_path, root_paths, stability_seconds=300):
+    """
+    Check if it's safe to remove a directory with comprehensive safety checks.
+    
+    Args:
+        directory_path (str): Path to directory to check
+        root_paths (list): List of root paths we should never go above
+        stability_seconds (int): Minimum seconds since last modification (0 = no check)
+        
+    Returns:
+        bool: True if safe to remove, False otherwise
+    """
+    logger = get_logger()
+    
+    # Normalize path
+    normalized_dir = normalize_path(directory_path)
+    
+    # Protected system paths - never remove these
+    PROTECTED_PATHS = [
+        "/", "/usr", "/bin", "/sbin", "/lib", "/lib64", "/var", "/etc", 
+        "/home", "/root", "/tmp", "/dev", "/proc", "/sys", "/run"
+    ]
+    
+    # Check against protected system paths
+    for protected in PROTECTED_PATHS:
+        if normalized_dir.startswith(protected + "/") or normalized_dir == protected:
+            logger.debug(f"Directory {directory_path} is protected system path")
+            return False
+    
+    # Check against root boundaries
+    for root_path in root_paths:
+        normalized_root = normalize_path(root_path)
+        if normalized_dir == normalized_root:
+            logger.debug(f"Directory {directory_path} is a root path")
+            return False
+        if not normalized_dir.startswith(normalized_root + "/"):
+            logger.debug(f"Directory {directory_path} is outside root boundary {root_path}")
+            return False
+    
+    # Check if directory exists and is actually a directory
+    if not os.path.exists(directory_path):
+        return False
+    if not os.path.isdir(directory_path):
+        return False
+    
+    # Check if directory is empty
+    if not is_directory_empty(directory_path):
+        return False
+    
+    # Check if directory is stable (not recently modified)
+    if stability_seconds > 0 and not is_path_stable(directory_path, stability_seconds):
+        return False
+    
+    # Check if directory is currently open/in use
+    if is_path_open(directory_path):
+        logger.debug(f"Directory {directory_path} is currently in use")
+        return False
+    
+    # Check for mount points
+    try:
+        if os.path.ismount(directory_path):
+            logger.debug(f"Directory {directory_path} is a mount point")
+            return False
+    except (OSError, PermissionError):
+        return False
+    
+    return True
+
+def collect_empty_directories_for_cleanup(root_path, stability_seconds=300):
+    """
+    Collect all empty directories that are stable for cleanup.
+    Uses single-pass approach to avoid mtime cascading issues.
+    
+    Args:
+        root_path (str): Root directory to search within
+        stability_seconds (int): Minimum seconds since last modification
+        
+    Returns:
+        list: List of directory paths safe to remove, sorted deepest first
+    """
+    logger = get_logger()
+    empty_dirs = []
+    
+    try:
+        # Walk the tree and collect empty directories
+        for dirpath, dirnames, filenames in os.walk(root_path, topdown=False):
+            # Skip root directory
+            if dirpath == root_path:
+                continue
+                
+            # Check if directory is empty
+            if len(dirnames) == 0 and len(filenames) == 0:
+                # Check all safety conditions BEFORE any modifications
+                if is_safe_to_remove_directory(dirpath, [root_path], stability_seconds):
+                    empty_dirs.append(dirpath)
+                    logger.debug(f"Collected empty directory for cleanup: {dirpath}")
+    
+    except (OSError, PermissionError) as e:
+        logger.warning(f"Error collecting empty directories from {root_path}: {e}")
+    
+    # Sort by depth (deepest first) to avoid parent/child issues during removal
+    empty_dirs.sort(key=lambda x: x.count('/'), reverse=True)
+    
+    return empty_dirs
+
+def cleanup_empty_directories(root_paths, stability_seconds=300):
+    """
+    Enhanced directory cleanup that avoids mtime cascading issues.
+    
+    Args:
+        root_paths (list): List of root directories to clean up
+        stability_seconds (int): Minimum seconds since last modification (default 300 = 5 minutes)
+        
+    Returns:
+        dict: Summary of cleanup results
+    """
+    logger = get_logger()
+    
+    results = {
+        'directories_removed': 0,
+        'directories_failed': 0,
+        'root_paths_processed': 0
+    }
+    
+    for root_path in root_paths:
+        if not os.path.exists(root_path):
+            logger.debug(f"Root path does not exist: {root_path}")
+            continue
+            
+        logger.info(f"Starting directory cleanup for: {root_path}")
+        
+        # Collect empty directories using single-pass approach
+        empty_dirs = collect_empty_directories_for_cleanup(root_path, stability_seconds)
+        
+        if not empty_dirs:
+            logger.debug(f"No empty directories found for cleanup in: {root_path}")
+        else:
+            logger.info(f"Found {len(empty_dirs)} empty directories for cleanup in: {root_path}")
+        
+        # Remove collected directories
+        for directory in empty_dirs:
+            try:
+                if remove_directory(directory):
+                    results['directories_removed'] += 1
+                    logger.info(f"Removed empty directory: {directory}")
+                else:
+                    results['directories_failed'] += 1
+                    logger.warning(f"Failed to remove empty directory: {directory}")
+            except Exception as e:
+                results['directories_failed'] += 1
+                logger.error(f"Error removing directory {directory}: {e}")
+        
+        results['root_paths_processed'] += 1
+    
+    logger.info(f"Directory cleanup completed: {results['directories_removed']} removed, "
+                f"{results['directories_failed']} failed, "
+                f"{results['root_paths_processed']} root paths processed")
+    
+    return results
+
 def remove_directory(path):
     """
     Remove a directory.
@@ -340,7 +518,7 @@ def remove_directory_contents(root):
 
 
 
-def is_file_open(file_path):
+def is_path_open(file_path):
     """
     Check if a file is currently open by any process.
     
@@ -382,7 +560,7 @@ def is_file_open(file_path):
         logger.error(f"Exception occurred while checking if file is open: {e}")
         return False
     
-def is_file_stable(file_path, stability_time=5):
+def is_path_stable(file_path, stability_time=5):
     """
     Check if a file has not been modified in the last 'stability_time' seconds.
     
@@ -408,7 +586,7 @@ def is_file_stable(file_path, stability_time=5):
         return False
     except PermissionError:
         logger = get_logger()
-        logger.error(f"Permission denied when accessing file size: {file_path}")
+        logger.error(f"Permission denied when accessing file mtime: {file_path}")
         return False
     except Exception as e:
         logger = get_logger()
@@ -521,14 +699,14 @@ def is_file_ready(source_file_path, skip_stability_check=False):
     logger = get_logger()
     
     # Check file stability
-    if not skip_stability_check and not is_file_stable(source_file_path):
+    if not skip_stability_check and not is_path_stable(source_file_path):
         logger.debug(f"Skipping file {source_file_path} because it may still be written to.")
         return False
     elif skip_stability_check:
         logger.debug(f"Stability check bypassed for {source_file_path} (test mode).")
     
     # Check if file is open
-    if is_file_open(source_file_path):
+    if is_path_open(source_file_path):
         logger.debug(f"Skipping file {source_file_path} because it is currently open.")
         return False
     

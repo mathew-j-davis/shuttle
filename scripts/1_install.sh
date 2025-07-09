@@ -2361,7 +2361,7 @@ wizard_completion_options() {
                 
                 if save_installation_instructions "$INSTRUCTIONS_FILE"; then
                     show_saved_config_usage "$0" "$INSTRUCTIONS_FILE" "instructions" "true"
-                    read -p ""  # Wait for Enter
+                    # show_saved_config_usage already asks user to proceed, no need for extra read
                     execute_installation
                     show_next_steps
                 fi
