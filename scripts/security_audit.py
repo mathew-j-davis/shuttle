@@ -290,7 +290,7 @@ class SecurityAuditor:
             return
         
         # Check Samba user restrictions
-        for samba_group in ['shuttle_samba_in_users', 'shuttle_samba_out_users']:
+        for samba_group in ['shuttle_samba_in_users', 'shuttle_out_users']:
             if samba_group in samba_config:
                 self._audit_samba_group_restrictions(samba_group, samba_config[samba_group])
     

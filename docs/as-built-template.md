@@ -71,8 +71,8 @@ Installation Defaults Config: [INSTALLATION PATH]/config/installation_defaults.c
 #### Service Accounts
 | Account | Type | Shell | Primary Purpose | Group Memberships |
 |---------|------|-------|-----------------|-------------------|
-| shuttle_runner | Service | /usr/sbin/nologin | Main shuttle application | shuttle_config_readers, shuttle_log_owners, shuttle_runners, shuttle_in_owners, shuttle_quarantine_owners, shuttle_hazard_owners, shuttle_destination_owners, shuttle_key_readers |
-| shuttle_defender_test_runner | Service | /usr/sbin/nologin | Defender testing | shuttle_config_readers, shuttle_log_owners, shuttle_key_readers, shuttle_ledger_owners, shuttle_defender_test_runners |
+| shuttle_runner | Service | /usr/sbin/nologin | Main shuttle application | shuttle_config_readers, shuttle_log_owners, shuttle_owners |
+| shuttle_defender_test_runner | Service | /usr/sbin/nologin | Defender testing | shuttle_config_readers, shuttle_log_owners |
 | shuttle_tester | Service | /usr/sbin/nologin | Application testing | shuttle_testers |
 
 #### Network Users (ACL-based access only)
@@ -91,23 +91,16 @@ Installation Defaults Config: [INSTALLATION PATH]/config/installation_defaults.c
 #### Owner Groups (Directory ownership)
 | Group | Purpose | Owned Directories |
 |-------|---------|-------------------|
-| shuttle_config_readers | Read config files | /etc/shuttle |
-| shuttle_key_readers | Read GPG keys | /etc/shuttle/keys |
+| shuttle_config_readers | Read config and keys | /etc/shuttle (including /etc/shuttle/keys) |
 | shuttle_log_owners | Write logs | /var/log/shuttle |
-| shuttle_in_owners | Process source files | /mnt/in |
-| shuttle_quarantine_owners | Manage quarantine | /mnt/quarantine |
-| shuttle_hazard_owners | Manage hazard files | /mnt/hazard |
-| shuttle_destination_owners | Manage clean files | /mnt/out |
-| shuttle_ledger_owners | Write ledger | /var/log/shuttle/ledger |
+| shuttle_owners | Own all data directories | /mnt/in, /mnt/quarantine, /mnt/hazard, /mnt/out |
 | shuttle_testers | Run tests | /var/tmp/shuttle/test_area |
 
-#### Access Groups (ACL-based access)
+#### Access Groups (ACL-based access - Optional for future use)
 | Group | Purpose | ACL Access To |
 |-------|---------|---------------|
-| shuttle_runners | Service account marker | Various via owner groups |
-| shuttle_defender_test_runners | Defender test marker | Ledger write via ACL |
-| shuttle_samba_in_users | Network inbound access | /mnt/in (rw), /mnt/out (r) |
-| shuttle_out_users | Network outbound access | /mnt/out (rw) |
+| shuttle_samba_in_users | Network inbound access (future use) | /mnt/in (rw), /mnt/out (r) |
+| shuttle_out_users | Network outbound access (future use) | /mnt/out (rw) |
 
 #### Administrative Groups
 | Group | Purpose | Members |
@@ -227,16 +220,15 @@ read only = yes
 
 | Directory   | Path                          | Owner | Group                      | Directory Mode   | File Mode        | Owner Perms           | Group Perms           | Other Perms           | ACL Users                                             | Notes                     |
 |-------------|-------------------------------|-------|----------------------------|------------------|------------------|-----------------------|-----------------------|-----------------------|-------------------------------------------------------|---------------------------|
-| config      | /etc/shuttle                  | root  | shuttle_config_readers     | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Read-only, write via sudo |
-| key         | /etc/shuttle/keys             | root  | shuttle_config_readers     | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | GPG keys, write via sudo  |
-| quarantine  | /mnt/quarantine               | root  | shuttle_quarantine_owners  | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Service accounts only     |
-| hazard      | /mnt/hazard                   | root  | shuttle_hazard_owners      | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Malware isolation         |
-| destination | /mnt/out                      | root  | shuttle_destination_owners | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | shuttle_samba_in_users (r-X), shuttle_out_users (rwX) | Network users via ACL     |
+| config      | /etc/shuttle                  | root  | shuttle_config_readers     | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Config and keys, write via sudo |
+| quarantine  | /mnt/quarantine               | root  | shuttle_owners             | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Service accounts only     |
+| hazard      | /mnt/hazard                   | root  | shuttle_owners             | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Malware isolation         |
+| destination | /mnt/out                      | root  | shuttle_owners             | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | shuttle_samba_in_users (r-X), shuttle_out_users (rwX) | Network users via ACL (future) |
 | test config | /etc/shuttle/test_config.yaml | root  | shuttle_testers            | 2755 (rwxr-sr-x) | 0644 (rw-r--r--) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | r-x (dir), r-- (file) | None                                                  | Test configuration        |
-| ledger      | /var/log/shuttle/ledger       | root  | shuttle_config_readers     | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | shuttle_defender_test_runner (rwX)                    | Defender test writes      |
+| ledger      | /var/log/shuttle/ledger       | root  | shuttle_log_owners         | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | shuttle_defender_test_runner (rwX)                    | Defender test writes      |
 | logs        | /var/log/shuttle              | root  | shuttle_log_owners         | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | None                                                  | Service accounts only     |
 | test work   | /var/tmp/shuttle/test_area    | root  | shuttle_testers            | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | None                                                  | Temporary test area       |
-| source      | /mnt/in                       | root  | shuttle_in_owners          | 2775 (rwxrwsr-x) | 0664 (rw-rw-r--) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | shuttle_samba_in_users (rwX)                          | Samba users via ACL       |
+| source      | /mnt/in                       | root  | shuttle_owners             | 2775 (rwxrwsr-x) | 0664 (rw-rw-r--) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | shuttle_samba_in_users (rwX)                          | Samba users via ACL (future) |
 | venv        | /opt/shuttle/venv             | root  | root                       | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | r-x (dir), r-- (file) | None                                                  | Python virtual environment |
 | installation| /opt/shuttle                  | root  | root                       | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | r-x (dir), r-- (file) | None                                                  | Application source code    |
 

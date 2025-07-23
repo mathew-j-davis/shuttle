@@ -4,46 +4,39 @@ Standard Configuration Definitions for Shuttle
 Centralized source of truth for all standard groups, users, and path permissions
 """
 
-# Standard Groups - Single source of truth
+# Standard Groups - Simplified 4-group structure
 STANDARD_GROUPS = {
+    # Core owner groups (4 groups needed for basic operation)
+    'shuttle_config_readers': {
+        'description': 'Read access to config and keys',
+        'gid': 5001
+    },
+    'shuttle_log_owners': {
+        'description': 'Write access to logs and ledger',
+        'gid': 5003
+    },
+    'shuttle_owners': {
+        'description': 'Owns all data directories (source, quarantine, hazard, destination)',
+        'gid': 5002
+    },
+    'shuttle_testers': {
+        'description': 'Isolated test environment access',
+        'gid': 5012
+    },
+    
+    # Administrative group
     'shuttle_admins': {
         'description': 'Administrative users with full shuttle access',
         'gid': 5000
     },
-    'shuttle_config_readers': {
-        'description': 'Read access to config, key, and ledger',
-        'gid': 5001
-    },
-    'shuttle_data_owners': {
-        'description': 'Owns all data directories',
-        'gid': 5002
-    },
-    'shuttle_log_owners': {
-        'description': 'Write access to logs',
-        'gid': 5003
-    },
-    'shuttle_ledger_owners': {
-        'description': 'Write access to ledger file',
-        'gid': 5004
-    },
-    'shuttle_runners': {
-        'description': 'Can execute shuttle applications',
-        'gid': 5010
-    },
-    'shuttle_defender_test_runners': {
-        'description': 'Can run defender testing',
-        'gid': 5011
-    },
-    'shuttle_testers': {
-        'description': 'Can run shuttle test suites',
-        'gid': 5012
-    },
+    
+    # Optional network access groups (for future use)
     'shuttle_samba_in_users': {
-        'description': 'Inbound file submission via Samba',
+        'description': 'Inbound file submission via Samba (optional - future use)',
         'gid': 5020
     },
-    'shuttle_samba_out_users': {
-        'description': 'Outbound file retrieval via Samba',
+    'shuttle_out_users': {
+        'description': 'Outbound file retrieval (optional - future use)',
         'gid': 5021
     }
 }
@@ -81,8 +74,8 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'recommended': True,
         'source': 'local',
         'groups': {
-            'primary': 'shuttle_runners',
-            'secondary': ['shuttle_config_readers', 'shuttle_data_owners', 'shuttle_log_owners']
+            'primary': 'shuttle_owners',
+            'secondary': ['shuttle_config_readers', 'shuttle_log_owners']
         },
         'shell': '/usr/sbin/nologin',
         'home_directory': '/var/lib/shuttle/shuttle_runner',
@@ -96,8 +89,8 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'recommended': True,
         'source': 'local',
         'groups': {
-            'primary': 'shuttle_defender_test_runners',
-            'secondary': ['shuttle_config_readers', 'shuttle_log_owners', 'shuttle_ledger_owners']
+            'primary': 'shuttle_log_owners',
+            'secondary': ['shuttle_config_readers']
         },
         'shell': '/usr/sbin/nologin',
         'home_directory': '/var/lib/shuttle/shuttle_defender_test_runner',
@@ -148,7 +141,7 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'source': 'local',
         'groups': {
             'primary': 'shuttle_testers',
-            'secondary': ['shuttle_runners', 'shuttle_config_readers']
+            'secondary': ['shuttle_config_readers']
         },
         'shell': '/bin/bash',
         'home_directory': '/home/shuttle_tester',
@@ -163,8 +156,7 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'groups': {
             'primary': None,
             'secondary': [
-                'shuttle_config_readers', 'shuttle_data_owners', 'shuttle_log_owners',
-                'shuttle_ledger_owners', 'shuttle_runners', 'shuttle_defender_test_runners'
+                'shuttle_config_readers', 'shuttle_owners', 'shuttle_log_owners'
             ]
         },
         'shell': '/bin/bash',
@@ -195,7 +187,7 @@ STANDARD_SAMBA_CONFIG = {
             'create_mask': '0644',
             'directory_mask': '0755',
             'force_user': 'shuttle_runner',
-            'force_group': 'shuttle_data_owners'
+            'force_group': 'shuttle_owners'
         },
         'shuttle_outbound': {
             'path': '/var/shuttle/destination',
@@ -444,7 +436,7 @@ PATH_PERMISSION_BASE_TEMPLATES = {
         'templates': {
             'source_path': {
                 'owner': 'root',
-                'group': 'shuttle_data_owners', 
+                'group': 'shuttle_owners', 
                 'mode': '2770',
                 'acls': ['g:shuttle_samba_in_users:rwX'],
                 'default_acls': {
@@ -455,7 +447,7 @@ PATH_PERMISSION_BASE_TEMPLATES = {
             },
             'destination_path': {
                 'owner': 'root',
-                'group': 'shuttle_data_owners',
+                'group': 'shuttle_owners',
                 'mode': '2770', 
                 'acls': ['g:shuttle_samba_out_users:r-X'],
                 'default_acls': {
@@ -466,7 +458,7 @@ PATH_PERMISSION_BASE_TEMPLATES = {
             },
             'quarantine_path': {
                 'owner': 'root',
-                'group': 'shuttle_data_owners',
+                'group': 'shuttle_owners',
                 'mode': '2770',
                 'default_acls': {
                     'file': ['u::rw-', 'g::rw-', 'o::---'],
@@ -476,7 +468,7 @@ PATH_PERMISSION_BASE_TEMPLATES = {
             },
             'hazard_archive_path': {
                 'owner': 'root',
-                'group': 'shuttle_data_owners',
+                'group': 'shuttle_owners',
                 'mode': '2770',
                 'default_acls': {
                     'file': ['u::rw-', 'g::rw-', 'o::---'],
@@ -500,7 +492,7 @@ PATH_PERMISSION_BASE_TEMPLATES = {
                 'owner': 'root',
                 'group': 'shuttle_config_readers',
                 'mode': '0640',
-                'acls': ['g:shuttle_ledger_owners:rw-'],
+                'acls': ['g:shuttle_defender_test_runner:rwX'],
                 'description': 'Ledger file (config readers + ledger writers)'
             },
             'test_work_dir': {

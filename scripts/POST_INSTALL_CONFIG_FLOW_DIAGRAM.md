@@ -582,9 +582,8 @@ Standard Templates (standard_configs.py)
 │       ├── Developer accounts with broader access
 │       └── Testing accounts for validation
 ├── Group Templates  
-│   ├── Functional groups (shuttle_runners, shuttle_monitors)
-│   ├── Permission groups (shuttle_config_readers, shuttle_data_owners)
-│   └── Samba isolation groups (shuttle_samba_in_users, shuttle_samba_out_users)
+│   ├── Core permission groups (shuttle_owners, shuttle_log_owners, shuttle_config_readers, shuttle_testers)
+│   └── Optional network groups (shuttle_samba_in_users, shuttle_out_users)
 └── Path Permission Templates (PATH_PERMISSION_BASE_TEMPLATES)
     ├── Production template (restrictive permissions)
     ├── Development template (broader access for testing)

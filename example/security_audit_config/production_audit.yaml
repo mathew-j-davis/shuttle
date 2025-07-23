@@ -8,22 +8,20 @@ users:
     account_type: service
     source: local
     groups:
-      primary: shuttle_runners
+      primary: shuttle_owners
       secondary:
         - shuttle_config_readers
-        - shuttle_data_owners
         - shuttle_log_owners
     home_directory: /var/lib/shuttle/shuttle_runner
     
-  - name: shuttle_monitor
+  - name: shuttle_defender_test_runner
     account_type: service
     source: local
     groups:
-      primary: shuttle_monitors
+      primary: shuttle_log_owners
       secondary:
         - shuttle_config_readers
-        - shuttle_log_readers
-    home_directory: /var/lib/shuttle/shuttle_monitor
+    home_directory: /var/lib/shuttle/shuttle_defender_test_runner
 
   # Samba service accounts (if using Samba file transfer)
   - name: shuttle_samba_in
@@ -34,13 +32,13 @@ users:
       secondary: []
     home_directory: /dev/null
 
-  - name: shuttle_samba_out
+  - name: shuttle_out_user
     account_type: service
     source: local
     groups:
-      primary: shuttle_samba_out_users
+      primary: shuttle_out_users
       secondary: []
-    home_directory: /dev/null
+    home_directory: /var/lib/shuttle/samba/shuttle_out_user
 
   # Admin accounts (if using local admin accounts)
   - name: shuttle_admin
@@ -56,47 +54,36 @@ users:
 
 # Expected group configurations
 groups:
-  # Core functional groups
-  - name: shuttle_runners
-    members: [shuttle_runner]
-    allow_extra_members: false
-    
-  - name: shuttle_monitors
-    members: [shuttle_monitor]
-    allow_extra_members: false
-    
+  # Administrative group
   - name: shuttle_admins
     members: [shuttle_admin]
-    allow_extra_members: true  # Allow additional admin users
+    allow_extra_members: true
     
-  # Permission-based groups
+    
+  # Core permission groups
   - name: shuttle_config_readers
-    members: [shuttle_runner, shuttle_monitor]
+    members: [shuttle_runner, shuttle_defender_test_runner]
     allow_extra_members: true
     
-  - name: shuttle_config_managers
-    members: [shuttle_admin]
-    allow_extra_members: true
-    
-  - name: shuttle_data_owners
+  - name: shuttle_owners
     members: [shuttle_runner, shuttle_admin]
     allow_extra_members: false
-    
-  - name: shuttle_log_readers
-    members: [shuttle_monitor]
-    allow_extra_members: true
     
   - name: shuttle_log_owners
-    members: [shuttle_runner, shuttle_admin]
+    members: [shuttle_runner, shuttle_defender_test_runner, shuttle_admin]
     allow_extra_members: false
+    
+  - name: shuttle_testers
+    members: []
+    allow_extra_members: true
     
   # Samba isolation groups
   - name: shuttle_samba_in_users
     members: [shuttle_samba_in]
     allow_extra_members: false
     
-  - name: shuttle_samba_out_users
-    members: [shuttle_samba_out]
+  - name: shuttle_out_users
+    members: [shuttle_out_user]
     allow_extra_members: false
 
 # Samba-specific security requirements
@@ -109,22 +96,20 @@ samba_security:
       - shuttle_admins
       - shuttle_config_readers
       - shuttle_config_managers
-      - shuttle_data_owners
-      - shuttle_log_readers
+      - shuttle_owners
       - shuttle_log_owners
-      - shuttle_samba_out_users
+      - shuttle_log_owners
+      - shuttle_out_users
     max_group_memberships: 1  # Only their primary group
     
-  shuttle_samba_out_users:
+  shuttle_out_users:
     allowed_shells: ['/usr/sbin/nologin', '/bin/false', '/sbin/nologin']
     forbidden_groups:
-      - shuttle_runners
-      - shuttle_monitors
       - shuttle_admins
       - shuttle_config_readers
       - shuttle_config_managers
-      - shuttle_data_owners
-      - shuttle_log_readers
+      - shuttle_owners
+      - shuttle_log_owners
       - shuttle_log_owners
       - shuttle_samba_in_users
     max_group_memberships: 1  # Only their primary group
@@ -133,16 +118,16 @@ samba_security:
 path_ownership:
   source:
     owner: shuttle_runner
-    group: shuttle_data_owners
+    group: shuttle_owners
   destination:
     owner: shuttle_runner
-    group: shuttle_data_owners
+    group: shuttle_owners
   quarantine:
     owner: shuttle_runner
-    group: shuttle_data_owners
+    group: shuttle_owners
   hazard_archive:
     owner: shuttle_runner
-    group: shuttle_data_owners
+    group: shuttle_owners
   tracking:
     owner: shuttle_runner
     group: shuttle_log_owners

@@ -14,13 +14,13 @@
 
 | Path                       | Owner                       | Mode | ACLs                          | Default ACLs         | Purpose |
 |----------------------------|-----------------------------|------|-------------------------------|----------------------|---------|
-| source_path                | root:shuttle_data_owners    | 2770 | g:shuttle_samba_in_users:rwX  | u::rw-,g::rw-,o::--- | Samba uploads: F:660 D:770 |
-| destination_path           | root:shuttle_data_owners    | 2770 | g:shuttle_samba_out_users:rwX | u::rw-,g::rw-,o::--- | Samba downloads: F:660 D:770 |
-| quarantine_path            | root:shuttle_data_owners    | 2770 | None                          | None                 | Shuttle only (umask handles) |
-| hazard_archive_path        | root:shuttle_data_owners    | 2770 | None                          | None                 | Shuttle only (umask handles) |
+| source_path                | root:shuttle_owners         | 2770 | g:shuttle_samba_in_users:rwX  | u::rw-,g::rw-,o::--- | Samba uploads: F:660 D:770 |
+| destination_path           | root:shuttle_owners         | 2770 | g:shuttle_out_users:rwX       | u::rw-,g::rw-,o::--- | Samba downloads: F:660 D:770 |
+| quarantine_path            | root:shuttle_owners         | 2770 | None                          | None                 | Shuttle only (umask handles) |
+| hazard_archive_path        | root:shuttle_owners         | 2770 | None                          | None                 | Shuttle only (umask handles) |
 | log_path                   | root:shuttle_log_owners     | 2770 | None                          | None                 | Shuttle only (umask handles) |
 | hazard_encryption_key_path | root:shuttle_config_readers | 0640 | None                          | None                 | Static file |
-| ledger_file_path           | root:shuttle_config_readers | 0640 | g:shuttle_ledger_owners:rw-   | None                 | Static file |
+| ledger_file_path           | root:shuttle_config_readers | 0640 | g:shuttle_log_owners:rw-      | None                 | Static file |
 | test_work_dir              | root:shuttle_testers        | 0775 | None                          | None                 | Test isolation |
 | test_config_path           | root:shuttle_testers        | 0664 | None                          | None                 | Static file |
 
@@ -28,13 +28,12 @@
 
 | Group                        | Data Dirs | Logs | Config | Ledger | Tests |
 |------------------------------|-----------|------|--------|--------|-------|
-| shuttle_data_owners          | rwx       |      |        |        |       |
-| shuttle_log_owners           |           | rwx  |        |        |       |
+| shuttle_owners               | rwx       |      |        |        |       |
+| shuttle_log_owners           |           | rwx  |        | rw-    |       |
 | shuttle_config_readers       |           |      | r--    | r--    |       |
-| shuttle_ledger_owners        |           |      |        | rw-    |       |
 | shuttle_testers              |           |      |        |        | rwx   |
 | shuttle_samba_in_users       | source:rwX|      |        |        |       |
-| shuttle_samba_out_users      | dest:rwX  |      |        |        |       |
+| shuttle_out_users            | dest:rwX  |      |        |        |       |
 
 ## Security Features
 
@@ -72,8 +71,7 @@ shuttle_runner:
   groups:
     - shuttle_config_readers
     - shuttle_log_owners
-    - shuttle_data_owners
-    - shuttle_runners
+    - shuttle_owners
   shell: /bin/bash
   home: /var/lib/shuttle
 
@@ -82,8 +80,6 @@ shuttle_defender_test_runner:
   groups:
     - shuttle_config_readers
     - shuttle_log_owners
-    - shuttle_ledger_owners
-    - shuttle_defender_test_runners
   shell: /bin/bash
   home: /var/lib/shuttle_defender_test
 
@@ -108,10 +104,10 @@ shuttle_samba_in_user:
     - No other group memberships
     - Access only via Samba ACLs
 
-shuttle_samba_out_user:
+shuttle_out_user:
   description: "Outbound file retrieval via Samba"
   groups:
-    - shuttle_samba_out_users
+    - shuttle_out_users
   shell: /usr/sbin/nologin
   home: /dev/null
   restrictions:

@@ -207,15 +207,15 @@ class UserGroupManager:
         for executable in executables:
             print(f"    - Access to: {executable}")
         
-        # Example: If user needs run-shuttle, add them to shuttle_app_users group
+        # Example: If user needs run-shuttle, add them to shuttle_owners group
         if 'run-shuttle' in executables:
-            if 'shuttle_app_users' not in user.get('groups', {}).get('secondary', []):
-                print(f"    Note: Consider adding {user_name} to shuttle_app_users group for run-shuttle access")
+            if 'shuttle_owners' not in user.get('groups', {}).get('secondary', []):
+                print(f"    Note: Consider adding {user_name} to shuttle_owners group for run-shuttle access")
         
-        # Example: If user needs run-shuttle-defender-test, add them to shuttle_test_users group  
+        # Example: If user needs run-shuttle-defender-test, add them to shuttle_log_owners group  
         if 'run-shuttle-defender-test' in executables:
-            if 'shuttle_test_users' not in user.get('groups', {}).get('secondary', []):
-                print(f"    Note: Consider adding {user_name} to shuttle_test_users group for run-shuttle-defender-test access")
+            if 'shuttle_log_owners' not in user.get('groups', {}).get('secondary', []):
+                print(f"    Note: Consider adding {user_name} to shuttle_log_owners group for run-shuttle-defender-test access")
         
         return True
 

@@ -3,12 +3,11 @@
 ## Design Principles
 
 1. **Clear Group Ownership**: Each directory has ONE owning group for simplicity
-2. **ACLs only for:**
-  - **Network Users**: Isolated Samba and outbound users use ACLs
-  - **shuttle_runners**: Use 
+2. **Minimal Groups**: Only 4 core groups needed for basic operation
 3. **Service Account Multi-Membership**: Service accounts join multiple groups directly
 4. **Read-Only System Files**: Config and keys are read-only groups, written via sudo
 5. **Complete Test Isolation**: Test users have no production access
+6. **ACLs for Future Network Access**: Samba/network groups available but optional
 
 ## User and Group Structure
 
@@ -17,23 +16,15 @@
 shuttle_runner:
   description: "Main shuttle application service account"
   groups:
-    - shuttle_config_readers
-    - shuttle_log_owners
-    - shuttle_runners
-    - shuttle_in_owners
-    - shuttle_quarantine_owners
-    - shuttle_hazard_owners
-    - shuttle_destination_owners
-    - shuttle_key_readers
+    - shuttle_config_readers  # Config and keys
+    - shuttle_log_owners      # Logs
+    - shuttle_owners          # All data directories
 
 shuttle_defender_test_runner:
   description: "Defender testing with production config"
   groups:
-    - shuttle_config_readers
-    - shuttle_log_owners
-    - shuttle_key_readers
-    - shuttle_ledger_owners
-    - shuttle_defender_test_runners
+    - shuttle_config_readers  # Config and keys
+    - shuttle_log_owners      # Logs (including ledger via ACL)
 
 shuttle_tester:
   description: "Shuttle application testing (isolated)"
@@ -58,28 +49,27 @@ shuttle_out_user:
 
 ## Access Control Matrix
 
-| User/Group                   | config | key | ledger        | logs | source     | quarantine | hazard | destination | tests | test work |
-|------------------------------|--------|-----|---------------|------|------------|------------|--------|-------------|-------|-----------|
-| shuttle_runner               | r      | r   | r             | rw   | rw         | rw         | rw     | rw          |       |           |
-| shuttle_defender_test_runner | r      | r   | r (w via ACL) | rw   |            |            |        |             |       |           |
-| shuttle_samba_in_users       |        |     |               |      | rw via ACL |            |        | r via ACL   |       |           |
-| shuttle_out_users            |        |     |               |      |            |            |        | rw via ACL  |       |           |
-| shuttle_testers              |        |     |               |      |            |            |        |             | rwx   | rw        |
+| User/Group                   | config/key | ledger        | logs | source | quarantine | hazard | destination | tests | test work |
+|------------------------------|------------|---------------|------|--------|------------|--------|-------------|-------|-----------|
+| shuttle_runner               | r          | r             | rw   | rw     | rw         | rw     | rw          |       |           |
+| shuttle_defender_test_runner | r          | r (w via ACL) | rw   |        |            |        |             |       |           |
+| shuttle_samba_in_users       |            |               |      | rw via ACL |           |        | r via ACL   |       |           |
+| shuttle_out_users            |            |               |      |        |            |        | rw via ACL  |       |           |
+| shuttle_testers              |            |               |      |        |            |        |             | rwx   | rw        |
 
 ## Directory Ownership Model
 
-| Directory   | Owner User | Owner Group               | Mode | Additional Access via ACL                             | Notes                                  |
-|-------------|------------|---------------------------|------|-------------------------------------------------------|----------------------------------------|
-| source      | root       | shuttle_in_owners         | 2775 | shuttle_samba_in_users (rwX)                          | Group owns, Samba users via ACL        |
-| quarantine  | root       | shuttle_quarantine_owners | 2750 | None                                                  | Service accounts only                  |
-| hazard      | root       | shuttle_hazard_owners     | 2750 | None                                                  | Service accounts only                  |
-| destination | root       | shuttle_destination_owners| 2750 | shuttle_samba_in_users (r-X), shuttle_out_users (rwX)| Group owns, network users via ACL       |
-| logs        | root       | shuttle_log_owners        | 2770 | None                                                  | Service accounts only                  |
-| config      | root       | shuttle_config_readers    | 2750 | None                                                  | Read-only, write via sudo              |
-| key         | root       | shuttle_config_readers    | 2750 | None                                                  | Read-only, write via sudo              |
-| ledger      | root       | shuttle_config_readers    | 2770 | shuttle_defender_test_runner (rwX)                    | Defender test writes                   |
-| tests       | root       | shuttle_testers           | 2755 | None                                                  | Test binaries/scripts                  |
-| test work   | root       | shuttle_testers           | 2770 | None                                                  | Test execution workspace               |
+| Directory   | Owner User | Owner Group            | Mode | Additional Access via ACL                             | Notes                                  |
+|-------------|------------|------------------------|------|-------------------------------------------------------|----------------------------------------|
+| source      | root       | shuttle_owners         | 2775 | shuttle_samba_in_users (rwX)                          | Group owns, Samba users via ACL (future) |
+| quarantine  | root       | shuttle_owners         | 2750 | None                                                  | Service accounts only                  |
+| hazard      | root       | shuttle_owners         | 2750 | None                                                  | Service accounts only                  |
+| destination | root       | shuttle_owners         | 2750 | shuttle_samba_in_users (r-X), shuttle_out_users (rwX)| Group owns, network users via ACL (future) |
+| logs        | root       | shuttle_log_owners     | 2770 | None                                                  | Service accounts only                  |
+| config      | root       | shuttle_config_readers | 2750 | None                                                  | Config and keys, write via sudo       |
+| ledger      | root       | shuttle_log_owners     | 2770 | shuttle_defender_test_runner (rwX)                    | Defender test writes                   |
+| tests       | root       | shuttle_testers        | 2755 | None                                                  | Test binaries/scripts                  |
+| test work   | root       | shuttle_testers        | 2770 | None                                                  | Test execution workspace               |
 
 ## Permission Inheritance Setup
 
@@ -131,51 +121,52 @@ Testing:  test work (completely isolated)
 
 ### Group Creation
 ```bash
-# Create all owner groups
-groupadd -r shuttle_config_readers
-groupadd -r shuttle_key_readers
-groupadd -r shuttle_log_owners
-groupadd -r shuttle_runners
-groupadd -r shuttle_in_owners
-groupadd -r shuttle_quarantine_owners
-groupadd -r shuttle_hazard_owners
-groupadd -r shuttle_destination_owners
-groupadd -r shuttle_ledger_owners
-groupadd -r shuttle_testers
-groupadd -r shuttle_defender_test_runners
-groupadd -r shuttle_samba_in_users
-groupadd -r shuttle_out_users
+# Create core owner groups (only 4 needed for basic operation)
+groupadd -r shuttle_config_readers  # Config and keys
+groupadd -r shuttle_log_owners      # Logs and ledger
+groupadd -r shuttle_owners          # All data directories
+groupadd -r shuttle_testers         # Test isolation
+
+# Optional groups for future network access
+groupadd -r shuttle_samba_in_users  # Network inbound (future)
+groupadd -r shuttle_out_users       # Network outbound (future)
 ```
 
 ### User Setup
 ```bash
-# Service accounts with multiple group membership
-usermod -aG shuttle_config_readers,shuttle_log_owners,shuttle_runners,\
-shuttle_in_owners,shuttle_quarantine_owners,shuttle_hazard_owners,\
-shuttle_destination_owners,shuttle_key_readers shuttle_runner
+# Service accounts with simplified group membership
+usermod -aG shuttle_config_readers,shuttle_log_owners,shuttle_owners shuttle_runner
 
-usermod -aG shuttle_config_readers,shuttle_log_owners,shuttle_key_readers,\
-shuttle_ledger_owners,shuttle_defender_test_runners shuttle_defender_test_runner
+usermod -aG shuttle_config_readers,shuttle_log_owners shuttle_defender_test_runner
 
 usermod -aG shuttle_testers shuttle_tester
 
-# Network users (single group membership)
-usermod -aG shuttle_samba_in_users shuttle_samba_in_user
-usermod -aG shuttle_out_users shuttle_out_user
+# Optional network users (for future use)
+# usermod -aG shuttle_samba_in_users shuttle_samba_in_user
+# usermod -aG shuttle_out_users shuttle_out_user
 ```
 
 ### Directory Setup
 ```bash
-# Set ownership and permissions
-chown root:shuttle_in_owners /var/shuttle/incoming
-chmod 2775 /var/shuttle/incoming
+# Set ownership and permissions with simplified groups
+chown root:shuttle_owners /mnt/in
+chown root:shuttle_owners /mnt/quarantine
+chown root:shuttle_owners /mnt/hazard
+chown root:shuttle_owners /mnt/out
+chmod 2775 /mnt/in
+chmod 2750 /mnt/quarantine
+chmod 2750 /mnt/hazard
+chmod 2750 /mnt/out
 
 chown root:shuttle_config_readers /etc/shuttle
 chmod 2750 /etc/shuttle
 
-# Add ACLs for network users (with inheritance)
-setfacl -m g:shuttle_samba_in_users:rwX /var/shuttle/incoming
-setfacl -m d:g:shuttle_samba_in_users:rwX /var/shuttle/incoming
+chown root:shuttle_log_owners /var/log/shuttle
+chmod 2770 /var/log/shuttle
+
+# Optional ACLs for future network users
+# setfacl -m g:shuttle_samba_in_users:rwX /mnt/in
+# setfacl -m d:g:shuttle_samba_in_users:rwX /mnt/in
 ```
 
 ## Wizard Implementation Requirements
