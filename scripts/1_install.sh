@@ -1140,18 +1140,8 @@ interactive_config_path_choice() {
     echo "Installation mode: $INSTALL_MODE"
     echo ""
     
-    # Set up default config path based on installation mode
-    case $INSTALL_MODE in
-        "$INSTALL_MODE_DEV")
-            DEFAULT_CONFIG="$PROJECT_ROOT/config/config.conf"
-            ;;
-        "$INSTALL_MODE_USER")
-            DEFAULT_CONFIG="$HOME/.config/shuttle/config.conf"
-            ;;
-        "$INSTALL_MODE_SERVICE")
-            DEFAULT_CONFIG="/etc/shuttle/config.conf"
-            ;;
-    esac
+    # Set up default config path based on installation mode (reading from config file)
+    DEFAULT_CONFIG=$(get_default_path "$INSTALL_MODE" "config" "$PROJECT_ROOT")
     
     echo "Configuration file location:"
     echo "Path where Shuttle's main configuration file will be stored."
@@ -1240,21 +1230,9 @@ interactive_environment_paths_choice() {
     echo "=== Environment Variables Setup ==="
     echo ""
     
-    # Set up default paths based on installation mode (config path already set)
-    case $INSTALL_MODE in
-        "$INSTALL_MODE_DEV")
-            DEFAULT_VENV="$PROJECT_ROOT/.venv"
-            DEFAULT_TEST_WORK="$PROJECT_ROOT/test_area"
-            ;;
-        "$INSTALL_MODE_USER")
-            DEFAULT_VENV="$HOME/.local/share/shuttle/venv"
-            DEFAULT_TEST_WORK="$HOME/.local/share/shuttle/test_area"
-            ;;
-        "$INSTALL_MODE_SERVICE")
-            DEFAULT_VENV="/opt/shuttle/venv"
-            DEFAULT_TEST_WORK="/var/lib/shuttle/test_area"
-            ;;
-    esac
+    # Set up default paths based on installation mode (reading from config file)
+    DEFAULT_VENV=$(get_default_path "$INSTALL_MODE" "venv" "$PROJECT_ROOT")
+    DEFAULT_TEST_WORK=$(get_default_path "$INSTALL_MODE" "test_work" "$PROJECT_ROOT")
     
     echo "Additional environment paths:"
     echo ""
@@ -1431,42 +1409,16 @@ collect_config_parameters() {
     echo "=== Configuration Parameters ==="
     echo ""
     
-    # Set defaults based on installation mode (using constants)
-    case $INSTALL_MODE in
-        "$INSTALL_MODE_DEV")
-            DEFAULT_SOURCE="$PROJECT_ROOT/work/incoming"
-            DEFAULT_DEST="$PROJECT_ROOT/work/processed"
-            DEFAULT_QUARANTINE="$PROJECT_ROOT/work/quarantine"
-            DEFAULT_LOG="$PROJECT_ROOT/work/logs"
-            DEFAULT_HAZARD="$PROJECT_ROOT/work/hazard"
-            DEFAULT_THREADS=1
-            DEFAULT_LOG_LEVEL="$LOG_LEVEL_DEBUG"
-            DEFAULT_CLAMAV="n"
-            DEFAULT_DEFENDER="Y"
-            ;;
-        "$INSTALL_MODE_USER")
-            DEFAULT_SOURCE="$HOME/shuttle/incoming"
-            DEFAULT_DEST="$HOME/shuttle/processed"
-            DEFAULT_QUARANTINE="/tmp/shuttle/quarantine"
-            DEFAULT_LOG="$HOME/shuttle/logs"
-            DEFAULT_HAZARD="$HOME/shuttle/hazard"
-            DEFAULT_THREADS=1
-            DEFAULT_LOG_LEVEL="$LOG_LEVEL_INFO"
-            DEFAULT_CLAMAV="n"
-            DEFAULT_DEFENDER="Y"
-            ;;
-        "$INSTALL_MODE_SERVICE")
-            DEFAULT_SOURCE="/srv/data/incoming"
-            DEFAULT_DEST="/srv/data/processed"
-            DEFAULT_QUARANTINE="/tmp/shuttle/quarantine"
-            DEFAULT_LOG="/var/log/shuttle"
-            DEFAULT_HAZARD="/srv/data/hazard"
-            DEFAULT_THREADS=1
-            DEFAULT_LOG_LEVEL="$LOG_LEVEL_INFO"
-            DEFAULT_CLAMAV="n"
-            DEFAULT_DEFENDER="Y"
-            ;;
-    esac
+    # Set defaults based on installation mode (reading from config file)
+    DEFAULT_SOURCE=$(get_default_path "$INSTALL_MODE" "source" "$PROJECT_ROOT")
+    DEFAULT_DEST=$(get_default_path "$INSTALL_MODE" "destination" "$PROJECT_ROOT")
+    DEFAULT_QUARANTINE=$(get_default_path "$INSTALL_MODE" "quarantine" "$PROJECT_ROOT")
+    DEFAULT_LOG=$(get_default_path "$INSTALL_MODE" "logs" "$PROJECT_ROOT")
+    DEFAULT_HAZARD=$(get_default_path "$INSTALL_MODE" "hazard" "$PROJECT_ROOT")
+    DEFAULT_THREADS=$(get_default_threads)
+    DEFAULT_LOG_LEVEL=$(get_default_log_level "$INSTALL_MODE")
+    DEFAULT_CLAMAV=$(get_default_use_clamav)
+    DEFAULT_DEFENDER=$(get_default_use_defender)
     
     # File paths
     echo "File Processing Paths:"

@@ -63,20 +63,56 @@ Shuttle Installation Directory: [INSTALLATION PATH]
 Configuration Directory: [CONFIG PATH]
 Virtual Environment: [VENV PATH]
 Log Directory: [LOG PATH]
+Installation Defaults Config: [INSTALLATION PATH]/config/installation_defaults.conf
 ```
 
-### 3.2 Service Accounts
-| Account | Type | Purpose | Shell | Home Directory |
-|---------|------|---------|-------|----------------|
-| [SERVICE_USER] | Service | Shuttle service account | /usr/sbin/nologin | [HOME_PATH] |
-| [ADMIN_USER] | Admin | Administrative access | /bin/bash | [HOME_PATH] |
+### 3.2 User Account Structure
 
-### 3.3 Group Memberships
-| Group | Members | Purpose |
+#### Service Accounts
+| Account | Type | Shell | Primary Purpose | Group Memberships |
+|---------|------|-------|-----------------|-------------------|
+| shuttle_runner | Service | /usr/sbin/nologin | Main shuttle application | shuttle_config_readers, shuttle_log_owners, shuttle_runners, shuttle_in_owners, shuttle_quarantine_owners, shuttle_hazard_owners, shuttle_destination_owners, shuttle_key_readers |
+| shuttle_defender_test_runner | Service | /usr/sbin/nologin | Defender testing | shuttle_config_readers, shuttle_log_owners, shuttle_key_readers, shuttle_ledger_owners, shuttle_defender_test_runners |
+| shuttle_tester | Service | /usr/sbin/nologin | Application testing | shuttle_testers |
+
+#### Network Users (ACL-based access only)
+| Account | Type | Shell | Primary Purpose | Group Memberships |
+|---------|------|-------|-----------------|-------------------|
+| shuttle_samba_in_user | Network | /usr/sbin/nologin | Inbound file submission via Samba | shuttle_samba_in_users |
+| shuttle_out_user | Network | /usr/sbin/nologin | Outbound file retrieval | shuttle_out_users |
+
+#### Administrative Users
+| Account | Type | Shell | Primary Purpose | Group Memberships |
+|---------|------|-------|-----------------|-------------------|
+| [ADMIN_USER] | Admin | /bin/bash | System administration | shuttle_admins, sudo |
+
+### 3.3 Group Structure
+
+#### Owner Groups (Directory ownership)
+| Group | Purpose | Owned Directories |
+|-------|---------|-------------------|
+| shuttle_config_readers | Read config files | /etc/shuttle |
+| shuttle_key_readers | Read GPG keys | /etc/shuttle/keys |
+| shuttle_log_owners | Write logs | /var/log/shuttle |
+| shuttle_in_owners | Process source files | /mnt/in |
+| shuttle_quarantine_owners | Manage quarantine | /mnt/quarantine |
+| shuttle_hazard_owners | Manage hazard files | /mnt/hazard |
+| shuttle_destination_owners | Manage clean files | /mnt/out |
+| shuttle_ledger_owners | Write ledger | /var/log/shuttle/ledger |
+| shuttle_testers | Run tests | /var/tmp/shuttle/test_area |
+
+#### Access Groups (ACL-based access)
+| Group | Purpose | ACL Access To |
+|-------|---------|---------------|
+| shuttle_runners | Service account marker | Various via owner groups |
+| shuttle_defender_test_runners | Defender test marker | Ledger write via ACL |
+| shuttle_samba_in_users | Network inbound access | /mnt/in (rw), /mnt/out (r) |
+| shuttle_out_users | Network outbound access | /mnt/out (rw) |
+
+#### Administrative Groups
+| Group | Purpose | Members |
 |-------|---------|---------|
-| [GROUP_NAME] | [USER1, USER2] | [PURPOSE] |
-| shuttle_admins | [ADMIN_USERS] | Administrative access |
-| shuttle_users | [STANDARD_USERS] | Standard file transfer access |
+| shuttle_admins | Full administrative access | [ADMIN_USERS] |
 
 ---
 
@@ -134,6 +170,8 @@ syslog_facility = [FACILITY]
 | Quarantine | [PATH] | Temporary isolation | [PERMS] |
 | Destination | [PATH] | Clean files | [PERMS] |
 | Hazard Archive | [PATH] | Suspect files | [PERMS] |
+| Test Config | [PATH] | Test scenario definitions | [PERMS] |
+| Test Work | [PATH] | Temporary test execution area | [PERMS] |
 
 ---
 
@@ -175,10 +213,85 @@ valid users = [USER_LIST]
 read only = yes
 ```
 
-### 5.3 File System Permissions
-| Directory | Owner | Group | Permissions | ACL |
-|-----------|-------|-------|-------------|-----|
-| [PATH] | [OWNER] | [GROUP] | [PERMS] | [ACL_ENTRIES] |
+### 5.3 Access Control Matrix
+
+| User/Group                   | config | key | ledger        | logs | source     | quarantine | hazard | destination | tests | test work |
+|------------------------------|--------|-----|---------------|------|------------|------------|--------|-------------|-------|-----------|
+| shuttle_runner               | r      | r   | r             | rw   | rw         | rw         | rw     | rw          |       |           |
+| shuttle_defender_test_runner | r      | r   | r (w via ACL) | rw   |            |            |        |             |       |           |
+| shuttle_samba_in_users       |        |     |               |      | rw via ACL |            |        | r via ACL   |       |           |
+| shuttle_out_users            |        |     |               |      |            |            |        | rw via ACL  |       |           |
+| shuttle_testers              |        |     |               |      |            |            |        |             | rwx   | rw        |
+
+### 5.4 Directory Ownership and Permissions Model
+
+| Directory   | Path                          | Owner | Group                      | Directory Mode   | File Mode        | Owner Perms           | Group Perms           | Other Perms           | ACL Users                                             | Notes                     |
+|-------------|-------------------------------|-------|----------------------------|------------------|------------------|-----------------------|-----------------------|-----------------------|-------------------------------------------------------|---------------------------|
+| config      | /etc/shuttle                  | root  | shuttle_config_readers     | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Read-only, write via sudo |
+| key         | /etc/shuttle/keys             | root  | shuttle_config_readers     | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | GPG keys, write via sudo  |
+| quarantine  | /mnt/quarantine               | root  | shuttle_quarantine_owners  | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Service accounts only     |
+| hazard      | /mnt/hazard                   | root  | shuttle_hazard_owners      | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Malware isolation         |
+| destination | /mnt/out                      | root  | shuttle_destination_owners | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | shuttle_samba_in_users (r-X), shuttle_out_users (rwX) | Network users via ACL     |
+| test config | /etc/shuttle/test_config.yaml | root  | shuttle_testers            | 2755 (rwxr-sr-x) | 0644 (rw-r--r--) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | r-x (dir), r-- (file) | None                                                  | Test configuration        |
+| ledger      | /var/log/shuttle/ledger       | root  | shuttle_config_readers     | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | shuttle_defender_test_runner (rwX)                    | Defender test writes      |
+| logs        | /var/log/shuttle              | root  | shuttle_log_owners         | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | None                                                  | Service accounts only     |
+| test work   | /var/tmp/shuttle/test_area    | root  | shuttle_testers            | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | None                                                  | Temporary test area       |
+| source      | /mnt/in                       | root  | shuttle_in_owners          | 2775 (rwxrwsr-x) | 0664 (rw-rw-r--) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | shuttle_samba_in_users (rwX)                          | Samba users via ACL       |
+| venv        | /opt/shuttle/venv             | root  | root                       | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | r-x (dir), r-- (file) | None                                                  | Python virtual environment |
+| installation| /opt/shuttle                  | root  | root                       | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | r-x (dir), r-- (file) | None                                                  | Application source code    |
+
+### 5.5 Permission Mode Explanation
+
+#### Directory Modes (2xxx indicates setgid)
+- **2750**: rwxr-s--- (Owner: full, Group: read/execute, Others: none, setgid)
+- **2755**: rwxr-sr-x (Owner: full, Group: read/execute, Others: read/execute, setgid)
+- **2770**: rwxrws--- (Owner: full, Group: full, Others: none, setgid)
+- **2775**: rwxrwsr-x (Owner: full, Group: full, Others: read/execute, setgid)
+
+#### File Modes
+- **0640**: rw-r----- (Owner: read/write, Group: read, Others: none)
+- **0644**: rw-r--r-- (Owner: read/write, Group: read, Others: read)
+- **0660**: rw-rw---- (Owner: read/write, Group: read/write, Others: none)
+- **0664**: rw-rw-r-- (Owner: read/write, Group: read/write, Others: read)
+
+#### ACL Notation
+- **rwX**: Read, write, execute on directories only (capital X)
+- **r-X**: Read, execute on directories only
+- **rwx**: Read, write, execute (lowercase x includes files - avoided for data)
+
+### 5.6 Environment Variables and Paths
+
+#### System Environment Variables
+| Variable | Value | Purpose | Set In |
+|----------|-------|---------|--------|
+| PATH | /opt/shuttle/venv/bin:$PATH | Include virtual environment binaries | /etc/shuttle/shuttle_env.sh |
+| PYTHONPATH | /opt/shuttle/src | Python module search path | /etc/shuttle/shuttle_env.sh |
+| SHUTTLE_CONFIG_PATH | /etc/shuttle/shuttle_config.yaml | Primary configuration file | /etc/shuttle/shuttle_env.sh |
+| SHUTTLE_INSTALL_MODE | service | Installation mode indicator | /etc/shuttle/shuttle_env.sh |
+| VIRTUAL_ENV | /opt/shuttle/venv | Virtual environment path | Activation script |
+
+#### Path Summary (Production Defaults)
+| Path Type | Location | Environment Variable |
+|-----------|----------|---------------------|
+| Installation | /opt/shuttle | N/A |
+| Virtual Environment | /opt/shuttle/venv | VIRTUAL_ENV |
+| Configuration | /etc/shuttle/shuttle_config.yaml | SHUTTLE_CONFIG_PATH |
+| Source | /mnt/in | (from config file) |
+| Destination | /mnt/out | (from config file) |
+| Quarantine | /mnt/quarantine | (from config file) |
+| Hazard | /mnt/hazard | (from config file) |
+| Logs | /var/log/shuttle | (from config file) |
+| Test Config | /etc/shuttle/test_config.yaml | (from config file) |
+| Test Work | /var/tmp/shuttle/test_area | (from config file) |
+
+#### Environment File Location
+```bash
+# Production environment variables
+/etc/shuttle/shuttle_env.sh
+
+# Source in cron or systemd:
+source /etc/shuttle/shuttle_env.sh
+```
 
 ---
 

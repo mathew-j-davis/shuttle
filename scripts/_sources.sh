@@ -12,6 +12,7 @@ source "$SOURCES_DIR/_setup_lib_sh/_check_active_user.source.sh"
 
 # Installation-specific libraries for 1_install.sh
 source "$SOURCES_DIR/_setup_lib_sh/installation_constants.source.sh"
+source "$SOURCES_DIR/_setup_lib_sh/installation_defaults.source.sh"
 source "$SOURCES_DIR/_setup_lib_sh/installation_instructions_reader.source.sh"
 
 # Post-install config libraries for 2_post_install_config.sh

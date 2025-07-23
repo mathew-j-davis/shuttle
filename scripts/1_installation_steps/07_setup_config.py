@@ -1,4 +1,11 @@
 #!python3
+"""
+Setup Shuttle configuration files
+
+Note: This script only creates configuration-related directories.
+Data directories (source, destination, quarantine, etc.) are created
+by the main installer based on user preferences.
+"""
 
 import os
 import argparse
@@ -84,8 +91,8 @@ def parse_arguments():
     
     return parser.parse_args()
 
-def create_directories(work_dir, config_dir, args):
-    """Create necessary directories for Shuttle operation"""
+def prepare_directory_paths(work_dir, config_dir, args):
+    """Prepare directory paths for configuration (without creating them)"""
     source_dir = args.source_path or os.path.join(work_dir, "in")
     dest_dir = args.destination_path or os.path.join(work_dir, "out")
     quarantine_dir = args.quarantine_path or os.path.join(work_dir, "quarantine")
@@ -94,15 +101,13 @@ def create_directories(work_dir, config_dir, args):
     ledger_file_path = args.ledger_file_path or os.path.join(work_dir, "ledger", "ledger.yaml")
     ledger_file_dir = os.path.dirname(ledger_file_path)
     
-    # Create working directories if they don't exist
-    os.makedirs(work_dir, exist_ok=True)
-    os.makedirs(source_dir, exist_ok=True)
-    os.makedirs(quarantine_dir, exist_ok=True)
-    os.makedirs(dest_dir, exist_ok=True)
-    os.makedirs(log_dir, exist_ok=True)
-    os.makedirs(ledger_file_dir, exist_ok=True)
-    os.makedirs(hazard_archive_dir, exist_ok=True)
+    # Only create config-related directories that are needed for config file creation
+    # The main installer handles creation of data directories based on user preferences
     os.makedirs(config_dir, exist_ok=True)
+    
+    # Create ledger directory only if ledger creation is requested
+    if args.create_ledger and ledger_file_dir:
+        os.makedirs(ledger_file_dir, exist_ok=True)
     
     return {
         'source_dir': source_dir,
@@ -311,8 +316,8 @@ def main():
         # Default behavior - create all
         args.all = True
     
-    # Create directories first
-    paths = create_directories(work_dir, config_dir, args)
+    # Prepare directory paths (without creating them - installer handles that)
+    paths = prepare_directory_paths(work_dir, config_dir, args)
     
     # Track what was created
     created_files = []
