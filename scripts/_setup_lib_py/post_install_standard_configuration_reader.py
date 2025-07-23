@@ -478,22 +478,21 @@ PATH_PERMISSION_BASE_TEMPLATES = {
             },
             'log_path': {
                 'owner': 'root',
-                'group': 'shuttle_log_owners',
+                'group': 'shuttle_common_users',
                 'mode': '2770',
-                'description': 'Log files (log writers only)'
+                'description': 'Log files (common users write)'
             },
             'hazard_encryption_key_path': {
                 'owner': 'root',
-                'group': 'shuttle_config_readers',
+                'group': 'shuttle_common_users',
                 'mode': '0640',
                 'description': 'Encryption key (read-only for authorized users)'
             },
             'ledger_file_path': {
                 'owner': 'root',
-                'group': 'shuttle_config_readers',
+                'group': 'shuttle_common_users',
                 'mode': '0640',
-                'acls': ['g:shuttle_defender_test_runner:rwX'],
-                'description': 'Ledger file (config readers + ledger writers)'
+                'description': 'Ledger file (read-only for common users)'
             },
             'test_work_dir': {
                 'owner': 'root',

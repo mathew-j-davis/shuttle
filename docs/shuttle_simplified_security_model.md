@@ -3,7 +3,7 @@
 ## Design Principles
 
 1. **Clear Group Ownership**: Each directory has ONE owning group for simplicity
-2. **Minimal Groups**: Only 4 core groups needed for basic operation
+2. **Minimal Groups**: Only 3 core groups needed for basic operation
 3. **Service Account Multi-Membership**: Service accounts join multiple groups directly
 4. **Read-Only System Files**: Config and keys are read-only groups, written via sudo
 5. **Complete Test Isolation**: Test users have no production access
@@ -16,15 +16,13 @@
 shuttle_runner:
   description: "Main shuttle application service account"
   groups:
-    - shuttle_config_readers  # Config and keys
-    - shuttle_log_owners      # Logs
+    - shuttle_common_users    # Config (r), logs (rw), ledger (r)
     - shuttle_owners          # All data directories
 
 shuttle_defender_test_runner:
   description: "Defender testing with production config"
   groups:
-    - shuttle_config_readers  # Config and keys
-    - shuttle_log_owners      # Logs (including ledger via ACL)
+    - shuttle_common_users    # Config (r), logs (rw), ledger (r)
 
 shuttle_tester:
   description: "Shuttle application testing (isolated)"
@@ -52,7 +50,7 @@ shuttle_out_user:
 | User/Group                   | config/key | ledger        | logs | source | quarantine | hazard | destination | tests | test work |
 |------------------------------|------------|---------------|------|--------|------------|--------|-------------|-------|-----------|
 | shuttle_runner               | r          | r             | rw   | rw     | rw         | rw     | rw          |       |           |
-| shuttle_defender_test_runner | r          | r (w via ACL) | rw   |        |            |        |             |       |           |
+| shuttle_defender_test_runner | r          | r             | rw   |        |            |        |             |       |           |
 | shuttle_samba_in_users       |            |               |      | rw via ACL |           |        | r via ACL   |       |           |
 | shuttle_out_users            |            |               |      |        |            |        | rw via ACL  |       |           |
 | shuttle_testers              |            |               |      |        |            |        |             | rwx   | rw        |
@@ -65,9 +63,9 @@ shuttle_out_user:
 | quarantine  | root       | shuttle_owners         | 2750 | None                                                  | Service accounts only                  |
 | hazard      | root       | shuttle_owners         | 2750 | None                                                  | Service accounts only                  |
 | destination | root       | shuttle_owners         | 2750 | shuttle_samba_in_users (r-X), shuttle_out_users (rwX)| Group owns, network users via ACL (future) |
-| logs        | root       | shuttle_log_owners     | 2770 | None                                                  | Service accounts only                  |
-| config      | root       | shuttle_config_readers | 2750 | None                                                  | Config and keys, write via sudo       |
-| ledger      | root       | shuttle_log_owners     | 2770 | shuttle_defender_test_runner (rwX)                    | Defender test writes                   |
+| logs        | root       | shuttle_common_users   | 2770 | None                                                  | Service accounts write logs            |
+| config      | root       | shuttle_common_users   | 2750 | None                                                  | Config and keys, write via sudo       |
+| ledger      | root       | shuttle_common_users   | 0640 | None                                                  | Read-only ledger file                  |
 | tests       | root       | shuttle_testers        | 2755 | None                                                  | Test binaries/scripts                  |
 | test work   | root       | shuttle_testers        | 2770 | None                                                  | Test execution workspace               |
 
@@ -121,9 +119,8 @@ Testing:  test work (completely isolated)
 
 ### Group Creation
 ```bash
-# Create core owner groups (only 4 needed for basic operation)
-groupadd -r shuttle_config_readers  # Config and keys
-groupadd -r shuttle_log_owners      # Logs and ledger
+# Create core groups (only 3 needed for basic operation)
+groupadd -r shuttle_common_users    # Config (r), logs (rw), ledger (r)
 groupadd -r shuttle_owners          # All data directories
 groupadd -r shuttle_testers         # Test isolation
 
@@ -135,9 +132,9 @@ groupadd -r shuttle_out_users       # Network outbound (future)
 ### User Setup
 ```bash
 # Service accounts with simplified group membership
-usermod -aG shuttle_config_readers,shuttle_log_owners,shuttle_owners shuttle_runner
+usermod -aG shuttle_common_users,shuttle_owners shuttle_runner
 
-usermod -aG shuttle_config_readers,shuttle_log_owners shuttle_defender_test_runner
+usermod -aG shuttle_common_users shuttle_defender_test_runner
 
 usermod -aG shuttle_testers shuttle_tester
 
@@ -158,10 +155,10 @@ chmod 2750 /mnt/quarantine
 chmod 2750 /mnt/hazard
 chmod 2750 /mnt/out
 
-chown root:shuttle_config_readers /etc/shuttle
+chown root:shuttle_common_users /etc/shuttle
 chmod 2750 /etc/shuttle
 
-chown root:shuttle_log_owners /var/log/shuttle
+chown root:shuttle_common_users /var/log/shuttle
 chmod 2770 /var/log/shuttle
 
 # Optional ACLs for future network users

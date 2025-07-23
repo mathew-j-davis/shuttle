@@ -10,17 +10,15 @@ users:
     groups:
       primary: shuttle_owners
       secondary:
-        - shuttle_config_readers
-        - shuttle_log_owners
+        - shuttle_common_users
     home_directory: /var/lib/shuttle/shuttle_runner
     
   - name: shuttle_defender_test_runner
     account_type: service
     source: local
     groups:
-      primary: shuttle_log_owners
-      secondary:
-        - shuttle_config_readers
+      primary: shuttle_common_users
+      secondary: []
     home_directory: /var/lib/shuttle/shuttle_defender_test_runner
 
   # Samba service accounts (if using Samba file transfer)
@@ -60,17 +58,13 @@ groups:
     allow_extra_members: true
     
     
-  # Core permission groups
-  - name: shuttle_config_readers
-    members: [shuttle_runner, shuttle_defender_test_runner]
+  # Core groups
+  - name: shuttle_common_users
+    members: [shuttle_runner, shuttle_defender_test_runner, shuttle_admin]
     allow_extra_members: true
     
   - name: shuttle_owners
     members: [shuttle_runner, shuttle_admin]
-    allow_extra_members: false
-    
-  - name: shuttle_log_owners
-    members: [shuttle_runner, shuttle_defender_test_runner, shuttle_admin]
     allow_extra_members: false
     
   - name: shuttle_testers

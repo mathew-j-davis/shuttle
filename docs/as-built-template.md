@@ -12,20 +12,26 @@
 
 ## 1. Executive Summary
 
-This document provides comprehensive as-built documentation for the Shuttle file transfer system installation. Shuttle is a secure, automated file transfer solution that implements a quarantine-first approach with integrated malware scanning capabilities.
+This document provides comprehensive as-built documentation for the Shuttle file transfer system installation. Shuttle is a secure file processing system that automatically scans incoming files for malware before delivering them to their final destination.
 
-### 1.1 Key Features
-- Quarantine-first file processing pipeline
-- Multi-scanner support (Microsoft Defender, ClamAV)
-- Automated file integrity verification
-- Configurable throttling and daily processing limits
-- Syslog and email notification integration
-- Single-instance enforcement to prevent concurrent runs
+### 1.1 What Shuttle Does
+Shuttle monitors a source directory for new files, automatically processes them through malware scanning, and delivers clean files to a destination directory while isolating suspicious files in an encrypted archive. It's designed for environments that need automated, secure file transfer with guaranteed malware protection.
 
-### 1.2 Architecture Overview
-```
-Source Directory → Quarantine → Malware Scan → Clean/Suspect → Destination/Hazard Archive
-```
+### 1.2 How It Works
+1. **File Detection**: Monitors source directory for new files
+2. **Quarantine**: Immediately moves all files to isolated quarantine area
+3. **Hash Generation**: Creates file integrity checksums
+4. **Malware Scanning**: Scans files using Microsoft Defender and/or ClamAV
+5. **Clean Delivery**: Moves clean files to destination directory
+6. **Threat Isolation**: Encrypts and archives any suspicious files
+7. **Notification**: Sends email alerts for errors and threats
+
+### 1.3 Key Security Features
+- **Zero-trust processing**: All files quarantined before scanning
+- **Encrypted threat storage**: Malware archived with AES encryption
+- **Process isolation**: Service accounts with minimal privileges
+- **Single-instance enforcement**: Prevents concurrent processing conflicts
+- **Comprehensive logging**: All actions logged to syslog and files
 
 ---
 
@@ -71,8 +77,8 @@ Installation Defaults Config: [INSTALLATION PATH]/config/installation_defaults.c
 #### Service Accounts
 | Account | Type | Shell | Primary Purpose | Group Memberships |
 |---------|------|-------|-----------------|-------------------|
-| shuttle_runner | Service | /usr/sbin/nologin | Main shuttle application | shuttle_config_readers, shuttle_log_owners, shuttle_owners |
-| shuttle_defender_test_runner | Service | /usr/sbin/nologin | Defender testing | shuttle_config_readers, shuttle_log_owners |
+| shuttle_runner | Service | /usr/sbin/nologin | Main shuttle application | shuttle_common_users, shuttle_owners |
+| shuttle_defender_test_runner | Service | /usr/sbin/nologin | Defender testing | shuttle_common_users |
 | shuttle_tester | Service | /usr/sbin/nologin | Application testing | shuttle_testers |
 
 #### Network Users (ACL-based access only)
@@ -91,8 +97,7 @@ Installation Defaults Config: [INSTALLATION PATH]/config/installation_defaults.c
 #### Owner Groups (Directory ownership)
 | Group | Purpose | Owned Directories |
 |-------|---------|-------------------|
-| shuttle_config_readers | Read config and keys | /etc/shuttle (including /etc/shuttle/keys) |
-| shuttle_log_owners | Write logs | /var/log/shuttle |
+| shuttle_common_users | Read config, write logs, read ledger | /etc/shuttle (r), /var/log/shuttle (rw), ledger.json (r) |
 | shuttle_owners | Own all data directories | /mnt/in, /mnt/quarantine, /mnt/hazard, /mnt/out |
 | shuttle_testers | Run tests | /var/tmp/shuttle/test_area |
 
@@ -211,7 +216,7 @@ read only = yes
 | User/Group                   | config | key | ledger        | logs | source     | quarantine | hazard | destination | tests | test work |
 |------------------------------|--------|-----|---------------|------|------------|------------|--------|-------------|-------|-----------|
 | shuttle_runner               | r      | r   | r             | rw   | rw         | rw         | rw     | rw          |       |           |
-| shuttle_defender_test_runner | r      | r   | r (w via ACL) | rw   |            |            |        |             |       |           |
+| shuttle_defender_test_runner | r      | r   | r             | rw   |            |            |        |             |       |           |
 | shuttle_samba_in_users       |        |     |               |      | rw via ACL |            |        | r via ACL   |       |           |
 | shuttle_out_users            |        |     |               |      |            |            |        | rw via ACL  |       |           |
 | shuttle_testers              |        |     |               |      |            |            |        |             | rwx   | rw        |
@@ -220,13 +225,13 @@ read only = yes
 
 | Directory   | Path                          | Owner | Group                      | Directory Mode   | File Mode        | Owner Perms           | Group Perms           | Other Perms           | ACL Users                                             | Notes                     |
 |-------------|-------------------------------|-------|----------------------------|------------------|------------------|-----------------------|-----------------------|-----------------------|-------------------------------------------------------|---------------------------|
-| config      | /etc/shuttle                  | root  | shuttle_config_readers     | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Config and keys, write via sudo |
-| quarantine  | /mnt/quarantine               | root  | shuttle_owners             | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Service accounts only     |
-| hazard      | /mnt/hazard                   | root  | shuttle_owners             | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Malware isolation         |
-| destination | /mnt/out                      | root  | shuttle_owners             | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | shuttle_samba_in_users (r-X), shuttle_out_users (rwX) | Network users via ACL (future) |
-| test config | /etc/shuttle/test_config.yaml | root  | shuttle_testers            | 2755 (rwxr-sr-x) | 0644 (rw-r--r--) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | r-x (dir), r-- (file) | None                                                  | Test configuration        |
-| ledger      | /var/log/shuttle/ledger       | root  | shuttle_log_owners         | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | shuttle_defender_test_runner (rwX)                    | Defender test writes      |
-| logs        | /var/log/shuttle              | root  | shuttle_log_owners         | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | None                                                  | Service accounts only     |
+| config      | /etc/shuttle                  | root  | shuttle_common_users       | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | None                                                  | Config and keys, write via sudo |
+| quarantine  | /mnt/quarantine               | root  | shuttle_owners             | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | None                                                  | Service accounts only     |
+| hazard      | /mnt/hazard                   | root  | shuttle_owners             | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | None                                                  | Malware isolation         |
+| destination | /mnt/out                      | root  | shuttle_owners             | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | shuttle_samba_in_users (r-X), shuttle_out_users (rwX) | Network users via ACL (future) |
+| test config | /etc/shuttle/test_config.yaml | root  | shuttle_testers            | 0664 (rw-rw-r--) | -                | rw- (file)            | rw- (file)            | r-- (file)            | None                                                  | Test configuration file   |
+| ledger      | /var/log/shuttle/ledger.json  | root  | shuttle_common_users       | 0640 (rw-r-----) | -                | rw- (file)            | r-- (file)            | ---                   | None                                                  | Processing ledger file    |
+| logs        | /var/log/shuttle              | root  | shuttle_common_users       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | None                                                  | Log directory             |
 | test work   | /var/tmp/shuttle/test_area    | root  | shuttle_testers            | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | None                                                  | Temporary test area       |
 | source      | /mnt/in                       | root  | shuttle_owners             | 2775 (rwxrwsr-x) | 0664 (rw-rw-r--) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | shuttle_samba_in_users (rwX)                          | Samba users via ACL (future) |
 | venv        | /opt/shuttle/venv             | root  | root                       | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | r-x (dir), r-- (file) | None                                                  | Python virtual environment |
@@ -446,7 +451,7 @@ DNS Servers: [DNS1, DNS2]
 ### 14.1 Support Contacts
 - **Primary Contact**: [NAME] - [EMAIL] - [PHONE]
 - **Backup Contact**: [NAME] - [EMAIL] - [PHONE]
-- **Vendor Support**: Anthropic (Claude Code) - https://github.com/anthropics/claude-code/issues
+- **Technical Documentation**: See /home/mathew/shuttle/CLAUDE.md for development guidance
 
 ### 14.2 Documentation
 - **Source Code**: [REPOSITORY_URL]
