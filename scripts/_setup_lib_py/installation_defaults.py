@@ -1,7 +1,8 @@
 """
 Installation Defaults Reader
 
-Reads user-configurable default values from installation_defaults.conf.
+Reads user-configurable default values from installation_defaults.conf
+located in the same directory as this module (_setup_lib_py).
 This separates configurable defaults from code-defined enums and constants.
 """
 
@@ -22,10 +23,9 @@ class InstallationDefaults:
             config_path: Path to installation_defaults.conf (auto-detected if None)
         """
         if config_path is None:
-            # Auto-detect config path relative to this script
+            # Auto-detect config path in the same directory as this script
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            project_root = os.path.dirname(os.path.dirname(script_dir))
-            config_path = os.path.join(project_root, "config", "installation_defaults.conf")
+            config_path = os.path.join(script_dir, "installation_defaults.conf")
         
         self.config_path = config_path
         self.config = configparser.ConfigParser()
@@ -36,11 +36,11 @@ class InstallationDefaults:
             interpolation=None
         )
         
-        # Read the config file
-        if os.path.exists(config_path):
+        # Read the config file if it exists, otherwise use built-in defaults
+        self.config_file_exists = os.path.exists(config_path)
+        if self.config_file_exists:
             self.config.read(config_path)
-        else:
-            raise FileNotFoundError(f"Installation defaults config not found: {config_path}")
+        # If config file doesn't exist, we'll use built-in fallback defaults
     
     def get_default_install_mode(self) -> str:
         """Get default installation mode"""
@@ -61,6 +61,10 @@ class InstallationDefaults:
         key = f"{install_mode}_{path_type}"
         path = self.config.get('paths', key, fallback='')
         
+        # If no path found in config file (or no config file), use built-in defaults
+        if not path:
+            path = self._get_builtin_default_path(install_mode, path_type, project_root)
+        
         if path:
             # Handle COMPUTED_PROJECT_ROOT placeholder for dev mode
             if 'COMPUTED_PROJECT_ROOT' in path:
@@ -76,6 +80,62 @@ class InstallationDefaults:
             path = os.path.expandvars(path)
         
         return path
+    
+    def _get_builtin_default_path(self, install_mode: str, path_type: str, project_root: str = None) -> str:
+        """
+        Get built-in default paths when config file doesn't exist
+        
+        Args:
+            install_mode: Installation mode (dev, user, service)
+            path_type: Path type (config, source, destination, etc.)
+            project_root: Project root directory for dev mode (optional)
+            
+        Returns:
+            Built-in default path
+        """
+        # Auto-detect project root if not provided
+        if not project_root:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            project_root = os.path.dirname(os.path.dirname(script_dir))
+        
+        # Built-in default paths
+        defaults = {
+            # Development mode paths
+            'dev_config': f'{project_root}/config/config.conf',
+            'dev_source': f'{project_root}/work/incoming',
+            'dev_destination': f'{project_root}/work/processed',
+            'dev_quarantine': f'{project_root}/work/quarantine',
+            'dev_logs': f'{project_root}/work/logs',
+            'dev_hazard': f'{project_root}/work/hazard',
+            'dev_venv': f'{project_root}/.venv',
+            'dev_test_config': f'{project_root}/config/test_config.yaml',
+            'dev_test_work': f'{project_root}/test_area',
+            
+            # User mode paths
+            'user_config': '${HOME}/.config/shuttle/config.conf',
+            'user_source': '${HOME}/shuttle/incoming',
+            'user_destination': '${HOME}/shuttle/processed',
+            'user_quarantine': '/tmp/shuttle/quarantine',
+            'user_logs': '${HOME}/shuttle/logs',
+            'user_hazard': '${HOME}/shuttle/hazard',
+            'user_venv': '${HOME}/.local/share/shuttle/venv',
+            'user_test_config': '${HOME}/.config/shuttle/test_config.yaml',
+            'user_test_work': '/tmp/shuttle/test_area',
+            
+            # Service mode paths
+            'service_config': '/etc/shuttle/config.conf',
+            'service_source': '/mnt/in',
+            'service_destination': '/mnt/out',
+            'service_quarantine': '/mnt/quarantine',
+            'service_logs': '/var/log/shuttle',
+            'service_hazard': '/mnt/hazard',
+            'service_venv': '/opt/shuttle/venv',
+            'service_test_config': '/etc/shuttle/test_config.yaml',
+            'service_test_work': '/var/tmp/shuttle/test_area',
+        }
+        
+        key = f"{install_mode}_{path_type}"
+        return defaults.get(key, '')
     
     def get_default_log_level(self, install_mode: str) -> str:
         """Get default log level for installation mode"""
