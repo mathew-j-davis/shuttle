@@ -37,6 +37,12 @@ def parse_arguments():
     parser.add_argument('--create-test-keys', action='store_true', help='Create test encryption keys')
     parser.add_argument('--all', action='store_true', help='Create all files (default behavior)')
     
+    # Staging mode support
+    parser.add_argument('--staging-mode', action='store_true', help='Staging mode: use final paths in config content but create files at env var locations')
+    parser.add_argument('--final-config-path', help='Final config path for staging mode (used in config content)')
+    parser.add_argument('--final-test-work-dir', help='Final test work directory for staging mode (used in config content)')
+    parser.add_argument('--final-test-config-path', help='Final test config path for staging mode (used in config content)')
+    
     # Path arguments - use work_dir subdirectories as defaults
     parser.add_argument('--source-path', help='Path to the source directory (default: WORK_DIR/in)')
     parser.add_argument('--destination-path', help='Path to the destination directory (default: WORK_DIR/out)')
@@ -55,8 +61,10 @@ def parse_arguments():
     parser.add_argument('--no-defender-handles-suspect-files', action='store_false', dest='defender_handles_suspect_files', help='Don\'t let Defender handle suspect files')
     
     # Malware scan timeout configuration
-    parser.add_argument('--malware-scan-timeout-seconds', type=int, default=300, 
-                        help='Timeout for malware scans in seconds (default: 300, 0 = no timeout)')
+    parser.add_argument('--malware-scan-timeout-seconds', type=int, default=60, 
+                        help='Timeout for malware scans in seconds (default: 60, 0 = no timeout)')
+    parser.add_argument('--malware-scan-timeout-ms-per-byte', type=float, default=0.01,
+                        help='Additional timeout per byte in milliseconds (default: 0.01, 0 = no per-byte timeout)')
     parser.add_argument('--malware-scan-retry-wait-seconds', type=int, default=30,
                         help='Wait time between scan retries in seconds (default: 30, 0 = no wait)')
     parser.add_argument('--malware-scan-retry-count', type=int, default=3,
@@ -70,6 +78,10 @@ def parse_arguments():
     parser.add_argument('--throttle', action='store_true', default=True, help='Enable throttling of file processing')
     parser.add_argument('--no-throttle', action='store_false', dest='throttle', help='Disable throttling')
     parser.add_argument('--throttle-free-space-mb', type=int, default=100, help='Minimum free space (in MB) required')
+    parser.add_argument('--throttle-max-file-count-per-run', type=int, default=1000, 
+                        help='Maximum files to process per run (default: 1000, 0 = unlimited)')
+    parser.add_argument('--throttle-max-file-volume-per-run-mb', type=int, default=1024,
+                        help='Maximum volume to process per run in MB (default: 1024, 0 = unlimited)')
     
     # Logging configuration
     parser.add_argument('--log-level', default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], 
@@ -93,12 +105,26 @@ def parse_arguments():
 
 def prepare_directory_paths(work_dir, config_dir, args):
     """Prepare directory paths for configuration (without creating them)"""
-    source_dir = args.source_path or os.path.join(work_dir, "in")
-    dest_dir = args.destination_path or os.path.join(work_dir, "out")
-    quarantine_dir = args.quarantine_path or os.path.join(work_dir, "quarantine")
-    log_dir = args.log_path or os.path.join(work_dir, "logs")
-    hazard_archive_dir = args.hazard_archive_path or os.path.join(work_dir, "hazard")
-    ledger_file_path = args.ledger_file_path or os.path.join(work_dir, "ledger", "ledger.yaml")
+    
+    # In staging mode, use final paths for config content but current env vars for file creation
+    if args.staging_mode:
+        # Use final paths for writing into config files
+        final_work_dir = args.final_test_work_dir or work_dir
+        source_dir = args.source_path or os.path.join(final_work_dir, "in")
+        dest_dir = args.destination_path or os.path.join(final_work_dir, "out")
+        quarantine_dir = args.quarantine_path or os.path.join(final_work_dir, "quarantine")
+        log_dir = args.log_path or os.path.join(final_work_dir, "logs")
+        hazard_archive_dir = args.hazard_archive_path or os.path.join(final_work_dir, "hazard")
+        ledger_file_path = args.ledger_file_path or os.path.join(final_work_dir, "ledger", "ledger.yaml")
+    else:
+        # Normal mode: use current work_dir for both file creation and config content
+        source_dir = args.source_path or os.path.join(work_dir, "in")
+        dest_dir = args.destination_path or os.path.join(work_dir, "out")
+        quarantine_dir = args.quarantine_path or os.path.join(work_dir, "quarantine")
+        log_dir = args.log_path or os.path.join(work_dir, "logs")
+        hazard_archive_dir = args.hazard_archive_path or os.path.join(work_dir, "hazard")
+        ledger_file_path = args.ledger_file_path or os.path.join(work_dir, "ledger", "ledger.yaml")
+    
     ledger_file_dir = os.path.dirname(ledger_file_path)
     
     # Only create config-related directories that are needed for config file creation
@@ -146,7 +172,9 @@ def create_config_file(config_path, args, paths, config_dir):
             'on_demand_defender': str(args.on_demand_defender),
             'on_demand_clam_av': str(args.on_demand_clam_av),
             'throttle': str(args.throttle),
-            'throttle_free_space_mb': str(args.throttle_free_space_mb)
+            'throttle_free_space_mb': str(args.throttle_free_space_mb),
+            'throttle_max_file_count_per_run': str(args.throttle_max_file_count_per_run),
+            'throttle_max_file_volume_per_run_mb': str(args.throttle_max_file_volume_per_run_mb)
         }
 
     config['logging'] = {
@@ -155,6 +183,7 @@ def create_config_file(config_path, args, paths, config_dir):
 
     config['scanning'] = {
             'malware_scan_timeout_seconds': str(args.malware_scan_timeout_seconds),
+            'malware_scan_timeout_ms_per_byte': str(args.malware_scan_timeout_ms_per_byte),
             'malware_scan_retry_wait_seconds': str(args.malware_scan_retry_wait_seconds),
             'malware_scan_retry_count': str(args.malware_scan_retry_count)
         }
@@ -278,6 +307,7 @@ def create_test_config_file(test_config_path, config_dir):
     # Scanning settings for tests - shorter timeouts
     test_config['scanning'] = {
         'malware_scan_timeout_seconds': '30',  # Shorter timeout for tests
+        'malware_scan_timeout_ms_per_byte': '0.0',  # No per-byte timeout for tests
         'malware_scan_retry_wait_seconds': '5',  # Quick retries for tests
         'malware_scan_retry_count': '2'  # Fewer retries for tests
     }

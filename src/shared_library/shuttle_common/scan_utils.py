@@ -5,6 +5,7 @@ This module provides utility functions for working with Microsoft Defender and C
 that can be shared between the main application and test scripts.
 """
 
+import os
 import subprocess
 import re
 import types
@@ -118,6 +119,65 @@ def process_defender_result(result_code, path, scanner_handles_suspect=False):
         )
 
 
+def calculate_dynamic_timeout(file_path: str, base_timeout_seconds: int, ms_per_byte: float) -> Optional[int]:
+    """
+    Calculate dynamic timeout based on file size and configuration.
+    
+    Formula: (base_timeout_seconds | 0 if none) + (file_bytes * (ms_per_byte | 0 if none))
+    Zero result = no timeout
+    
+    Args:
+        file_path: Path to the file to be scanned
+        base_timeout_seconds: Fixed timeout component (0 = no base timeout)
+        ms_per_byte: Milliseconds per byte for size-based timeout (0 = no per-byte timeout)
+        
+    Returns:
+        int: Calculated timeout in seconds, or None if no timeout should be applied
+    """
+    logger = get_logger()
+    
+    try:
+        # Get file size
+        file_size_bytes = os.path.getsize(file_path)
+        
+        # Calculate components
+        base_component = base_timeout_seconds if base_timeout_seconds > 0 else 0
+        per_byte_component_ms = (file_size_bytes * ms_per_byte) if ms_per_byte > 0 else 0
+        per_byte_component_seconds = per_byte_component_ms / 1000.0
+        
+        # Calculate total timeout
+        total_timeout = base_component + per_byte_component_seconds
+        
+        # Round to nearest second
+        total_timeout_int = int(round(total_timeout))
+        
+        # Log the calculation
+        file_size_mb = file_size_bytes / (1024 * 1024)
+        logger.debug(f"Dynamic timeout calculation for {os.path.basename(file_path)}:")
+        logger.debug(f"  File size: {file_size_bytes:,} bytes ({file_size_mb:.2f} MB)")
+        logger.debug(f"  Base timeout: {base_component} seconds")
+        logger.debug(f"  Per-byte timeout: {per_byte_component_ms:.1f} ms ({per_byte_component_seconds:.1f} seconds)")
+        logger.debug(f"  Total timeout: {total_timeout_int} seconds")
+        
+        # Return None if total is zero (no timeout)
+        if total_timeout_int <= 0:
+            logger.debug("  Result: No timeout (total = 0)")
+            return None
+        else:
+            logger.debug(f"  Result: {total_timeout_int} seconds")
+            return total_timeout_int
+            
+    except OSError as e:
+        logger.error(f"Could not get file size for {file_path}: {e}")
+        # Fall back to base timeout only
+        if base_timeout_seconds > 0:
+            logger.debug(f"Fallback to base timeout: {base_timeout_seconds} seconds")
+            return base_timeout_seconds
+        else:
+            logger.debug("Fallback: No timeout")
+            return None
+
+
 def get_mdatp_version() -> Optional[str]:
     """
     Get the current Microsoft Defender for Endpoint (mdatp) version.
@@ -214,7 +274,25 @@ def run_malware_scan(cmd, path, result_handler, timeout_seconds=None):
             
         scan_time = time.time() - start_time
         
-        logger.debug(f"Scan completed in {scan_time:.2f} seconds")
+        # Calculate and log scan metrics
+        try:
+            file_size_bytes = os.path.getsize(path)
+            file_size_mb = file_size_bytes / (1024 * 1024)
+            ms_per_byte = (scan_time * 1000) / file_size_bytes if file_size_bytes > 0 else 0
+            
+            # Log detailed scan metrics
+            logger.info(f"Scan metrics for {os.path.basename(path)}:")
+            logger.info(f"  Scan time: {scan_time:.3f} seconds")
+            logger.info(f"  File size: {file_size_bytes:,} bytes ({file_size_mb:.2f} MB)")
+            logger.info(f"  Scan rate: {ms_per_byte:.6f} ms/byte")
+            if timeout_seconds:
+                logger.info(f"  Timeout used: {timeout_seconds} seconds")
+            else:
+                logger.info(f"  Timeout used: None (unlimited)")
+        except OSError as e:
+            logger.warning(f"Could not calculate scan metrics for {path}: {e}")
+            logger.info(f"Scan completed in {scan_time:.3f} seconds")
+        
         logger.debug(f"Return code: {result.returncode}")
         logger.debug(f"Output: {result.stdout}")
         
@@ -284,15 +362,15 @@ def scan_for_malware_using_defender(path, config=None):
     ]
     
     # Get timeout settings from config (config defaults are already set in CommonConfig)
-    timeout = config.malware_scan_timeout_seconds if config else 300
+    base_timeout = config.malware_scan_timeout_seconds if config else 300
+    ms_per_byte = config.malware_scan_timeout_ms_per_byte if config else 0.0
     retry_wait = config.malware_scan_retry_wait_seconds if config else 30
     retry_count = config.malware_scan_retry_count if config else 3
     
     logger = get_logger()
     
-    # Handle special cases for zero values
-    if timeout == 0:
-        timeout = None  # No timeout
+    # Calculate dynamic timeout based on file size
+    timeout = calculate_dynamic_timeout(path, base_timeout, ms_per_byte)
         
     # If retry_count is 0, use unlimited retries
     attempt = 0
@@ -369,15 +447,15 @@ def scan_for_malware_using_clam_av(path, config=None):
     ]
     
     # Get timeout settings from config (config defaults are already set in CommonConfig)
-    timeout = config.malware_scan_timeout_seconds if config else 300
+    base_timeout = config.malware_scan_timeout_seconds if config else 300
+    ms_per_byte = config.malware_scan_timeout_ms_per_byte if config else 0.0
     retry_wait = config.malware_scan_retry_wait_seconds if config else 30
     retry_count = config.malware_scan_retry_count if config else 3
     
     logger = get_logger()
     
-    # Handle special cases for zero values
-    if timeout == 0:
-        timeout = None  # No timeout
+    # Calculate dynamic timeout based on file size
+    timeout = calculate_dynamic_timeout(path, base_timeout, ms_per_byte)
         
     # If retry_count is 0, use unlimited retries
     attempt = 0

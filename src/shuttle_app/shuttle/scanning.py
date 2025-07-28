@@ -230,7 +230,7 @@ def log_final_status(mode, processed_count, failed_count):
     logger.info(f"{mode} processing completed: {processed_count} files processed, "
                 f"{failed_count} failures, {success_count} successes")
                 
-def process_task_result(task_result, file_data, results, processed_count, failed_count, total_files, logger, daily_processing_tracker=None, timeout_count=0):
+def process_task_result(task_result, file_data, results, processed_count, failed_count, total_files, logger, daily_processing_tracker=None, per_run_tracker=None, timeout_count=0):
     """
     Process a task result, handle errors, and update counters
     
@@ -243,6 +243,7 @@ def process_task_result(task_result, file_data, results, processed_count, failed
         total_files: Total number of files to process
         logger: Logger instance
         daily_processing_tracker: Optional DailyProcessingTracker to update
+        per_run_tracker: Optional PerRunTracker to update
     
     Returns:
         tuple: Updated (processed_count, failed_count, timeout_count)
@@ -272,7 +273,16 @@ def process_task_result(task_result, file_data, results, processed_count, failed
                 )
                 logger.debug(f"Marked timeout file as failed in daily processing tracker: {file_path}")
             except Exception as e:
-                logger.warning(f"Failed to mark timeout file as failed in tracker: {e}")
+                logger.warning(f"Failed to mark timeout file as failed in daily tracker: {e}")
+        
+        # Mark as failed in per-run tracker
+        if per_run_tracker is not None:
+            try:
+                file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+                per_run_tracker.complete_file_processing(file_path, file_size_mb)
+                logger.debug(f"Marked timeout file as completed in per-run tracker: {file_path} ({file_size_mb:.2f} MB)")
+            except Exception as e:
+                logger.warning(f"Failed to mark timeout file as completed in per-run tracker: {e}")
                 
     elif isinstance(task_result, Exception):
         # Handle errors for individual tasks without failing everything
@@ -290,7 +300,16 @@ def process_task_result(task_result, file_data, results, processed_count, failed
                 )
                 logger.debug(f"Marked file as failed in daily processing tracker: {file_path}, key: {relative_file_path}")
             except Exception as e:
-                logger.warning(f"Failed to mark file as failed in tracker: {e}")
+                logger.warning(f"Failed to mark file as failed in daily tracker: {e}")
+        
+        # Mark as failed in per-run tracker
+        if per_run_tracker is not None:
+            try:
+                file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+                per_run_tracker.complete_file_processing(file_path, file_size_mb)
+                logger.debug(f"Marked error file as completed in per-run tracker: {file_path} ({file_size_mb:.2f} MB)")
+            except Exception as e:
+                logger.warning(f"Failed to mark error file as completed in per-run tracker: {e}")
     else:
         # Task succeeded
         results.append(task_result)
@@ -306,14 +325,24 @@ def process_task_result(task_result, file_data, results, processed_count, failed
                 daily_processing_tracker.complete_pending_file(relative_file_path, outcome=outcome)
                 logger.debug(f"Marked file as {outcome} in daily processing tracker: {file_path}, key: {relative_file_path}")
             except Exception as e:
-                logger.warning(f"Failed to mark file as completed in tracker: {e}")
+                logger.warning(f"Failed to mark file as completed in daily tracker: {e}")
+        
+        # Mark file as completed in the per-run tracker
+        if per_run_tracker is not None:
+            try:
+                # Get file size for per-run tracking
+                file_size_mb = os.path.getsize(file_path) / (1024 * 1024)
+                per_run_tracker.complete_file_processing(file_path, file_size_mb)
+                logger.debug(f"Marked file as completed in per-run tracker: {file_path} ({file_size_mb:.2f} MB)")
+            except Exception as e:
+                logger.warning(f"Failed to mark file as completed in per-run tracker: {e}")
     
     # Log progress periodically
     log_processing_progress(processed_count, total_files)
     
     return processed_count, failed_count, timeout_count
 
-def quarantine_files_for_scanning(source_path, quarantine_path, destination_path, hazard_archive_path, throttle, throttle_free_space_mb, throttle_max_file_count_per_day=0, throttle_max_file_volume_per_day_mb=0, daily_processing_tracker=None, notifier=None, skip_stability_check=False):
+def quarantine_files_for_scanning(source_path, quarantine_path, destination_path, hazard_archive_path, throttle, throttle_free_space_mb, throttle_max_file_count_per_day=0, throttle_max_file_volume_per_day_mb=0, daily_processing_tracker=None, throttle_max_file_count_per_run=0, throttle_max_file_volume_per_run_mb=0, per_run_tracker=None, notifier=None, skip_stability_check=False):
     """
     Find eligible files in source directory, copy them to quarantine, and prepare for scanning.
     
@@ -327,9 +356,11 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
         throttle_max_file_count_per_day: Maximum number of files to process per day (0 for no limit)
         throttle_max_file_volume_per_day_mb: Maximum volume of data to process per day in MB (0 for no limit)
         daily_processing_tracker: DailyProcessingTracker instance for tracking daily limits
+        throttle_max_file_count_per_run: Maximum number of files to process per run (0 for no limit)
+        throttle_max_file_volume_per_run_mb: Maximum volume of data to process per run in MB (0 for no limit)
+        per_run_tracker: PerRunTracker instance for tracking per-run limits
         notifier: Notifier instance for sending notifications
         skip_stability_check: Whether to skip file stability check
-        options
         
     Returns:
         tuple: (quarantine_files, disk_error_stopped_processing)
@@ -382,6 +413,9 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
                         max_files_per_day=throttle_max_file_count_per_day,
                         max_volume_per_day=throttle_max_file_volume_per_day_mb,
                         daily_processing_tracker=daily_processing_tracker,
+                        max_files_per_run=throttle_max_file_count_per_run,
+                        max_volume_per_run=throttle_max_file_volume_per_run_mb,
+                        per_run_tracker=per_run_tracker,
                         notifier=notifier
                     ):
                         disk_error_stopped_processing = True
@@ -399,8 +433,9 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
                     relative_file_path = os.path.join(rel_dir, source_file)
                     
                     # Track the file as pending now that it's been copied and hashed
+                    file_size_mb = os.path.getsize(quarantine_file_path) / (1024 * 1024)
+                    
                     if daily_processing_tracker:
-                        file_size_mb = os.path.getsize(quarantine_file_path) / (1024 * 1024)
                         daily_processing_tracker.add_pending_file(
                             file_path=quarantine_file_path,
                             file_size_mb=file_size_mb,
@@ -408,7 +443,14 @@ def quarantine_files_for_scanning(source_path, quarantine_path, destination_path
                             source_path=source_file_path,
                             relative_file_path=relative_file_path
                         )
-                        logger.debug(f"Added file to pending tracking: {quarantine_file_path} ({file_size_mb:.2f} MB), hash: {file_hash}, key: {relative_file_path}")
+                        logger.debug(f"Added file to daily pending tracking: {quarantine_file_path} ({file_size_mb:.2f} MB), hash: {file_hash}, key: {relative_file_path}")
+                    
+                    if per_run_tracker:
+                        per_run_tracker.add_pending_file(
+                            file_path=quarantine_file_path,
+                            file_size_mb=file_size_mb
+                        )
+                        logger.debug(f"Added file to per-run pending tracking: {quarantine_file_path} ({file_size_mb:.2f} MB)")
 
                     logger.info(f"Copied file {source_file_path} to quarantine: {quarantine_file_path}")
 
@@ -630,12 +672,12 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
                         # Get the result (or raises exception if the task failed)
                         result = future.result()
                         processed_count, failed_count, timeout_count = process_task_result(
-                            result, file_path, results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
+                            result, file_path, results, processed_count, failed_count, total_files, logger, daily_processing_tracker, per_run_tracker, timeout_count
                         )
                     except Exception as task_error:
                         # For exceptions from future.result(), pass the exception to the processor
                         processed_count, failed_count, timeout_count = process_task_result(
-                            task_error, file_path, results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
+                            task_error, file_path, results, processed_count, failed_count, total_files, logger, daily_processing_tracker, per_run_tracker, timeout_count
                         )
                     
                     # Check if we should shutdown due to too many timeouts
@@ -665,7 +707,7 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
                                         # Get result with short timeout to avoid hanging on result retrieval
                                         result = future.result(timeout=5)
                                         processed_count, failed_count, timeout_count = process_task_result(
-                                            result, futures_to_files[future], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
+                                            result, futures_to_files[future], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, per_run_tracker, timeout_count
                                         )
                                     except concurrent.futures.CancelledError:
                                         # Future was cancelled during shutdown
@@ -681,7 +723,7 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
                                         # Any other exception from the task
                                         logger.error(f"Error processing scan result during shutdown: {task_error}")
                                         processed_count, failed_count, timeout_count = process_task_result(
-                                            task_error, futures_to_files[future], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
+                                            task_error, futures_to_files[future], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, per_run_tracker, timeout_count
                                         )
                                 
                                 logger.info(f"Graceful shutdown: {completed_count} running scans completed naturally")
@@ -721,12 +763,12 @@ def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=No
                 # Call the processing function with unpacked parameters
                 result = call_scan_and_process_file(*task, config)
                 processed_count, failed_count, timeout_count = process_task_result(
-                    result, task[0], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
+                    result, task[0], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, per_run_tracker, timeout_count
                 )
             except Exception as e:
                 # For exceptions from the call itself, pass the exception to the processor
                 processed_count, failed_count, timeout_count = process_task_result(
-                    e, task[0], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, timeout_count
+                    e, task[0], results, processed_count, failed_count, total_files, logger, daily_processing_tracker, per_run_tracker, timeout_count
                 )
             
             # Check if we should shutdown due to too many timeouts
@@ -773,6 +815,9 @@ def scan_and_process_directory(
     throttle_max_file_volume_per_day_mb=0,
     throttle_max_file_count_per_day=0,
     daily_processing_tracker=None,  # Parameter to receive existing tracker
+    throttle_max_file_count_per_run=1000,
+    throttle_max_file_volume_per_run_mb=1024,
+    per_run_tracker=None,  # Parameter to receive per-run tracker
     
     notifier=None,
     notify_summary=False,
@@ -803,6 +848,9 @@ def scan_and_process_directory(
         throttle_max_file_volume_per_day_mb (int): Maximum volume of data to process per day in MB (0 for no limit)
         throttle_max_file_count_per_day (int): Maximum number of files to process per day (0 for no limit)
         daily_processing_tracker (DailyProcessingTracker): Existing tracker instance to use (required)
+        throttle_max_file_count_per_run (int): Maximum number of files to process per run (default: 1000, 0 for no limit)
+        throttle_max_file_volume_per_run_mb (int): Maximum volume of data to process per run in MB (default: 1024, 0 for no limit)
+        per_run_tracker (PerRunTracker): Per-run tracker instance to use (required)
 
         notifier (Notifier): Notifier for sending notifications
         notify_summary (bool): Whether to send notification on completion of every run
@@ -823,9 +871,17 @@ def scan_and_process_directory(
         logger.error("No daily_processing_tracker provided to scan_and_process_directory")
         raise ValueError("daily_processing_tracker is required")
     
+    # The per_run_tracker is also a required parameter
+    if per_run_tracker is None:
+        logger.error("No per_run_tracker provided to scan_and_process_directory")
+        raise ValueError("per_run_tracker is required")
+    
     # Log message about throttling configuration if throttling is enabled
     if throttle and (throttle_max_file_volume_per_day_mb > 0 or throttle_max_file_count_per_day > 0):
         logger.info(f"Daily throttling enabled: {throttle_max_file_count_per_day} files, {throttle_max_file_volume_per_day_mb} MB")
+    
+    if throttle and (throttle_max_file_count_per_run > 0 or throttle_max_file_volume_per_run_mb > 0):
+        logger.info(f"Per-run throttling enabled: {throttle_max_file_count_per_run} files, {throttle_max_file_volume_per_run_mb} MB")
     
     try:
         # Phase 1: Copy files from source to quarantine
@@ -839,6 +895,9 @@ def scan_and_process_directory(
             throttle_max_file_count_per_day,
             throttle_max_file_volume_per_day_mb,
             daily_processing_tracker,
+            throttle_max_file_count_per_run,
+            throttle_max_file_volume_per_run_mb,
+            per_run_tracker,
             notifier,
             skip_stability_check
         )

@@ -4,23 +4,19 @@ Standard Configuration Definitions for Shuttle
 Centralized source of truth for all standard groups, users, and path permissions
 """
 
-# Standard Groups - Simplified 4-group structure
+# Standard Groups - Simplified 3-group structure
 STANDARD_GROUPS = {
-    # Core owner groups (4 groups needed for basic operation)
-    'shuttle_config_readers': {
-        'description': 'Read access to config and keys',
+    # Core groups (3 groups needed for basic operation)
+    'shuttle_common_users': {
+        'description': 'Read config, write logs, read ledger',
         'gid': 5001
     },
-    'shuttle_log_owners': {
-        'description': 'Write access to logs and ledger',
-        'gid': 5003
-    },
     'shuttle_owners': {
-        'description': 'Owns all data directories (source, quarantine, hazard, destination)',
+        'description': 'Own all data directories (source, quarantine, hazard, destination)',
         'gid': 5002
     },
     'shuttle_testers': {
-        'description': 'Isolated test environment access',
+        'description': 'Run tests',
         'gid': 5012
     },
     
@@ -75,7 +71,7 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'source': 'local',
         'groups': {
             'primary': 'shuttle_owners',
-            'secondary': ['shuttle_config_readers', 'shuttle_log_owners']
+            'secondary': ['shuttle_common_users']
         },
         'shell': '/usr/sbin/nologin',
         'home_directory': '/var/lib/shuttle/shuttle_runner',
@@ -89,8 +85,8 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'recommended': True,
         'source': 'local',
         'groups': {
-            'primary': 'shuttle_log_owners',
-            'secondary': ['shuttle_config_readers']
+            'primary': 'shuttle_common_users',
+            'secondary': []
         },
         'shell': '/usr/sbin/nologin',
         'home_directory': '/var/lib/shuttle/shuttle_defender_test_runner',
@@ -122,7 +118,7 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'recommended': True,
         'source': 'local',
         'groups': {
-            'primary': 'shuttle_samba_out_users',
+            'primary': 'shuttle_out_users',
             'secondary': []
         },
         'samba': {
@@ -141,7 +137,7 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'source': 'local',
         'groups': {
             'primary': 'shuttle_testers',
-            'secondary': ['shuttle_config_readers']
+            'secondary': []
         },
         'shell': '/bin/bash',
         'home_directory': '/home/shuttle_tester',
@@ -156,7 +152,7 @@ STANDARD_PRODUCTION_USER_TEMPLATES = {
         'groups': {
             'primary': None,
             'secondary': [
-                'shuttle_config_readers', 'shuttle_owners', 'shuttle_log_owners'
+                'shuttle_common_users', 'shuttle_owners', 'shuttle_testers'
             ]
         },
         'shell': '/bin/bash',
@@ -193,7 +189,7 @@ STANDARD_SAMBA_CONFIG = {
             'path': '/var/shuttle/destination',
             'comment': 'Shuttle processed file retrieval',
             'read_only': True,
-            'valid_users': '@shuttle_samba_out_users',
+            'valid_users': '@shuttle_out_users',
             'create_mask': '0644',
             'directory_mask': '0755'
         }
@@ -449,7 +445,7 @@ PATH_PERMISSION_BASE_TEMPLATES = {
                 'owner': 'root',
                 'group': 'shuttle_owners',
                 'mode': '2770', 
-                'acls': ['g:shuttle_samba_out_users:r-X'],
+                'acls': ['g:shuttle_out_users:r-X'],
                 'default_acls': {
                     'file': ['u::rw-', 'g::rw-', 'o::---'],
                     'directory': ['u::rwx', 'g::rwx', 'o::---']
@@ -489,10 +485,10 @@ PATH_PERMISSION_BASE_TEMPLATES = {
                 'description': 'Encryption key (read-only for authorized users)'
             },
             'ledger_file_path': {
-                'owner': 'root',
+                'owner': 'shuttle_defender_tester',
                 'group': 'shuttle_common_users',
                 'mode': '0640',
-                'description': 'Ledger file (read-only for common users)'
+                'description': 'Processing ledger file'
             },
             'test_work_dir': {
                 'owner': 'root',

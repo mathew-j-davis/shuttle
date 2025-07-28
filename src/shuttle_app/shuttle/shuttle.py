@@ -27,6 +27,7 @@ from .scanning import (
 )
 
 from shuttle.daily_processing_tracker import DailyProcessingTracker
+from shuttle.per_run_tracker import PerRunTracker
 
 
 """
@@ -58,6 +59,9 @@ shuttle.shuttle.Shuttle.run
 ┣━━ # NOTIFIER INITIALIZATION
 ┃   ┗━━ shuttle.shuttle.Shuttle._init_notifier
 ┃       ┗━━ if config.notify: → shuttle_common.notifier.Notifier.__init__
+┃           ┣━━ recipient_email_error: for error notifications
+┃           ┣━━ recipient_email_summary: for summary notifications
+┃           ┗━━ recipient_email_hazard: for hazard/malware notifications
 ┃
 ┣━━ # RESOURCE CHECK
 ┃   ┗━━ shuttle.shuttle.Shuttle._check_resources
@@ -88,14 +92,18 @@ shuttle.shuttle.Shuttle.run
 ┣━━ # MAIN PROCESSING
 ┃   ┗━━ shuttle.shuttle.Shuttle._process_files
 ┃       ┣━━ shuttle.daily_processing_tracker.DailyProcessingTracker.__init__  
+┃       ┣━━ shuttle.per_run_tracker.PerRunTracker.__init__  
 ┃       ┗━━ shuttle.scanning.scan_and_process_directory
 ┃           ┣━━ shuttle.scanning.quarantine_files_for_scanning
 ┃           ┃   ┣━━ shuttle.scanning.is_file_safe_for_processing
 ┃           ┃   ┣━━ shuttle_common.file_utils.normalize_path
 ┃           ┃   ┣━━ shuttle.throttle_utils.handle_throttle_check
-┃           ┃   ┃   ┗━━ shuttle.throttler.Throttler.can_process_file
+┃           ┃   ┃   ┣━━ shuttle.throttler.Throttler.can_process_file
+┃           ┃   ┃   ┣━━ shuttle.throttle_utils.check_daily_limits
+┃           ┃   ┃   ┗━━ shuttle.throttle_utils.check_per_run_limits
 ┃           ┃   ┣━━ shuttle_common.files.get_file_hash 
 ┃           ┃   ┣━━ daily_processing_tracker.add_pending_file 
+┃           ┃   ┣━━ per_run_tracker.add_pending_file 
 ┃           ┃   ┗━━ shuttle_common.file_utils.copy_temp_then_rename
 ┃           ┃
 ┃           ┣━━ shuttle.scanning.process_scan_tasks
@@ -105,19 +113,31 @@ shuttle.shuttle.Shuttle.run
 ┃           ┃   ┃   loop
 ┃           ┃   ┃   ┣━ call_scan_and_process_file ━━━━━┓
 ┃           ┃   ┃   ┗━ process_task_result             ┃
-┃           ┃   ┃                                      ┃
+┃           ┃   ┃       ┣━━ daily_processing_tracker.complete_file_processing
+┃           ┃   ┃       ┗━━ per_run_tracker.complete_file_processing
 ┃           ┃   ┃                                      ┃
 ┃           ┃   ┣━━ SINGLE THREAD MODE                 ┃
 ┃           ┃   ┃    loop                              ┃
 ┃           ┃   ┃    ┣━━ call_scan_and_process_file ━━━┫
 ┃           ┃   ┃    ┗━━ process_task_result           ┃
-┃           ┃   ┃                                      ┃
+┃           ┃   ┃        ┣━━ daily_processing_tracker.complete_file_processing
+┃           ┃   ┃        ┗━━ per_run_tracker.complete_file_processing
 ┃           ┃   ┃                                      ┃
 ┃           ┃   ┃                                      ┗━━ scan_and_process_file  
 ┃           ┃   ┃                                          ┣━━ shuttle.scanning.check_file_safety
 ┃           ┃   ┃                                          ┣━━ shuttle.scanning.scan_file
 ┃           ┃   ┃                                          ┃   ┣━━ shuttle_common.scan_utils.scan_with_defender
+┃           ┃   ┃                                          ┃   ┃   ┣━━ shuttle_common.scan_utils.calculate_dynamic_timeout
+┃           ┃   ┃                                          ┃   ┃   ┣━━ shuttle_common.scan_utils.run_malware_scan
+┃           ┃   ┃                                          ┃   ┃   ┃   ┣━━ subprocess.run(timeout=dynamic_timeout)
+┃           ┃   ┃                                          ┃   ┃   ┃   ┗━━ log scan metrics (time, size, ms/byte)
+┃           ┃   ┃                                          ┃   ┃   ┗━━ retry logic with circuit breaker
 ┃           ┃   ┃                                          ┃   ┗━━ shuttle_common.scan_utils.scan_with_clam_av
+┃           ┃   ┃                                          ┃       ┣━━ shuttle_common.scan_utils.calculate_dynamic_timeout
+┃           ┃   ┃                                          ┃       ┣━━ shuttle_common.scan_utils.run_malware_scan
+┃           ┃   ┃                                          ┃       ┃   ┣━━ subprocess.run(timeout=dynamic_timeout)
+┃           ┃   ┃                                          ┃       ┃   ┗━━ log scan metrics (time, size, ms/byte)
+┃           ┃   ┃                                          ┃       ┗━━ retry logic with circuit breaker
 ┃           ┃   ┃                                          ┗━━ shuttle.scanning.handle_scan_result
 ┃           ┃   ┃                                              ┣━━ shuttle.post_scan_processing.move_clean_file_to_destination
 ┃           ┃   ┃                                              ┃   ┗━━ shuttle_common.file_utils.copy_temp_then_rename
@@ -153,6 +173,7 @@ class Shuttle:
         self.notifier = None
         self.lock_file_created = False
         self.daily_processing_tracker = None
+        self.per_run_tracker = None
         self.using_simulator = False
     
     def get_config(self):
@@ -306,6 +327,9 @@ class Shuttle:
             data_directory=self.config.daily_processing_tracker_logs_path
         )
         
+        # Create the PerRunTracker instance
+        self.per_run_tracker = PerRunTracker()
+        
         # Call scan_and_process_directory with our initialized parameters
         scan_and_process_directory(
             source_path=self.config.source_path,
@@ -323,6 +347,9 @@ class Shuttle:
             throttle_max_file_count_per_day=self.config.throttle_max_file_count_per_day,
             throttle_max_file_volume_per_day_mb=self.config.throttle_max_file_volume_per_day_mb,
             daily_processing_tracker=self.daily_processing_tracker,  # Pass the tracker directly
+            throttle_max_file_count_per_run=self.config.throttle_max_file_count_per_run,
+            throttle_max_file_volume_per_run_mb=self.config.throttle_max_file_volume_per_run_mb,
+            per_run_tracker=self.per_run_tracker,  # Pass the per-run tracker directly
             notifier=self.notifier,
             notify_summary=self.config.notify_summary,
             skip_stability_check=self.config.skip_stability_check

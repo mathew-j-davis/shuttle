@@ -140,10 +140,10 @@ free --mega
 #### Local Accounts
 | Account                 | Shell             | Primary Purpose          | Group Memberships                                           |
 |-------------------------|-------------------|--------------------------|-------------------------------------------------------------|
-| shuttle-runner          | /usr/sbin/nologin | Main shuttle application | shuttle_common_users, shuttle_owners                        |
-| shuttle-defender-tester | /usr/sbin/nologin | Defender testing         | shuttle_common_users                                        |
-| shuttle-tester          | /usr/sbin/bash    | Testing                  | shuttle_testers                                             |
-| shuttle-admin           | /usr/sbin/bash    | Admin                    | shuttle_common_users, shuttle_owners, shuttle_testers, sudo |
+| shuttle_runner          | /usr/sbin/nologin | Main shuttle application | shuttle_common_users, shuttle_owners                        |
+| shuttle_defender_tester | /usr/sbin/nologin | Defender testing         | shuttle_common_users                                        |
+| shuttle_tester          | /usr/sbin/bash    | Testing                  | shuttle_testers                                             |
+| shuttle_admin           | /usr/sbin/bash    | Admin                    | shuttle_common_users, shuttle_owners, shuttle_testers, sudo |
 
 ### Group Path Permissions
 
@@ -161,34 +161,35 @@ note: where a group has read access to a directory they have +x for the director
 
 | user direct             | venv | installation | config | ledger | logs | source | quarantine | hazard | destination | tests | test config | test work |
 |-------------------------|------|--------------|--------|--------|------|--------|------------|--------|-------------|-------|-------------|-----------|
-| shuttle-defender-tester |      |              |        | rw     |      |        |            |        |             |       |             |           |
+| shuttle_defender_tester |      |              |        | rw     |      |        |            |        |             |       |             |           |
 
 
 ### User Path Permissions + User Group Path Permissions
 
 | user direct + groups    | venv        | installation | config      | ledger | logs         | source       | quarantine   | hazard       | destination  | tests        | test config | test work    |
 |-------------------------|-------------|--------------|-------------|--------|--------------|--------------|--------------|--------------|--------------|--------------|-------------|--------------|
-| shuttle-defender-tester | r (dir: +x) | r (dir: +x)  | r (dir: +x) | rw     | rw (dir: +x) |              |              |              |              |              |             |              |
-| shuttle-runner          | r (dir: +x) | r (dir: +x)  | r (dir: +x) | r      | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) |              |             |              |
-| shuttle-tester          | r (dir: +x) | r (dir: +x)  |             |        |              |              |              |              |              | rw (dir: +x) | rw          | rw (dir: +x) |
-| shuttle-admin           | r (dir: +x) | r (dir: +x)  | r (dir: +x) | rw     | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw          | rw (dir: +x) |
+| shuttle_defender_tester | r (dir: +x) | r (dir: +x)  | r (dir: +x) | rw     | rw (dir: +x) |              |              |              |              |              |             |              |
+| shuttle_runner          | r (dir: +x) | r (dir: +x)  | r (dir: +x) | r      | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) |              |             |              |
+| shuttle_tester          | r (dir: +x) | r (dir: +x)  |             |        |              |              |              |              |              | rw (dir: +x) | rw          | rw (dir: +x) |
+| shuttle_admin           | r (dir: +x) | r (dir: +x)  | r (dir: +x) | r      | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw          | rw (dir: +x) |
+| shuttle_admin + sudo    | rw (dir:+x) | rw (dir:+x)  | rw (dir:+x) | rw     | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw (dir: +x) | rw          | rw (dir: +x) |
 
 ### Access information organised by path
 
-| Directory    | Path                                    | Owner                   | Group                | Directory Mode   | File Mode        | Owner Perms           | Group Perms           | Other Perms           | ACL Users | Notes                           |
-|--------------|-----------------------------------------|-------------------------|----------------------|------------------|------------------|-----------------------|-----------------------|-----------------------|-----------|---------------------------------|
-| venv         | /opt/shuttle/venv                       | root                    | root                 | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | r-x (dir), r-- (file) | -         | Python virtual environment      |
-| installation | /opt/shuttle                            | root                    | root                 | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | r-x (dir), r-- (file) | -         | Application source code         |
-| config       | /etc/shuttle                            | root                    | shuttle_common_users | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx (dir), rw- (file) | r-x (dir), r-- (file) | ---                   | -         | Config and keys, write via sudo |
-| ledger       | /var/log/shuttle/ledger.json            | shuttle-defender-tester | shuttle_common_users |                  | 0640 (rw-r-----) | - ,        rw- (file) | - ,        r-- (file) | ---                   | -         | Processing ledger file          |
-| logs         | /var/log/shuttle                        | root                    | shuttle_common_users | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | -         | Log directory                   |
-| source       | /mnt/in                                 | root                    | shuttle_owners       | 2770 (rwxrws---) | 0664 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | -         | Samba users via ACL (future)    |
-| quarantine   | /mnt/quarantine                         | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | -         | Service accounts only           |
-| hazard       | /mnt/hazard                             | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | -         | Malware isolation               |
-| destination  | /mnt/out                                | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | -         | Network users via ACL (future)  |
-| tests        | /var/tmp/shuttle/tests/                 | root                    | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | -         | Tests                           |
-| test config  | /var/tmp/shuttle/tests/test_config.yaml | root                    | shuttle_testers      | -                | 0660 (rw-rw----) | -          rw- (file) | -        , rw- (file) | ---                   | -         | Test configuration file         |
-| test work    | /var/tmp/shuttle/tests/test_area        | root                    | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx (dir), rw- (file) | rwx (dir), rw- (file) | ---                   | -         | Temporary test area             |
+| Directory    | Path                                    | Owner                   | Group                | Directory Mode   | File Mode        | Owner Dir | Owner File | Group Dir | Group File | Other Dir | Other File | ACL Users | Notes                           |
+|--------------|-----------------------------------------|-------------------------|----------------------|------------------|------------------|-----------|------------|-----------|------------|-----------|------------|-----------|---------------------------------|
+| venv         | /opt/shuttle/venv                       | root                    | root                 | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx       | rw-        | r-x       | r--        | r-x       | r--        | -         | Python virtual environment      |
+| installation | /opt/shuttle                            | root                    | root                 | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx       | rw-        | r-x       | r--        | r-x       | r--        | -         | Application source code         |
+| config       | /etc/shuttle                            | root                    | shuttle_common_users | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx       | rw-        | r-x       | r--        | ---       | ---        | -         | Config and keys, write via sudo |
+| ledger       | /var/log/shuttle/ledger.json            | shuttle_defender_tester | shuttle_common_users | N/A              | 0640 (rw-r-----) | N/A       | rw-        | N/A       | r--        | N/A       | ---        | -         | Processing ledger file          |
+| logs         | /var/log/shuttle                        | root                    | shuttle_common_users | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Log directory                   |
+| source       | /mnt/in                                 | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Samba users via ACL (future)    |
+| quarantine   | /mnt/quarantine                         | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Service accounts only           |
+| hazard       | /mnt/hazard                             | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Malware isolation               |
+| destination  | /mnt/out                                | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Network users via ACL (future)  |
+| tests        | /var/tmp/shuttle/tests/                 | root                    | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Tests                           |
+| test config  | /var/tmp/shuttle/tests/test_config.yaml | root                    | shuttle_testers      | N/A              | 0660 (rw-rw----) | N/A       | rw-        | N/A       | rw-        | N/A       | ---        | -         | Test configuration file         |
+| test work    | /var/tmp/shuttle/tests/test_area        | root                    | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Temporary test area             |
 
 
 ### Environment Variables 
@@ -287,8 +288,8 @@ source /etc/shuttle/shuttle_env.sh
 [SCHEDULE] [COMMAND] # [DESCRIPTION]
 
 # Example:
-45 7 * * MON-FRI su shuttle-defender-tester -c "/usr/local/bin/run-shuttle-defender-test >> /var/log/shuttle/defender-test-cron.log 2>&1"
-* 8-18 * * MON-FRI su shuttle-runner -c "/usr/local/bin/run-shuttle >> /var/log/shuttle/shuttle-cron.log 2>&1"
+45 7 * * MON-FRI su shuttle_defender_tester -c "/usr/local/bin/run-shuttle-defender-test >> /var/log/shuttle/defender-test-cron.log 2>&1"
+* 8-18 * * MON-FRI su shuttle_runner -c "/usr/local/bin/run-shuttle >> /var/log/shuttle/shuttle-cron.log 2>&1"
 ```
 
 ### Permission Mode Explanation

@@ -49,6 +49,43 @@ def check_daily_limits(daily_processing_tracker, file_count_limit, volume_limit_
     return True, None
 
 
+def check_per_run_limits(per_run_tracker, file_count_limit, volume_limit_mb, file_size_mb):
+    """
+    Check if per-run limits would be exceeded by processing another file.
+    
+    Args:
+        per_run_tracker: PerRunTracker instance providing counters
+        file_count_limit: Maximum number of files to process per run
+        volume_limit_mb: Maximum volume in MB to process per run
+        file_size_mb: Size of the file to be processed in MB
+            
+    Returns:
+        tuple: (can_proceed, message)
+            - can_proceed: True if processing can continue, False if limit reached
+            - message: Description of the limit reached or None
+    """
+
+    logger = get_logger()
+
+    # Get the total counts including the new file
+    total_files = per_run_tracker.get_total_files_count(include_additional=1)  # +1 for current file
+    total_volume = per_run_tracker.get_total_volume_mb(include_additional_mb=file_size_mb)
+    
+    # Check file count limit
+    if file_count_limit and file_count_limit > 0 and total_files > file_count_limit:
+        message = f"Per-run file count limit ({file_count_limit}) would be exceeded with {total_files} files"
+        logger.info(message)
+        return False, message
+            
+    # Check volume limit
+    if volume_limit_mb and volume_limit_mb > 0 and total_volume > volume_limit_mb:
+        message = f"Per-run volume limit ({volume_limit_mb} MB) would be exceeded with {total_volume:.2f} MB"
+        logger.info(message)
+        return False, message
+            
+    return True, None
+
+
 def handle_throttle_check(
         source_file_path, 
         quarantine_path,
@@ -59,10 +96,13 @@ def handle_throttle_check(
         max_files_per_day=0,
         max_volume_per_day=0,
         daily_processing_tracker=None,
+        max_files_per_run=0,
+        max_volume_per_run=0,
+        per_run_tracker=None,
         notifier=None
     ):
     """
-    Check if a file can be processed based on available disk space and daily processing limits.
+    Check if a file can be processed based on available disk space, daily limits, and per-run limits.
     
     Args:
         source_file_path: Path to the source file
@@ -74,8 +114,10 @@ def handle_throttle_check(
         max_files_per_day: Maximum number of files to process per day (0 for no limit)
         max_volume_per_day: Maximum volume to process per day in MB (0 for no limit)
         daily_processing_tracker: DailyProcessingTracker instance for daily limit tracking
+        max_files_per_run: Maximum number of files to process per run (0 for no limit)
+        max_volume_per_run: Maximum volume to process per run in MB (0 for no limit)
+        per_run_tracker: PerRunTracker instance for per-run limit tracking
         notifier: Notifier instance for sending notifications (optional)
-        options
         
     Returns:
         bool: True if processing can continue, False if it should stop
@@ -180,7 +222,32 @@ def handle_throttle_check(
                 return False  # Stop processing due to daily limits
             else:
                 # File is approved - tracking of pending files is done when the file is copied
-                logger.debug(f"File approved for processing: {source_file_path} ({file_size_mb:.2f} MB)")
+                logger.debug(f"File approved for daily processing: {source_file_path} ({file_size_mb:.2f} MB)")
+
+        # STEP 3: Check per-run limits if applicable
+        if per_run_tracker and (max_files_per_run > 0 or max_volume_per_run > 0):
+            # Check if this file would exceed per-run limits
+            can_proceed, limit_message = check_per_run_limits(
+                per_run_tracker=per_run_tracker,
+                file_count_limit=max_files_per_run,
+                volume_limit_mb=max_volume_per_run,
+                file_size_mb=file_size_mb
+            )
+            
+            if not can_proceed:
+                # We've hit a per-run limit
+                logger.warning(f"THROTTLE REASON: Per-Run Limit Reached: {limit_message}")
+                if notifier:
+                    notifier.notify_error("Per-Run Limit Reached", 
+                                  f"Processing stopped: {limit_message}\n\n"
+                                  f"File: {os.path.basename(source_file_path)}\n"
+                                  f"Per-run limits: {max_files_per_run or 'unlimited'} files, {max_volume_per_run or 'unlimited'} MB"
+                                )
+                
+                return False  # Stop processing due to per-run limits
+            else:
+                # File is approved - tracking of pending files is done when the file is copied
+                logger.debug(f"File approved for per-run processing: {source_file_path} ({file_size_mb:.2f} MB)")
         
         # All checks passed
         logger.debug("All throttle checks passed")

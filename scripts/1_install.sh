@@ -28,6 +28,8 @@ CONFIG_PATH=""
 VENV_PATH=""
 TEST_WORK_DIR=""
 GPG_KEY_PATH=""
+STAGING_DIR=""
+STAGING_MODE=false
 
 # Installation flags
 INSTALL_BASIC_DEPS=false
@@ -40,14 +42,18 @@ SKIP_MODULES=false
 # Set command history file for this installation session
 export COMMAND_HISTORY_FILE="/tmp/shuttle_install_command_history_$(date +%Y%m%d_%H%M%S).log"
 
-# Export DRY_RUN and VERBOSE for use by all scripts and modules
+# Export DRY_RUN, VERBOSE, and STAGING_MODE for use by all scripts and modules
 export DRY_RUN
 export VERBOSE
+export STAGING_MODE
+export STAGING_DIR
 
 show_banner() {
     echo "========================================="
     if [[ "$DRY_RUN" == "true" ]]; then
         echo "  Shuttle Setup Script - DRY RUN MODE   "
+    elif [[ "$STAGING_MODE" == "true" ]]; then
+        echo "  Shuttle Setup Script - STAGING MODE   "
     else
         echo "    Shuttle Interactive Setup Script     "
     fi
@@ -56,6 +62,11 @@ show_banner() {
     if [[ "$DRY_RUN" == "true" ]]; then
         echo -e "${YELLOW}🔍 DRY RUN MODE: No changes will be made${NC}"
         echo -e "${YELLOW}   This will show what would be done${NC}"
+        echo ""
+    elif [[ "$STAGING_MODE" == "true" ]]; then
+        echo -e "${GREEN}📦 STAGING MODE: Files will be saved to: $STAGING_DIR${NC}"
+        echo -e "${GREEN}   Configuration will reference final production paths${NC}"
+        echo -e "${GREEN}   Use this to prepare files for deployment on another machine${NC}"
         echo ""
     fi
     echo "Throughout this installation:"
@@ -302,6 +313,74 @@ interactive_install_mode_choice() {
             ;;
     esac
     echo ""
+}
+
+# Interactive staging mode selection (wizard mode)
+interactive_staging_mode_choice() {
+    echo "=== Staging/Deployment Mode ==="
+    echo ""
+    echo "Do you want to:"
+    echo "1) Install directly on this machine (default)"
+    echo "2) Prepare files for deployment on another machine (staging mode)"
+    echo ""
+    echo "Staging mode is useful when:"
+    echo "• You don't have permissions to create system directories"
+    echo "• You want to prepare files on one machine and deploy on another"
+    echo "• You need to review configurations before deployment"
+    echo ""
+    
+    read -p "Select mode [1-2, default=1]: " staging_choice
+    staging_choice=${staging_choice:-1}
+    
+    case "$staging_choice" in
+        1)
+            STAGING_MODE=false
+            echo -e "${GREEN}Selected: Direct installation on this machine${NC}"
+            ;;
+        2)
+            STAGING_MODE=true
+            echo -e "${GREEN}Selected: Staging mode - prepare files for deployment${NC}"
+            echo ""
+            
+            # Get staging directory
+            default_staging_dir="/tmp/shuttle_staging_$(date +%Y%m%d_%H%M%S)"
+            read -p "Staging directory [$default_staging_dir]: " staging_dir_input
+            STAGING_DIR=${staging_dir_input:-$default_staging_dir}
+            
+            # Validate staging directory
+            if ! validate_file_path "$STAGING_DIR" "Staging directory"; then
+                echo -e "${RED}❌ Invalid staging directory path${NC}"
+                exit 1
+            fi
+            
+            echo -e "${GREEN}Files will be saved to: $STAGING_DIR${NC}"
+            ;;
+        *)
+            STAGING_MODE=false
+            echo -e "${GREEN}Defaulting to: Direct installation on this machine${NC}"
+            ;;
+    esac
+    echo ""
+}
+
+# Select staging mode
+select_staging_mode() {
+    # Skip if already set via command line
+    if [[ -n "$STAGING_DIR" ]]; then
+        STAGING_MODE=true
+        echo -e "${GREEN}Using staging mode with directory: $STAGING_DIR${NC}"
+        echo ""
+        return
+    fi
+    
+    # Check if we're running from instructions or wizard mode
+    if [[ -n "$INSTALL_INSTRUCTIONS_FILE" ]]; then
+        # Instructions mode - staging not supported via instructions yet
+        STAGING_MODE=false
+    else
+        # Wizard mode - interactive choice
+        interactive_staging_mode_choice
+    fi
 }
 
 # 2. Unified Installation Mode Selection
@@ -1138,13 +1217,22 @@ validate_config_path_instructions() {
 interactive_config_path_choice() {
     echo "=== Configuration File Location ==="
     echo "Installation mode: $INSTALL_MODE"
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        echo -e "${GREEN}Staging mode: Files will be saved to $STAGING_DIR${NC}"
+        echo -e "${YELLOW}Enter the FINAL production path where the config will be deployed${NC}"
+    fi
     echo ""
     
     # Set up default config path based on installation mode (reading from config file)
     DEFAULT_CONFIG=$(get_default_path "$INSTALL_MODE" "config" "$PROJECT_ROOT")
     
     echo "Configuration file location:"
-    echo "Path where Shuttle's main configuration file will be stored."
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        echo "Path where Shuttle's configuration will be deployed on the target machine."
+        echo "(The file will be created in the staging directory but reference this path)"
+    else
+        echo "Path where Shuttle's main configuration file will be stored."
+    fi
     echo ""
     read -p "[$DEFAULT_CONFIG]: " CONFIG_PATH
     CONFIG_PATH=${CONFIG_PATH:-$DEFAULT_CONFIG}
@@ -1422,10 +1510,17 @@ collect_config_parameters() {
     
     # File paths
     echo "File Processing Paths:"
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        echo -e "${YELLOW}Enter the FINAL production paths where these directories will exist${NC}"
+        echo -e "${YELLOW}on the target machine (not the staging directory paths)${NC}"
+    fi
     echo ""
     
     echo "Source directory:"
     echo "Location where new files are monitored and picked up for processing."
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        echo "(This is the path on the target machine, not in staging directory)"
+    fi
     echo ""
     read -p "[$DEFAULT_SOURCE]: " SOURCE_PATH
     SOURCE_PATH=${SOURCE_PATH:-$DEFAULT_SOURCE}
@@ -1547,6 +1642,29 @@ collect_config_parameters() {
     echo ""
     read -p "Min Space MB (Default: 100): " MIN_FREE_SPACE
     MIN_FREE_SPACE=${MIN_FREE_SPACE:-100}
+    
+    echo ""
+    echo "Per-run file limits:"
+    echo "These limits apply to each execution of shuttle and help manage resource usage."
+    echo ""
+    read -p "Max files per run (Default: 1000, 0=unlimited): " MAX_FILES_PER_RUN
+    MAX_FILES_PER_RUN=${MAX_FILES_PER_RUN:-1000}
+    
+    echo ""
+    read -p "Max volume per run MB (Default: 1024, 0=unlimited): " MAX_VOLUME_PER_RUN
+    MAX_VOLUME_PER_RUN=${MAX_VOLUME_PER_RUN:-1024}
+    
+    echo ""
+    echo "Scan timeout configuration:"
+    echo "Dynamic timeouts based on file size help handle large files that take longer to scan."
+    echo "Total timeout = base timeout + (file size in bytes × per-byte timeout)"
+    echo ""
+    read -p "Base scan timeout in seconds (Default: 60, 0=disabled): " BASE_SCAN_TIMEOUT
+    BASE_SCAN_TIMEOUT=${BASE_SCAN_TIMEOUT:-60}
+    
+    echo ""
+    read -p "Per-byte timeout in milliseconds (Default: 0.01, 0=disabled): " MS_PER_BYTE_TIMEOUT
+    MS_PER_BYTE_TIMEOUT=${MS_PER_BYTE_TIMEOUT:-0.01}
     
     # Logging
     echo ""
@@ -1724,6 +1842,10 @@ collect_config_parameters() {
     USER_USE_DEFENDER_CHOICE="$USE_DEFENDER"
     USER_SCAN_THREADS_CHOICE="$SCAN_THREADS"
     USER_MIN_FREE_SPACE_CHOICE="$MIN_FREE_SPACE"
+    USER_MAX_FILES_PER_RUN_CHOICE="$MAX_FILES_PER_RUN"
+    USER_MAX_VOLUME_PER_RUN_CHOICE="$MAX_VOLUME_PER_RUN"
+    USER_BASE_SCAN_TIMEOUT_CHOICE="$BASE_SCAN_TIMEOUT"
+    USER_MS_PER_BYTE_TIMEOUT_CHOICE="$MS_PER_BYTE_TIMEOUT"
     USER_LOG_LEVEL_CHOICE="$LOG_LEVEL"
     USER_ADMIN_EMAIL_CHOICE="$ADMIN_EMAIL"
     USER_SMTP_SERVER_CHOICE="$SMTP_SERVER"
@@ -1739,9 +1861,28 @@ collect_config_parameters() {
     echo "🔧 Creating configuration files..."
     
     # Export environment variables needed by 07_setup_config.py
-    export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
-    export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
-    export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        # In staging mode: export staging paths for file creation, pass final paths as args
+        export SHUTTLE_TEST_WORK_DIR="$STAGING_DIR/work"
+        export SHUTTLE_CONFIG_PATH="$STAGING_DIR/shuttle_config.yaml"
+        export SHUTTLE_TEST_CONFIG_PATH="$STAGING_DIR/work/test_config.conf"
+        
+        # Create staging directory and subdirectories
+        mkdir -p "$STAGING_DIR"
+        mkdir -p "$STAGING_DIR/work"
+        
+        # Add staging mode flag for 07_setup_config.py to use final paths in content
+        CONFIG_ARGS+=(
+            "--staging-mode"
+            "--final-config-path" "$CONFIG_PATH"
+            "--final-test-work-dir" "$TEST_WORK_DIR"
+            "--final-test-config-path" "$TEST_WORK_DIR/test_config.conf"
+        )
+    else
+        export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
+        export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
+        export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
+    fi
     
     # Build config arguments
     CONFIG_ARGS=(
@@ -1755,6 +1896,10 @@ collect_config_parameters() {
         "--log-level" "$LOG_LEVEL"
         "--max-scan-threads" "$SCAN_THREADS"
         "--throttle-free-space-mb" "$MIN_FREE_SPACE"
+        "--throttle-max-file-count-per-run" "$MAX_FILES_PER_RUN"
+        "--throttle-max-file-volume-per-run-mb" "$MAX_VOLUME_PER_RUN"
+        "--malware-scan-timeout-seconds" "$BASE_SCAN_TIMEOUT"
+        "--malware-scan-timeout-ms-per-byte" "$MS_PER_BYTE_TIMEOUT"
         "--hazard-encryption-key-path" "$GPG_KEY_PATH"
     )
     
@@ -1862,9 +2007,15 @@ execute_installation() {
     fi
     
     # Set environment variables for script duration
-    export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
-    export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
-    export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        export SHUTTLE_CONFIG_PATH="$STAGING_DIR/shuttle_config.yaml"
+        export SHUTTLE_TEST_WORK_DIR="$STAGING_DIR/work"
+        export SHUTTLE_TEST_CONFIG_PATH="$STAGING_DIR/work/test_config.conf"
+    else
+        export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
+        export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
+        export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
+    fi
     
     echo "Setting up environment variables..."
     
@@ -1934,6 +2085,11 @@ execute_installation() {
         ENV_VENV_CMD="$ENV_VENV_CMD --do-not-create-venv"
     fi
     
+    # Add staging mode support
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        ENV_VENV_CMD="$ENV_VENV_CMD --staging-dir '$STAGING_DIR' --final-config-path '$CONFIG_PATH' --final-test-work-dir '$TEST_WORK_DIR' --final-venv-path '$VENV_PATH'"
+    fi
+    
     # Add dry-run flag if needed
     ENV_VENV_CMD=$(add_dry_run_flag "$ENV_VENV_CMD")
     
@@ -1945,9 +2101,15 @@ execute_installation() {
     fi
     
     # Re-export the environment variables in this script's context
-    export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
-    export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
-    export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        export SHUTTLE_CONFIG_PATH="$STAGING_DIR/shuttle_config.yaml"
+        export SHUTTLE_TEST_WORK_DIR="$STAGING_DIR/work"
+        export SHUTTLE_TEST_CONFIG_PATH="$STAGING_DIR/work/test_config.conf"
+    else
+        export SHUTTLE_CONFIG_PATH="$CONFIG_PATH"
+        export SHUTTLE_TEST_WORK_DIR="$TEST_WORK_DIR"
+        export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
+    fi
     
     # Activate venv for our use if it was created
     if [[ "$CREATE_VENV" == "true" ]] && [[ -f "$VENV_PATH/bin/activate" ]]; then
@@ -2276,6 +2438,12 @@ wizard_completion_options() {
     echo "=== Configuration Review ==="
     echo ""
     echo "Installation mode: $INSTALL_MODE"
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        echo -e "Deployment mode: ${GREEN}STAGING - Files will be saved to: $STAGING_DIR${NC}"
+        echo -e "                ${YELLOW}Configuration will reference production paths${NC}"
+    else
+        echo "Deployment mode: Direct installation"
+    fi
     echo "Virtual environment: $VENV_TYPE"
     echo "Config path: $CONFIG_PATH"
     echo "Working directory: $TEST_WORK_DIR"
@@ -2301,13 +2469,17 @@ wizard_completion_options() {
                 ;;
             2)
                 # Save instructions and continue
-                # Default to config/install_inputs.yaml
-                DEFAULT_INSTRUCTIONS_FILE="config/installation_steps.yaml"
+                # Default to staging directory if in staging mode
+                if [[ "$STAGING_MODE" == "true" ]]; then
+                    DEFAULT_INSTRUCTIONS_FILE="$STAGING_DIR/installation_steps.yaml"
+                else
+                    DEFAULT_INSTRUCTIONS_FILE="config/installation_steps.yaml"
+                fi
                 read -p "Instructions file name (Default: $DEFAULT_INSTRUCTIONS_FILE): " INSTRUCTIONS_FILE
                 INSTRUCTIONS_FILE=${INSTRUCTIONS_FILE:-$DEFAULT_INSTRUCTIONS_FILE}
                 
-                # Make path absolute if relative
-                if [[ "$INSTRUCTIONS_FILE" != /* ]]; then
+                # Make path absolute if relative (and not already in staging dir)
+                if [[ "$INSTRUCTIONS_FILE" != /* ]] && [[ "$STAGING_MODE" != "true" ]]; then
                     INSTRUCTIONS_FILE="$PROJECT_ROOT/$INSTRUCTIONS_FILE"
                 fi
                 
@@ -2321,13 +2493,17 @@ wizard_completion_options() {
                 ;;
             3)
                 # Save instructions only
-                # Default to config/install_inputs.yaml
-                DEFAULT_INSTRUCTIONS_FILE="config/installation_steps.yaml"
+                # Default to staging directory if in staging mode
+                if [[ "$STAGING_MODE" == "true" ]]; then
+                    DEFAULT_INSTRUCTIONS_FILE="$STAGING_DIR/installation_steps.yaml"
+                else
+                    DEFAULT_INSTRUCTIONS_FILE="config/installation_steps.yaml"
+                fi
                 read -p "Instructions file name (Default: $DEFAULT_INSTRUCTIONS_FILE): " INSTRUCTIONS_FILE
                 INSTRUCTIONS_FILE=${INSTRUCTIONS_FILE:-$DEFAULT_INSTRUCTIONS_FILE}
                 
-                # Make path absolute if relative
-                if [[ "$INSTRUCTIONS_FILE" != /* ]]; then
+                # Make path absolute if relative (and not already in staging dir)
+                if [[ "$INSTRUCTIONS_FILE" != /* ]] && [[ "$STAGING_MODE" != "true" ]]; then
                     INSTRUCTIONS_FILE="$PROJECT_ROOT/$INSTRUCTIONS_FILE"
                 fi
                 
@@ -2355,13 +2531,38 @@ show_next_steps() {
     echo ""
     echo -e "${GREEN}✅ Setup Complete!${NC}"
     echo ""
-    echo "=== Next Steps ==="
-    echo ""
     
-    # Step 1: Environment activation
-    echo "1. Activate the Shuttle environment:"
-    echo -e "   ${BLUE}source $CONFIG_DIR/shuttle_env.sh${NC}"
-    echo ""
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        echo -e "${GREEN}📦 Staging files have been created in: $STAGING_DIR${NC}"
+        echo ""
+        echo "=== Files Created ==="
+        echo "• Configuration: $STAGING_DIR/shuttle_config.yaml"
+        echo "• Test config: $STAGING_DIR/work/test_config.conf"
+        echo "• Environment script: $STAGING_DIR/shuttle_env.sh"
+        if [[ -f "$STAGING_DIR/ledger/ledger.yaml" ]]; then
+            echo "• Ledger: $STAGING_DIR/ledger/ledger.yaml"
+        fi
+        if [[ -f "$STAGING_DIR/installation_steps.yaml" ]]; then
+            echo "• Installation instructions: $STAGING_DIR/installation_steps.yaml"
+        fi
+        echo ""
+        echo "=== Deployment Steps ==="
+        echo ""
+        echo "1. Copy the staging directory to the target machine:"
+        echo -e "   ${BLUE}scp -r $STAGING_DIR/* user@target-machine:$CONFIG_DIR/${NC}"
+        echo ""
+        echo "2. On the target machine, activate the Shuttle environment:"
+        echo -e "   ${BLUE}source $CONFIG_DIR/shuttle_env.sh${NC}"
+        echo ""
+    else
+        echo "=== Next Steps ==="
+        echo ""
+        
+        # Step 1: Environment activation
+        echo "1. Activate the Shuttle environment:"
+        echo -e "   ${BLUE}source $CONFIG_DIR/shuttle_env.sh${NC}"
+        echo ""
+    fi
     
     # Step 2: Virtual environment and dependencies (conditional)
     if [[ "$SKIP_MODULES" == "true" ]]; then
@@ -2447,13 +2648,19 @@ show_next_steps() {
     echo ""
     
     # Save detailed instructions
-    SETUP_LOG="$PROJECT_ROOT/setup_complete.txt"
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        SETUP_LOG="$STAGING_DIR/setup_complete.txt"
+    else
+        SETUP_LOG="$PROJECT_ROOT/setup_complete.txt"
+    fi
+    
     cat > "$SETUP_LOG" <<EOF
 Shuttle Installation Complete
 ============================
 
 Installation Mode: $INSTALL_MODE
 Virtual Environment Type: $VENV_TYPE
+Deployment Mode: $(if [[ "$STAGING_MODE" == "true" ]]; then echo "STAGING (files in $STAGING_DIR)"; else echo "Direct installation"; fi)
 
 Environment Variables:
   SHUTTLE_CONFIG_PATH=$CONFIG_PATH
@@ -2516,6 +2723,7 @@ Usage: $0 [options]
 Options:
   --instructions <file> Path to YAML installation instructions file (default: wizard mode)
   --wizard              Run installation wizard (default when no options provided)
+  --staging-dir <dir>   Staging/prep mode: save files to this directory while keeping final paths in configs
   --dry-run            Show what would be done without making changes
   --verbose            Show detailed command execution information
   --help               Show this help message
@@ -2525,7 +2733,13 @@ Examples:
   $0 --wizard                          # Explicit wizard mode
   $0 --instructions config/install_inputs.yaml   # Use saved installation instructions
   $0 --instructions config/install_inputs.yaml --dry-run  # Preview installation without changes
+  $0 --staging-dir /tmp/shuttle_prep    # Prepare files for deployment on another machine
 
+Staging/Prep Mode:
+  --staging-dir allows preparing installation files on one machine for deployment on another.
+  Files (config, test config, .venv, env vars script, ledger) are saved to the staging directory,
+  but all path references within these files point to the final production paths.
+  
 Installation Instructions File:
   The YAML file defines installation settings including paths, environment,
   and system dependencies for reproducible installations.
@@ -2560,6 +2774,20 @@ parse_arguments() {
                 RUN_WIZARD=true
                 shift
                 ;;
+            --staging-dir)
+                if [[ -z "$2" ]]; then
+                    echo -e "${RED}❌ --staging-dir requires a directory path${NC}" >&2
+                    show_usage
+                    exit 1
+                fi
+                if ! validate_file_path "$2" "Staging directory"; then
+                    echo -e "${RED}❌ Invalid staging directory path: $2${NC}" >&2
+                    exit 1
+                fi
+                STAGING_DIR="$2"
+                STAGING_MODE=true
+                shift 2
+                ;;
             --dry-run)
                 DRY_RUN=true
                 shift
@@ -2583,6 +2811,22 @@ parse_arguments() {
     # If no --instructions specified and no --wizard, default to wizard
     if [[ "$INSTALL_INSTRUCTIONS_SPECIFIED" == "false" && "$RUN_WIZARD" == "false" ]]; then
         RUN_WIZARD=true
+    fi
+    
+    # Validate staging mode
+    if [[ "$STAGING_MODE" == "true" ]]; then
+        # Create staging directory if it doesn't exist
+        if [[ ! -d "$STAGING_DIR" ]]; then
+            if ! dry_run_file_operation "create directory" "$STAGING_DIR" "Staging directory for prepared files"; then
+                if ! mkdir -p "$STAGING_DIR"; then
+                    echo -e "${RED}❌ Failed to create staging directory: $STAGING_DIR${NC}" >&2
+                    exit 1
+                fi
+            fi
+        fi
+        echo -e "${YELLOW}🔧 Staging mode enabled: Files will be saved to $STAGING_DIR${NC}"
+        echo -e "${YELLOW}   Path references will point to final destinations${NC}"
+        echo ""
     fi
 }
 
@@ -2618,7 +2862,10 @@ main() {
     # Step 2: Installation mode selection
     select_installation_mode
     
-    # Step 2a: IDE options if applicable
+    # Step 2a: Staging mode selection (only in wizard mode)
+    select_staging_mode
+    
+    # Step 2b: IDE options if applicable
     select_venv_ide_options
     
     # Step 3: Collect config path (needed for prerequisites)

@@ -146,7 +146,8 @@ class CommonConfig:
     defender_handles_suspect_files: bool = True
     
     # Malware scan timeout settings (applies to all scanners: Defender, ClamAV, etc.)
-    malware_scan_timeout_seconds: int = 300  # Default 5 minutes (0 = no timeout)
+    malware_scan_timeout_seconds: int = 60  # Default 60 seconds base timeout (0 = no timeout)
+    malware_scan_timeout_ms_per_byte: float = 0.01  # Additional timeout per byte in milliseconds (0 = no per-byte timeout)
     malware_scan_retry_wait_seconds: int = 30  # Wait between retries (0 = no wait)
     malware_scan_retry_count: int = 3  # Max retries before giving up (0 = unlimited)
     
@@ -224,7 +225,11 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument('--malware-scan-timeout-seconds', 
                       type=int,
                       default=None,
-                      help='Timeout for malware scan in seconds (default: 300, 0 = no timeout)')
+                      help='Timeout for malware scan in seconds (default: 60, 0 = no timeout)')
+    parser.add_argument('--malware-scan-timeout-ms-per-byte', 
+                      type=float,
+                      default=None,
+                      help='Additional timeout per byte in milliseconds (default: 0.01, 0 = no per-byte timeout)')
     parser.add_argument('--malware-scan-retry-wait-seconds', 
                       type=int,
                       default=None,
@@ -338,7 +343,8 @@ def parse_common_config(args=None):
     config.defender_handles_suspect_files = get_setting_from_arg_or_file(args, 'defender_handles_suspect_files', 'scanning', 'defender_handles_suspect_files', True, bool, settings_file_config)
     
     # Parse malware scan timeout settings
-    config.malware_scan_timeout_seconds = get_setting_from_arg_or_file(args, 'malware_scan_timeout_seconds', 'scanning', 'malware_scan_timeout_seconds', 300, int, settings_file_config)
+    config.malware_scan_timeout_seconds = get_setting_from_arg_or_file(args, 'malware_scan_timeout_seconds', 'scanning', 'malware_scan_timeout_seconds', 60, int, settings_file_config)
+    config.malware_scan_timeout_ms_per_byte = get_setting_from_arg_or_file(args, 'malware_scan_timeout_ms_per_byte', 'scanning', 'malware_scan_timeout_ms_per_byte', 0.01, float, settings_file_config)
     config.malware_scan_retry_wait_seconds = get_setting_from_arg_or_file(args, 'malware_scan_retry_wait_seconds', 'scanning', 'malware_scan_retry_wait_seconds', 30, int, settings_file_config)
     config.malware_scan_retry_count = get_setting_from_arg_or_file(args, 'malware_scan_retry_count', 'scanning', 'malware_scan_retry_count', 3, int, settings_file_config)
     
