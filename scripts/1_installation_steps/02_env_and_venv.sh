@@ -11,9 +11,17 @@
 #
 # Flags can be combined: ./02_env_and_venv.sh -e --do-not-create-venv --verbose
 
+set -euo pipefail
+
+# Script identification
+SCRIPT_NAME="$(basename "$0")"
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+# Source required libraries - simple and direct
+source "$SCRIPT_DIR/_sources.sh"
+
 # Get home directory and project root
 HOME_DIR=$(eval echo ~$USER)
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
 # Initialize flags
@@ -133,6 +141,14 @@ else
     FINAL_TEST_CONFIG_PATH="$TEST_CONFIG_PATH"
 fi
 
+# Determine install mode for permission handling
+CURRENT_INSTALL_MODE="service"  # Default
+if [[ "$DEV_MODE" == true ]]; then
+    CURRENT_INSTALL_MODE="dev"
+elif [[ "$USER_MODE" == true ]]; then
+    CURRENT_INSTALL_MODE="user"
+fi
+
 # Create directories (but not venv yet)
 if [[ "$DRY_RUN" == "true" ]]; then
     echo "[DRY RUN] Would create directories:"
@@ -140,9 +156,10 @@ if [[ "$DRY_RUN" == "true" ]]; then
     echo "  mkdir -p $(dirname "$VENV_PATH")"
     echo "  mkdir -p $TEST_WORK_DIR"
 else
-    mkdir -p $(dirname "$CONFIG_PATH")
-    mkdir -p $(dirname "$VENV_PATH")  # Only create parent directory
-    mkdir -p "$TEST_WORK_DIR"
+    # Use the shared sudo helper functions
+    create_directory_with_auto_sudo "$(dirname "$CONFIG_PATH")" "config directory" "false" "$CURRENT_INSTALL_MODE"
+    create_directory_with_auto_sudo "$(dirname "$VENV_PATH")" "venv parent directory" "false" "$CURRENT_INSTALL_MODE"  
+    create_directory_with_auto_sudo "$TEST_WORK_DIR" "test work directory" "false" "$CURRENT_INSTALL_MODE"
 fi
 
 # Set environment variables for this session (use final paths for staging mode)

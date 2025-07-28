@@ -103,6 +103,47 @@ def parse_arguments():
     
     return parser.parse_args()
 
+# Helper function to create directory with sudo if needed (global scope)
+def create_directory_with_sudo_if_needed(dir_path, description):
+    import subprocess
+    
+    if os.path.exists(dir_path):
+        return True
+        
+    try:
+        os.makedirs(dir_path, exist_ok=True)
+        print(f"Created {description}: {dir_path}")
+        return True
+    except PermissionError:
+        # Check if this is a system path that needs sudo
+        if dir_path.startswith(('/etc/', '/opt/', '/var/', '/usr/local/')):
+            print(f"Creating system directory with sudo: {dir_path}")
+            try:
+                subprocess.run(['sudo', 'mkdir', '-p', dir_path], check=True, capture_output=True)
+                
+                # Set appropriate ownership for service mode - check install mode from env
+                install_mode = os.environ.get('INSTALL_MODE', 'service')
+                if install_mode == 'service':
+                    try:
+                        # Check if shuttle group exists
+                        result = subprocess.run(['getent', 'group', 'shuttle'], capture_output=True)
+                        if result.returncode == 0:
+                            subprocess.run(['sudo', 'chown', ':shuttle', dir_path], capture_output=True)
+                            subprocess.run(['sudo', 'chmod', '775', dir_path], capture_output=True)
+                    except:
+                        pass  # Ignore permission setting errors
+                    
+                print(f"Created {description} with sudo: {dir_path}")
+                return True
+            except subprocess.CalledProcessError as e:
+                print(f"ERROR: Failed to create {description} even with sudo: {dir_path}")
+                print(f"Error: {e}")
+                return False
+        else:
+            print(f"ERROR: Failed to create {description}: {dir_path}")
+            print("You may need elevated permissions or the parent directory may not exist.")
+            return False
+
 def prepare_directory_paths(work_dir, config_dir, args):
     """Prepare directory paths for configuration (without creating them)"""
     
@@ -129,11 +170,15 @@ def prepare_directory_paths(work_dir, config_dir, args):
     
     # Only create config-related directories that are needed for config file creation
     # The main installer handles creation of data directories based on user preferences
-    os.makedirs(config_dir, exist_ok=True)
+    if not create_directory_with_sudo_if_needed(config_dir, "config directory"):
+        print(f"Failed to create config directory: {config_dir}")
+        return None
     
     # Create ledger directory only if ledger creation is requested
     if args.create_ledger and ledger_file_dir:
-        os.makedirs(ledger_file_dir, exist_ok=True)
+        if not create_directory_with_sudo_if_needed(ledger_file_dir, "ledger directory"):
+            print(f"Failed to create ledger directory: {ledger_file_dir}")
+            return None
     
     return {
         'source_dir': source_dir,
@@ -268,7 +313,10 @@ def create_test_config_file(test_config_path, config_dir):
         return False
         
     test_config_dir = os.path.dirname(test_config_path)
-    os.makedirs(test_config_dir, exist_ok=True)
+    
+    # Use the same helper function as above
+    if not create_directory_with_sudo_if_needed(test_config_dir, "test config directory"):
+        return False
     
     if os.path.exists(test_config_path):
         print(f"Overwriting existing test config file: {test_config_path}")

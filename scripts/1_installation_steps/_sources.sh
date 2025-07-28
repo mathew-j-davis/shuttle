@@ -10,6 +10,7 @@ SCRIPTS_DIR="$(dirname "$SOURCES_DIR")"
 source "$SCRIPTS_DIR/_setup_lib_sh/_common_.source.sh"
 source "$SCRIPTS_DIR/_setup_lib_sh/_input_validation.source.sh"
 source "$SCRIPTS_DIR/_setup_lib_sh/_package_manager.source.sh"
+source "$SCRIPTS_DIR/_setup_lib_sh/sudo_helpers.source.sh"
 
 # Installation-specific libraries
 source "$SCRIPTS_DIR/_setup_lib_sh/installation_constants.source.sh"

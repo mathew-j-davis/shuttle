@@ -258,14 +258,18 @@ interactive_install_mode_choice() {
     echo "   - Local development and testing"
     echo "   - Uses project root paths"
     echo "   - Editable Python package installation"
+    echo "   - Python files: Remain in source directory (editable install)"
+    echo "   - Changes to source code take effect immediately"
     echo ""
     echo "2) User Production (-u flag)"
     echo "   - Single user installation"
     echo "   - Uses ~/.config/shuttle/ and ~/.local/share/shuttle/"
     echo "   - Standard Python package installation"
+    echo "   - Python files: ~/.local/lib/python*/site-packages/ (or venv)"
     echo ""
     echo "3) Service Account (system production)"
     echo "   - Multi-user/service deployment"
+    echo "   - Python files: /usr/local/lib/python*/site-packages/ (or venv)"
     echo "   - Uses /etc/shuttle/, /opt/shuttle/, /var/lib/shuttle/"
     echo "   - Requires elevated permissions for some steps"
     echo ""
@@ -1441,19 +1445,7 @@ check_and_create_directory_if_choice_allows() {
     fi
     
     if [[ "$create_choice" == "true" ]]; then
-        if [[ "$DRY_RUN" == "true" ]]; then
-            echo -e "    ${BLUE}[DRY RUN] Would create $dir_description directory: $dir_path${NC}"
-            return 0
-        else
-            echo -e "    ${YELLOW}Creating $dir_description directory: $dir_path${NC}"
-            if mkdir -p "$dir_path" 2>/dev/null; then
-                echo -e "    ${GREEN}✅ Directory created: $dir_path${NC}"
-            else
-                echo -e "    ${RED}❌ Failed to create directory: $dir_path${NC}"
-                echo "    You may need elevated permissions or the parent directory may not exist."
-                return 1
-            fi
-        fi
+        create_directory_with_auto_sudo "$dir_path" "$dir_description directory"
     else
         echo -e "    ${YELLOW}⚠️  Directory does not exist: $dir_path${NC}"
         echo -e "    ${YELLOW}⚠️  Directory creation disabled for $dir_description directory${NC}"
@@ -1868,8 +1860,8 @@ collect_config_parameters() {
         export SHUTTLE_TEST_CONFIG_PATH="$STAGING_DIR/work/test_config.conf"
         
         # Create staging directory and subdirectories
-        mkdir -p "$STAGING_DIR"
-        mkdir -p "$STAGING_DIR/work"
+        create_directory_with_auto_sudo "$STAGING_DIR" "staging directory" "true"
+        create_directory_with_auto_sudo "$STAGING_DIR/work" "staging work directory" "true"
         
         # Add staging mode flag for 07_setup_config.py to use final paths in content
         CONFIG_ARGS+=(
@@ -2327,10 +2319,10 @@ save_installation_instructions() {
     # Ensure directory exists
     local instructions_dir=$(dirname "$instructions_file")
     if [[ ! -d "$instructions_dir" ]]; then
-        mkdir -p "$instructions_dir" || {
-            echo -e "${RED}❌ Failed to create directory: $instructions_dir${NC}"
+        if ! create_directory_with_auto_sudo "$instructions_dir" "instructions directory" "true"; then
+            echo -e "${RED}❌ Failed to create instructions directory: $instructions_dir${NC}"
             return 1
-        }
+        fi
     fi
     
     # Convert bash boolean values to Python booleans
@@ -2389,12 +2381,22 @@ save_installation_instructions() {
 import yaml
 import datetime
 
+# Determine Python installation location comment based on mode
+install_mode_comment = ''
+if '$USER_INSTALL_MODE_CHOICE' == 'dev':
+    install_mode_comment = 'Development mode: Python files remain in source directory (editable install)'
+elif '$USER_INSTALL_MODE_CHOICE' == 'user':
+    install_mode_comment = 'User mode: Python files install to ~/.local/lib/python*/site-packages/ (or venv)'
+elif '$USER_INSTALL_MODE_CHOICE' == 'service':
+    install_mode_comment = 'Service mode: Python files install to system site-packages (or venv)'
+
 # Build instructions data structure - minimal format with only user choices
 instructions = {
     'version': '1.0',
     'metadata': {
         'description': 'Shuttle Installation Instructions',
-        'created': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        'created': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'python_install_location': install_mode_comment
     },
     'installation': {
         'venv_choice': '$USER_VENV_CHOICE',
@@ -2818,7 +2820,7 @@ parse_arguments() {
         # Create staging directory if it doesn't exist
         if [[ ! -d "$STAGING_DIR" ]]; then
             if ! dry_run_file_operation "create directory" "$STAGING_DIR" "Staging directory for prepared files"; then
-                if ! mkdir -p "$STAGING_DIR"; then
+                if ! create_directory_with_auto_sudo "$STAGING_DIR" "staging directory" "true"; then
                     echo -e "${RED}❌ Failed to create staging directory: $STAGING_DIR${NC}" >&2
                     exit 1
                 fi

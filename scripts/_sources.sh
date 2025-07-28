@@ -9,6 +9,7 @@ SOURCES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 source "$SOURCES_DIR/_setup_lib_sh/_common_.source.sh"
 source "$SOURCES_DIR/_setup_lib_sh/_input_validation.source.sh"
 source "$SOURCES_DIR/_setup_lib_sh/_check_active_user.source.sh"
+source "$SOURCES_DIR/_setup_lib_sh/sudo_helpers.source.sh"
 
 # Installation-specific libraries for 1_install.sh
 source "$SOURCES_DIR/_setup_lib_sh/installation_constants.source.sh"
