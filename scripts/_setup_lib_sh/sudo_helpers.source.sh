@@ -121,15 +121,43 @@ write_file_with_sudo_fallback() {
         return 0
     fi
     
-    # If sudo is allowed and this is a system path, try with sudo
-    if [[ "$allow_sudo" == "true" ]] && is_system_path "$file_path"; then
+    # If sudo is allowed, try with sudo (no path restriction per user request)
+    if [[ "$allow_sudo" == "true" ]]; then
         if echo "$content" | sudo tee "$file_path" >/dev/null 2>&1; then
-            set_service_permissions "$(dirname "$file_path")"
             return 0
         fi
     fi
     
     echo "Error: Cannot write to file $file_path" >&2
+    return 1
+}
+
+# Write file from temp file with sudo fallback - for Python scripts
+# This copies a temporary file to the final location with sudo if needed
+write_temp_file_with_sudo_fallback() {
+    local temp_file_path="$1"
+    local final_file_path="$2"
+    local allow_sudo="${3:-true}"
+    
+    # Validate temp file exists
+    if [[ ! -f "$temp_file_path" ]]; then
+        echo "Error: Temporary file does not exist: $temp_file_path" >&2
+        return 1
+    fi
+    
+    # Try copying without sudo first
+    if cp "$temp_file_path" "$final_file_path" 2>/dev/null; then
+        return 0
+    fi
+    
+    # If sudo is allowed, try with sudo (no path restriction per user request)
+    if [[ "$allow_sudo" == "true" ]]; then
+        if sudo cp "$temp_file_path" "$final_file_path" 2>/dev/null; then
+            return 0
+        fi
+    fi
+    
+    echo "Error: Cannot copy temp file to final location: $final_file_path" >&2
     return 1
 }
 

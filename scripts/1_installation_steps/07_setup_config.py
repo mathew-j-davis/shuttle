@@ -11,6 +11,66 @@ import os
 import argparse
 import configparser
 import yaml
+import tempfile
+import subprocess
+
+def write_file_with_sudo_fallback(file_path, write_func):
+    """
+    Common function to write files with sudo fallback using bash helper
+    
+    Args:
+        file_path: Target file path
+        write_func: Function that takes a file path and writes content to it
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Try writing directly first
+        write_func(file_path)
+        print(f"Created file at {file_path}")
+        return True
+    except PermissionError:
+        print(f"Permission denied, attempting with sudo: {file_path}")
+        
+        # Write to a temporary file first
+        with tempfile.NamedTemporaryFile(mode='w', delete=False) as tmp_file:
+            tmp_path = tmp_file.name
+            
+        try:
+            # Write content to temp file
+            write_func(tmp_path)
+            
+            # Use bash helper to copy with sudo fallback
+            script_dir = os.path.dirname(os.path.dirname(__file__))
+            bash_helper = os.path.join(script_dir, '_setup_lib_sh', 'sudo_helpers.source.sh')
+            
+            result = subprocess.run([
+                'bash', '-c', 
+                f'source "{bash_helper}" && write_temp_file_with_sudo_fallback "{tmp_path}" "{file_path}"'
+            ], capture_output=True, text=True)
+            
+            if result.returncode == 0:
+                print(f"Created file with sudo at {file_path}")
+                return True
+            else:
+                print(f"ERROR: Failed to create file even with sudo: {file_path}")
+                print(f"Error: {result.stderr}")
+                return False
+                
+        except Exception as e:
+            print(f"ERROR: Failed to write to temp file: {e}")
+            return False
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(tmp_path)
+            except:
+                pass
+    except Exception as e:
+        print(f"ERROR: Failed to create file: {file_path}")
+        print(f"Error: {e}")
+        return False
 
 def get_required_env_var(var_name, description):
     """Get an environment variable or exit with error if not set"""
@@ -105,8 +165,6 @@ def parse_arguments():
 
 # Helper function to create directory with sudo if needed (global scope)
 def create_directory_with_sudo_if_needed(dir_path, description):
-    import subprocess
-    
     if os.path.exists(dir_path):
         return True
         
@@ -115,33 +173,23 @@ def create_directory_with_sudo_if_needed(dir_path, description):
         print(f"Created {description}: {dir_path}")
         return True
     except PermissionError:
-        # Check if this is a system path that needs sudo
-        if dir_path.startswith(('/etc/', '/opt/', '/var/', '/usr/local/')):
-            print(f"Creating system directory with sudo: {dir_path}")
-            try:
-                subprocess.run(['sudo', 'mkdir', '-p', dir_path], check=True, capture_output=True)
-                
-                # Set appropriate ownership for service mode - check install mode from env
-                install_mode = os.environ.get('INSTALL_MODE', 'service')
-                if install_mode == 'service':
-                    try:
-                        # Check if shuttle group exists
-                        result = subprocess.run(['getent', 'group', 'shuttle'], capture_output=True)
-                        if result.returncode == 0:
-                            subprocess.run(['sudo', 'chown', ':shuttle', dir_path], capture_output=True)
-                            subprocess.run(['sudo', 'chmod', '775', dir_path], capture_output=True)
-                    except:
-                        pass  # Ignore permission setting errors
-                    
-                print(f"Created {description} with sudo: {dir_path}")
-                return True
-            except subprocess.CalledProcessError as e:
-                print(f"ERROR: Failed to create {description} even with sudo: {dir_path}")
-                print(f"Error: {e}")
-                return False
+        print(f"Creating directory with sudo: {dir_path}")
+        
+        # Use bash helper for directory creation with sudo
+        script_dir = os.path.dirname(os.path.dirname(__file__))
+        bash_helper = os.path.join(script_dir, '_setup_lib_sh', 'sudo_helpers.source.sh')
+        
+        result = subprocess.run([
+            'bash', '-c', 
+            f'source "{bash_helper}" && create_directory_with_auto_sudo "{dir_path}" "{description}" "true"'
+        ], capture_output=True, text=True)
+        
+        if result.returncode == 0:
+            print(f"Created {description} with sudo: {dir_path}")
+            return True
         else:
-            print(f"ERROR: Failed to create {description}: {dir_path}")
-            print("You may need elevated permissions or the parent directory may not exist.")
+            print(f"ERROR: Failed to create {description} even with sudo: {dir_path}")
+            print(f"Error: {result.stderr}")
             return False
 
 def prepare_directory_paths(work_dir, config_dir, args):
@@ -196,8 +244,9 @@ def create_config_file(config_path, args, paths, config_dir):
         print(f"Overwriting existing configuration file: {config_path}")
     else:
         print("Creating new config file")
-    config = configparser.ConfigParser()
     
+    # Prepare config data
+    config = configparser.ConfigParser()
     hazard_encryption_key_path = args.hazard_encryption_key_path or os.path.join(config_dir, "public-key.gpg")
 
     config['paths'] = {
@@ -248,11 +297,13 @@ def create_config_file(config_path, args, paths, config_dir):
             'use_tls': str(args.notify_use_tls)
         }
 
-    with open(config_path, 'w') as configfile:
-        config.write(configfile)
+    # Define write function for the shared helper
+    def write_config(file_path):
+        with open(file_path, 'w') as configfile:
+            config.write(configfile)
     
-    print(f"Created settings file at {config_path}")
-    return True
+    # Use shared helper for file creation with sudo fallback
+    return write_file_with_sudo_fallback(config_path, write_config)
 
 def create_ledger_file(ledger_file_path):
     """Create default ledger.yaml file"""
@@ -269,12 +320,13 @@ def create_ledger_file(ledger_file_path):
         }
     }
 
-    # Write the ledger.yaml file
-    with open(ledger_file_path, 'w') as yaml_file:
-        yaml.dump(status_data, yaml_file, default_flow_style=False, sort_keys=False)
-
-    print(f"Created ledger file at {ledger_file_path}")
-    return True
+    # Define write function for the shared helper
+    def write_ledger(file_path):
+        with open(file_path, 'w') as yaml_file:
+            yaml.dump(status_data, yaml_file, default_flow_style=False, sort_keys=False)
+    
+    # Use shared helper for file creation with sudo fallback
+    return write_file_with_sudo_fallback(ledger_file_path, write_ledger)
 
 def create_test_keys(test_area_dir):
     """Generate test encryption keys"""
@@ -372,12 +424,13 @@ def create_test_config_file(test_config_path, config_dir):
         'hazard_encryption_key_path': test_key_public_path
     }
     
-    # Write test config file
-    with open(test_config_path, 'w') as configfile:
-        test_config.write(configfile)
+    # Define write function for the shared helper
+    def write_test_config(file_path):
+        with open(file_path, 'w') as configfile:
+            test_config.write(configfile)
     
-    print(f"Created test config file at {test_config_path}")
-    return True
+    # Use shared helper for file creation with sudo fallback
+    return write_file_with_sudo_fallback(test_config_path, write_test_config)
 
 def main():
     """Main function to handle modular configuration creation"""
