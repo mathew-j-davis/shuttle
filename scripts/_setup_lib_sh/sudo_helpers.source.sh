@@ -21,6 +21,60 @@ set_service_permissions() {
     fi
 }
 
+# Change file permissions with automatic sudo detection and dry-run support
+# Usage: chmod_with_sudo_fallback <path> <mode> [description] [allow_sudo]
+chmod_with_sudo_fallback() {
+    local path="$1"
+    local mode="$2"
+    local description="${3:-file}"
+    local allow_sudo="${4:-true}"
+    
+    # Validate inputs
+    if [[ -z "$path" || -z "$mode" ]]; then
+        echo "Error: Path and mode are required for chmod_with_sudo_fallback" >&2
+        return 1
+    fi
+    
+    # Check if path exists
+    if [[ ! -e "$path" ]]; then
+        echo "Error: Path does not exist: $path" >&2
+        return 1
+    fi
+    
+    # Handle dry run mode
+    if [[ "${DRY_RUN:-false}" == "true" ]]; then
+        echo -e "${BLUE:-}[DRY RUN] Would change permissions: chmod $mode $path${NC:-}"
+        return 0
+    fi
+    
+    # Try chmod without sudo first
+    if chmod "$mode" "$path" 2>/dev/null; then
+        [[ "${VERBOSE:-false}" == "true" ]] && echo -e "${GREEN:-}✅ Changed permissions: $path -> $mode${NC:-}"
+        return 0
+    fi
+    
+    # If sudo is allowed, try with sudo
+    if [[ "$allow_sudo" == "true" ]]; then
+        if sudo chmod "$mode" "$path" 2>/dev/null; then
+            [[ "${VERBOSE:-false}" == "true" ]] && echo -e "${GREEN:-}✅ Changed permissions with sudo: $path -> $mode${NC:-}"
+            return 0
+        fi
+    fi
+    
+    echo "Error: Cannot change permissions of $description: $path" >&2
+    return 1
+}
+
+# Make file executable with automatic sudo detection and dry-run support  
+# Usage: make_executable_with_sudo_fallback <path> [description] [allow_sudo]
+make_executable_with_sudo_fallback() {
+    local path="$1"
+    local description="${2:-file}"
+    local allow_sudo="${3:-true}"
+    
+    chmod_with_sudo_fallback "$path" "+x" "$description" "$allow_sudo"
+}
+
 # Create directory with automatic sudo detection
 create_directory_with_auto_sudo() {
     local dir_path="$1"

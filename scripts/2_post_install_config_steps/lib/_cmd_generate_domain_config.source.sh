@@ -454,13 +454,24 @@ EOF
     content="${content//PLACEHOLDER_CONFIG_FILE/$relative_config_file}"
     content="${content//PLACEHOLDER_USER_SCRIPT/$relative_user_script}"
     
-    if [[ "$DRY_RUN" == "false" ]]; then
-        echo "$content" > "$test_file"
-        chmod +x "$test_file"
-        log INFO "Generated test script: $test_file"
-    else
+    if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY RUN] Would generate test script: $test_file"
+        log INFO "[DRY RUN] Would make executable: $test_file"
+        return 0
     fi
+    
+    # Write the test script file
+    if ! write_file_with_sudo_fallback "$test_file" "$content" "true"; then
+        log ERROR "Failed to create test script: $test_file"
+        return 1
+    fi
+    
+    # Make the script executable
+    if ! make_executable_with_sudo_fallback "$test_file" "test script" "true"; then
+        log WARN "Could not make test script executable: $test_file"
+    fi
+    
+    log INFO "Generated test script: $test_file"
 }
 
 # Main function for generate-domain-config command
