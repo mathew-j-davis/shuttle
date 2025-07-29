@@ -270,7 +270,7 @@ if [[ "$CREATE_VENV" == true ]]; then
         
         # Ensure parent directory exists with sudo fallback
         VENV_PARENT_DIR=$(dirname "$VENV_PATH")
-        if ! create_directory_with_auto_sudo "$VENV_PARENT_DIR" "virtual environment parent directory" "true"; then
+        if ! create_directory_with_auto_sudo "$VENV_PARENT_DIR" "virtual environment parent directory" "true" "$CURRENT_INSTALL_MODE"; then
             echo "❌ Failed to create parent directory for virtual environment: $VENV_PARENT_DIR"
             exit 1
         fi
