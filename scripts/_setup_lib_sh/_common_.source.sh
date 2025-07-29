@@ -650,6 +650,58 @@ execute_or_dryrun() {
     fi
 }
 
+execute_function_or_dryrun() {
+    local func_name="$1"
+    local success_msg="$2"
+    local error_msg="$3"
+    local explanation="${4:-}"
+    shift 4  # Remove first 4 args, leaving any function arguments
+    
+    local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+    
+    # Show explanation if provided
+    if [[ -n "$explanation" ]]; then
+        log INFO "Explanation: $explanation"
+    fi
+    
+    if [[ "$DRY_RUN" == "true" ]]; then
+        log INFO "[DRY RUN] Would execute function: $func_name $*"
+        if [[ "${VERBOSE:-false}" == "true" ]]; then
+            # Try to show function definition if verbose
+            if declare -f "$func_name" >/dev/null 2>&1; then
+                log DEBUG "Function definition:"
+                declare -f "$func_name" | sed 's/^/  /' >&2
+            fi
+        fi
+        log_command_history "$timestamp" "$func_name $*" "$explanation" "DRY RUN" "true"
+        return 0
+    fi
+    
+    # Verify function exists
+    if ! declare -f "$func_name" >/dev/null 2>&1; then
+        log ERROR "Function not found: $func_name"
+        log_command_history "$timestamp" "$func_name $*" "$explanation" "ERROR: Function not found" "false"
+        return 1
+    fi
+    
+    # Log when verbose
+    if [[ "${VERBOSE:-false}" == "true" ]]; then
+        log DEBUG "Executing function: $func_name $*"
+    fi
+    
+    # Execute the function with any provided arguments
+    if "$func_name" "$@"; then
+        log INFO "$success_msg"
+        log_command_history "$timestamp" "$func_name $*" "$explanation" "SUCCESS" "false"
+        return 0
+    else
+        local exit_code=$?
+        log ERROR "$error_msg"
+        log_command_history "$timestamp" "$func_name $*" "$explanation" "FAILED (exit code: $exit_code)" "false"
+        return $exit_code
+    fi
+}
+
 execute() {
     local cmd="$1"
     local success_msg="$2"

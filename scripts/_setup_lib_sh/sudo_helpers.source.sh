@@ -35,16 +35,16 @@ chmod_with_sudo_fallback() {
         return 1
     fi
     
-    # Check if path exists
-    if [[ ! -e "$path" ]]; then
-        echo "Error: Path does not exist: $path" >&2
-        return 1
-    fi
-    
-    # Handle dry run mode
+    # Handle dry run mode first (before checking if path exists)
     if [[ "${DRY_RUN:-false}" == "true" ]]; then
         echo -e "${BLUE:-}[DRY RUN] Would change permissions: chmod $mode $path${NC:-}"
         return 0
+    fi
+    
+    # Check if path exists (only in non-dry-run mode)
+    if [[ ! -e "$path" ]]; then
+        echo "Error: Path does not exist: $path" >&2
+        return 1
     fi
     
     # Try chmod without sudo first
