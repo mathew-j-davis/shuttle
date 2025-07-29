@@ -650,6 +650,148 @@ execute_or_dryrun() {
     fi
 }
 
+# Function introspection utilities
+
+# Get function definition as a string
+function_to_string() {
+    local func_name="$1"
+    if declare -f "$func_name" >/dev/null 2>&1; then
+        declare -f "$func_name"
+    else
+        echo "Function not found: $func_name" >&2
+        return 1
+    fi
+}
+
+# Get function body only (without the function name and braces)
+function_body_to_string() {
+    local func_name="$1"
+    if declare -f "$func_name" >/dev/null 2>&1; then
+        declare -f "$func_name" | sed '1d;2d;$d' | sed 's/^    //'
+    else
+        echo "Function not found: $func_name" >&2
+        return 1
+    fi
+}
+
+# Resolve variables in function definition to their current values
+function_to_string_resolved() {
+    local func_name="$1"
+    shift  # Remove function name, leaving any arguments
+    
+    local func_def=$(function_to_string "$func_name")
+    if [[ $? -ne 0 ]]; then
+        return 1
+    fi
+    
+    # Extract all variable references
+    local var_refs=$(echo "$func_def" | grep -oE '\$\{?[A-Za-z_][A-Za-z0-9_]*\}?' | sort -u)
+    
+    # Replace each variable with its value
+    local resolved_def="$func_def"
+    for var_ref in $var_refs; do
+        # Remove $ and any braces
+        local var_name=$(echo "$var_ref" | sed 's/\${\?//; s/}$//')
+        
+        # Skip positional parameters and special variables
+        if [[ "$var_name" =~ ^[0-9]+$ ]] || [[ "$var_name" =~ ^[@*#?$!_-]$ ]]; then
+            continue
+        fi
+        
+        if [[ -v "$var_name" ]]; then
+            local var_value="${!var_name}"
+            # Escape special characters for sed
+            var_value=$(printf '%s\n' "$var_value" | sed 's/[[\.*^$()+?{|]/\\&/g')
+            # Limit length for readability
+            if [[ ${#var_value} -gt 100 ]]; then
+                var_value="${var_value:0:97}..."
+            fi
+            # Replace in function definition
+            resolved_def=$(echo "$resolved_def" | sed "s/\\$var_ref/\"$var_value\"/g")
+        fi
+    done
+    
+    echo "$resolved_def"
+}
+
+# Create a command string that would execute the function
+function_to_command_string() {
+    local func_name="$1"
+    shift  # Get function arguments
+    
+    local func_body=$(function_body_to_string "$func_name")
+    if [[ $? -ne 0 ]]; then
+        return 1
+    fi
+    
+    # Extract and resolve key commands
+    local commands=""
+    while IFS= read -r line; do
+        # Skip empty lines and comments
+        [[ -z "$line" ]] || [[ "$line" =~ ^[[:space:]]*# ]] && continue
+        
+        # Resolve variables in the line
+        local resolved_line="$line"
+        local var_refs=$(echo "$line" | grep -oE '\$\{?[A-Za-z_][A-Za-z0-9_]*\}?' | sort -u)
+        
+        for var_ref in $var_refs; do
+            local var_name=$(echo "$var_ref" | sed 's/\${\?//; s/}$//')
+            if [[ -v "$var_name" ]] && ! [[ "$var_name" =~ ^[0-9]+$ ]] && ! [[ "$var_name" =~ ^[@*#?$!_-]$ ]]; then
+                local var_value="${!var_name}"
+                # Properly quote the value
+                var_value=$(printf '%q' "$var_value")
+                resolved_line=$(echo "$resolved_line" | sed "s|$var_ref|$var_value|g")
+            fi
+        done
+        
+        commands="${commands}${resolved_line}\n"
+    done <<< "$func_body"
+    
+    printf '%b' "$commands" | sed '/^$/d'  # Remove empty lines
+}
+
+# Trace function execution (shows each command as it runs)
+trace_function() {
+    local func_name="$1"
+    shift
+    
+    if ! declare -f "$func_name" >/dev/null 2>&1; then
+        echo "Function not found: $func_name" >&2
+        return 1
+    fi
+    
+    # Enable tracing for just this function execution
+    local old_opts=$-
+    set -x
+    "$func_name" "$@"
+    local result=$?
+    set +$old_opts  # Restore previous options
+    return $result
+}
+
+# Debug function execution with command preview
+debug_function() {
+    local func_name="$1"
+    shift
+    
+    if ! declare -f "$func_name" >/dev/null 2>&1; then
+        echo "Function not found: $func_name" >&2
+        return 1
+    fi
+    
+    # Set up a DEBUG trap to show each command
+    local old_trap=$(trap -p DEBUG)
+    trap 'echo "[DEBUG] Next command: $BASH_COMMAND" >&2' DEBUG
+    
+    "$func_name" "$@"
+    local result=$?
+    
+    # Restore old trap
+    eval "${old_trap:-trap - DEBUG}"
+    return $result
+}
+
+
 execute_function_or_dryrun() {
     local func_name="$1"
     local success_msg="$2"
@@ -666,12 +808,22 @@ execute_function_or_dryrun() {
     
     if [[ "$DRY_RUN" == "true" ]]; then
         log INFO "[DRY RUN] Would execute function: $func_name $*"
-        if [[ "${VERBOSE:-false}" == "true" ]]; then
-            # Try to show function definition if verbose
-            if declare -f "$func_name" >/dev/null 2>&1; then
-                log DEBUG "Function definition:"
-                declare -f "$func_name" | sed 's/^/  /' >&2
-            fi
+        if [[ "${VERBOSE:-false}" == "true" ]] && declare -f "$func_name" >/dev/null 2>&1; then
+            # Show different levels of detail based on verbosity
+            log DEBUG "Function analysis:"
+            
+            # Level 1: Raw function definition
+            log DEBUG "1. Raw function definition:"
+            function_to_string "$func_name" | sed 's/^/     /' >&2
+            
+            # Level 2: Function with resolved variables
+            log DEBUG "2. Function with resolved variables:"
+            function_to_string_resolved "$func_name" "$@" | sed 's/^/     /' >&2
+            
+            # Level 3: Extracted command sequence
+            log DEBUG "3. Commands that would be executed:"
+            function_to_command_string "$func_name" "$@" | sed 's/^/     /' >&2
+            
         fi
         log_command_history "$timestamp" "$func_name $*" "$explanation" "DRY RUN" "true"
         return 0
