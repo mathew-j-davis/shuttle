@@ -879,7 +879,7 @@ execute_function_or_dryrun() {
             if [[ "${VERBOSE:-false}" == "true" ]]; then
                 log DEBUG "Executing function with sudo: $func_name $*"
             fi
-            if sudo bash -c "$(declare -f "$func_name"); $func_name $(printf '%q ' "$@")"; then
+            if sudo bash -c "$(declare -f log); $(declare -p RED GREEN YELLOW BLUE NC 2>/dev/null || true); $(declare -f "$func_name"); $func_name $(printf '%q ' "$@")"; then
                 log INFO "$success_msg (with sudo)"
                 log_command_history "$timestamp" "sudo $func_name $*" "$explanation" "SUCCESS (with sudo)" "false"
                 return 0
@@ -902,7 +902,7 @@ execute_function_or_dryrun() {
                 if [[ "${VERBOSE:-false}" == "true" ]]; then
                     log DEBUG "Function failed without sudo (exit code: $first_exit_code), trying with sudo: $func_name $*"
                 fi
-                if sudo bash -c "$(declare -f "$func_name"); $func_name $(printf '%q ' "$@")"; then
+                if sudo bash -c "$(declare -f log); $(declare -p RED GREEN YELLOW BLUE NC 2>/dev/null || true); $(declare -f "$func_name"); $func_name $(printf '%q ' "$@")"; then
                     log INFO "$success_msg (with sudo fallback)"
                     log_command_history "$timestamp" "sudo $func_name $*" "$explanation" "SUCCESS (with sudo fallback)" "false"
                     return 0

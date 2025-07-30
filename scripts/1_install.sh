@@ -2100,17 +2100,17 @@ execute_installation() {
     fi
     
     # Debug: Show current venv variables before activation check
-    log INFO "Venv activation check - VENV_TYPE: '$VENV_TYPE', VENV_PATH: '$VENV_PATH'"
-    log INFO "CREATE_VENV: '$CREATE_VENV', IN_VENV: '$IN_VENV'"
+    echo -e "${GREEN}[INFO]${NC} Venv activation check - VENV_TYPE: '$VENV_TYPE', VENV_PATH: '$VENV_PATH'"
+    echo -e "${GREEN}[INFO]${NC} CREATE_VENV: '$CREATE_VENV', IN_VENV: '$IN_VENV'"
     if [[ -n "$VENV_PATH" ]]; then
-        log INFO "Checking if activation script exists: $VENV_PATH/bin/activate"
+        echo -e "${GREEN}[INFO]${NC} Checking if activation script exists: $VENV_PATH/bin/activate"
         if [[ -f "$VENV_PATH/bin/activate" ]]; then
-            log INFO "Activation script exists"
+            echo -e "${GREEN}[INFO]${NC} Activation script exists"
         else
-            log INFO "Activation script does NOT exist"
+            echo -e "${GREEN}[INFO]${NC} Activation script does NOT exist"
         fi
     else
-        log INFO "VENV_PATH is empty - cannot check activation script"
+        echo -e "${GREEN}[INFO]${NC} VENV_PATH is empty - cannot check activation script"
     fi
     
     # Activate venv for our use if we should be using one
@@ -2119,26 +2119,26 @@ execute_installation() {
     if ([[ "$VENV_TYPE" == "$VENV_TYPE_SCRIPT" ]] || [[ "$VENV_TYPE" == "$VENV_TYPE_EXISTING" ]] || \
         [[ "$VENV_TYPE" == "script" ]] || [[ "$VENV_TYPE" == "existing" ]]) && \
        [[ -f "$VENV_PATH/bin/activate" ]]; then
-        log INFO "Activating virtual environment directly: $VENV_PATH/bin/activate"
+        echo -e "${GREEN}[INFO]${NC} Activating virtual environment directly: $VENV_PATH/bin/activate"
         # Source the venv activation script directly, not through an intermediate script
         if source "$VENV_PATH/bin/activate"; then
             echo -e "${GREEN}✅ Virtual environment activated for installation${NC}"
-            log INFO "Virtual environment activated successfully"
+            echo -e "${GREEN}[INFO]${NC} Virtual environment activated successfully"
             # Update IN_VENV flag since we just activated it
             IN_VENV=true
             # Debug - check if activation actually worked
-            log INFO "After activation: VIRTUAL_ENV=${VIRTUAL_ENV:-'(not set)'}, which python=$(which python)"
+            echo -e "${GREEN}[INFO]${NC} After activation: VIRTUAL_ENV=${VIRTUAL_ENV:-'(not set)'}, which python=$(which python)"
         else
-            log ERROR "Failed to activate virtual environment at $VENV_PATH/bin/activate"
+            echo -e "${RED}[ERROR]${NC} Failed to activate virtual environment at $VENV_PATH/bin/activate"
             echo -e "${RED}❌ Failed to activate virtual environment${NC}"
             exit 1
         fi
     elif [[ "$VENV_TYPE" == "$VENV_TYPE_GLOBAL" ]] || [[ "$VENV_TYPE" == "global" ]]; then
-        log INFO "Using global Python installation (no venv activation needed)"
+        echo -e "${GREEN}[INFO]${NC} Using global Python installation (no venv activation needed)"
         IN_VENV=false
     else
-        log INFO "No virtual environment activation required (VENV_TYPE: $VENV_TYPE)"
-        log INFO "Available constants: VENV_TYPE_SCRIPT='$VENV_TYPE_SCRIPT', VENV_TYPE_EXISTING='$VENV_TYPE_EXISTING', VENV_TYPE_GLOBAL='$VENV_TYPE_GLOBAL'"
+        echo -e "${GREEN}[INFO]${NC} No virtual environment activation required (VENV_TYPE: $VENV_TYPE)"
+        echo -e "${GREEN}[INFO]${NC} Available constants: VENV_TYPE_SCRIPT='$VENV_TYPE_SCRIPT', VENV_TYPE_EXISTING='$VENV_TYPE_EXISTING', VENV_TYPE_GLOBAL='$VENV_TYPE_GLOBAL'"
     fi
     
     echo -e "${GREEN}✅ Environment and virtual environment setup complete${NC}"
