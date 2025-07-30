@@ -276,7 +276,7 @@ if [[ "$CREATE_VENV" == true ]]; then
         fi
         
         # Try to create venv directly first, then with sudo if needed
-        local venv_created_with_sudo=false
+        venv_created_with_sudo=false
         if ! execute_or_dryrun "python3 -m venv \"$VENV_PATH\"" "Virtual environment created successfully" "Failed to create virtual environment" "Create Python virtual environment"; then
             # If direct creation fails, try with sudo
             if ! execute_or_dryrun "sudo python3 -m venv \"$VENV_PATH\"" "Virtual environment created with sudo" "Failed to create virtual environment even with sudo" "Create Python virtual environment with elevated permissions"; then
