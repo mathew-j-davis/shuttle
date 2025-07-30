@@ -28,10 +28,40 @@ if [ "$dry_run" = true ]; then
 else
   if [ -n "$dev_mode" ]; then
     echo "Installing in development mode..."
-    pip install -e .
+    install_output=$(pip install -e . 2>&1)
+    install_exit_code=$?
+    
+    if [[ $install_exit_code -ne 0 ]] || echo "$install_output" | grep -q "Permission denied\|OSError.*Errno 13"; then
+      if echo "$install_output" | grep -q "Permission denied\|OSError.*Errno 13"; then
+        echo "Permission error detected, trying with --force-reinstall..."
+      else
+        echo "Standard install failed (exit code: $install_exit_code), trying with --force-reinstall..."
+      fi
+      echo "Original error output:"
+      echo "$install_output"
+      echo "Retrying with --force-reinstall..."
+      pip install --force-reinstall -e .
+    else
+      echo "$install_output"
+    fi
   else
     echo "Installing in standard mode..."
-    pip install .
+    install_output=$(pip install . 2>&1)
+    install_exit_code=$?
+    
+    if [[ $install_exit_code -ne 0 ]] || echo "$install_output" | grep -q "Permission denied\|OSError.*Errno 13"; then
+      if echo "$install_output" | grep -q "Permission denied\|OSError.*Errno 13"; then
+        echo "Permission error detected, trying with --force-reinstall..."
+      else
+        echo "Standard install failed (exit code: $install_exit_code), trying with --force-reinstall..."
+      fi
+      echo "Original error output:"
+      echo "$install_output"
+      echo "Retrying with --force-reinstall..."
+      pip install --force-reinstall .
+    else
+      echo "$install_output"
+    fi
   fi
 fi
 
