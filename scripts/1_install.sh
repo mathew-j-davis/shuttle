@@ -2109,10 +2109,20 @@ execute_installation() {
         export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
     fi
     
-    # Activate venv for our use if it was created
-    if [[ "$CREATE_VENV" == "true" ]] && [[ -f "$VENV_PATH/bin/activate" ]]; then
+    # Activate venv for our use if we should be using one
+    # This includes both newly created venv and existing venv that should be used
+    if [[ "$VENV_TYPE" == "script" || "$VENV_TYPE" == "existing" ]] && [[ -f "$VENV_PATH/bin/activate" ]]; then
+        log INFO "Activating virtual environment: $VENV_PATH"
         source "$VENV_PATH/bin/activate"
         echo -e "${GREEN}✅ Virtual environment activated for installation${NC}"
+        log INFO "Virtual environment activated successfully"
+        # Update IN_VENV flag since we just activated it
+        IN_VENV=true
+    elif [[ "$VENV_TYPE" == "global" ]]; then
+        log INFO "Using global Python installation (no venv activation needed)"
+        IN_VENV=false
+    else
+        log INFO "No virtual environment activation required (VENV_TYPE: $VENV_TYPE)"
     fi
     
     echo -e "${GREEN}✅ Environment and virtual environment setup complete${NC}"
@@ -2376,8 +2386,9 @@ execute_installation() {
         echo -e "${GREEN}✅ Jupyter kernel registered${NC}"
     fi
     
-    # Copy GPG key if it exists and config directory is different
-    if [[ -f "$PROJECT_ROOT/shuttle_public.gpg" ]] && [[ "$CONFIG_DIR" != "$PROJECT_ROOT" ]]; then
+    # Copy GPG key only if needed (key exists in project root but not at target location)
+    if [[ -f "$PROJECT_ROOT/shuttle_public.gpg" ]] && [[ "$CONFIG_DIR" != "$PROJECT_ROOT" ]] && [[ ! -f "$GPG_KEY_PATH" ]]; then
+        log INFO "GPG key found in project root but not at target location, copying..."
         echo "Copying GPG public key to config directory..."
         
         copy_gpg_key_to_config() {
@@ -2390,6 +2401,12 @@ execute_installation() {
             "Copy shuttle_public.gpg to $CONFIG_DIR/"
         
         echo -e "${GREEN}✅ GPG key copied${NC}"
+    elif [[ -f "$GPG_KEY_PATH" ]]; then
+        log INFO "GPG key already exists at target location: $GPG_KEY_PATH"
+    elif [[ -f "$PROJECT_ROOT/shuttle_public.gpg" ]]; then
+        log INFO "GPG key exists in project root and config directory is the same location"
+    else
+        log INFO "No GPG key found in project root to copy"
     fi
     
     echo ""
