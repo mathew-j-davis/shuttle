@@ -1439,12 +1439,18 @@ check_and_create_directory_if_choice_allows() {
     local dir_description="$2"
     local create_choice="$3"
     
+    echo -e "${GREEN}[INFO]${NC} Checking $dir_description directory: $dir_path" >&2
+    echo -e "${GREEN}[INFO]${NC} Directory creation choice for $dir_description: $create_choice" >&2
+    
     if [[ -d "$dir_path" ]]; then
         echo -e "    ${GREEN}✅ Directory exists: $dir_path${NC}"
         return 0
     fi
     
+    echo -e "${GREEN}[INFO]${NC} Directory does not exist: $dir_path" >&2
+    
     if [[ "$create_choice" == "true" ]]; then
+        echo -e "${GREEN}[INFO]${NC} Attempting to create $dir_description directory" >&2
         create_directory_with_auto_sudo "$dir_path" "$dir_description directory"
     else
         echo -e "    ${YELLOW}⚠️  Directory does not exist: $dir_path${NC}"
@@ -2120,22 +2126,27 @@ execute_installation() {
         # Define functions to read configuration values with sudo fallback
         read_source_path_from_config() {
             CONFIG_SOURCE_PATH=$(grep "^source_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            echo -e "${GREEN}[INFO]${NC} Source path from config: $CONFIG_SOURCE_PATH" >&2
         }
         
         read_dest_path_from_config() {
             CONFIG_DEST_PATH=$(grep "^destination_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            echo -e "${GREEN}[INFO]${NC} Destination path from config: $CONFIG_DEST_PATH" >&2
         }
         
         read_quarantine_path_from_config() {
             CONFIG_QUARANTINE_PATH=$(grep "^quarantine_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            echo -e "${GREEN}[INFO]${NC} Quarantine path from config: $CONFIG_QUARANTINE_PATH" >&2
         }
         
         read_log_path_from_config() {
             CONFIG_LOG_PATH=$(grep "^log_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            echo -e "${GREEN}[INFO]${NC} Log path from config: $CONFIG_LOG_PATH" >&2
         }
         
         read_hazard_path_from_config() {
             CONFIG_HAZARD_PATH=$(grep "^hazard_archive_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            echo -e "${GREEN}[INFO]${NC} Hazard path from config: $CONFIG_HAZARD_PATH" >&2
         }
         
         # Execute the configuration reading functions with auto sudo fallback

@@ -898,6 +898,7 @@ execute_function_or_dryrun() {
                 return 0
             else
                 local first_exit_code=$?
+                log INFO "Command failed without sudo (exit code: $first_exit_code), retrying with sudo..."
                 if [[ "${VERBOSE:-false}" == "true" ]]; then
                     log DEBUG "Function failed without sudo (exit code: $first_exit_code), trying with sudo: $func_name $*"
                 fi
