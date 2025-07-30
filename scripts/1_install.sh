@@ -2124,56 +2124,73 @@ execute_installation() {
     # Read paths from config file to get the actual paths that will be used
     if [[ -f "$CONFIG_PATH" ]]; then
         # Define functions to read configuration values with sudo fallback
+        # Pass CONFIG_PATH as a local variable to ensure it's available in sudo context
         read_source_path_from_config() {
-            CONFIG_SOURCE_PATH=$(grep "^source_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            local config_file="${1:-$CONFIG_PATH}"
+            echo -e "${GREEN}[INFO]${NC} Reading source path from config file: $config_file" >&2
+            CONFIG_SOURCE_PATH=$(grep "^source_path" "$config_file" | head -1 | cut -d'=' -f2 | tr -d ' \r')
             echo -e "${GREEN}[INFO]${NC} Source path from config: $CONFIG_SOURCE_PATH" >&2
         }
         
         read_dest_path_from_config() {
-            CONFIG_DEST_PATH=$(grep "^destination_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            local config_file="${1:-$CONFIG_PATH}"
+            echo -e "${GREEN}[INFO]${NC} Reading destination path from config file: $config_file" >&2
+            CONFIG_DEST_PATH=$(grep "^destination_path" "$config_file" | head -1 | cut -d'=' -f2 | tr -d ' \r')
             echo -e "${GREEN}[INFO]${NC} Destination path from config: $CONFIG_DEST_PATH" >&2
         }
         
         read_quarantine_path_from_config() {
-            CONFIG_QUARANTINE_PATH=$(grep "^quarantine_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            local config_file="${1:-$CONFIG_PATH}"
+            echo -e "${GREEN}[INFO]${NC} Reading quarantine path from config file: $config_file" >&2
+            CONFIG_QUARANTINE_PATH=$(grep "^quarantine_path" "$config_file" | head -1 | cut -d'=' -f2 | tr -d ' \r')
             echo -e "${GREEN}[INFO]${NC} Quarantine path from config: $CONFIG_QUARANTINE_PATH" >&2
         }
         
         read_log_path_from_config() {
-            CONFIG_LOG_PATH=$(grep "^log_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            local config_file="${1:-$CONFIG_PATH}"
+            echo -e "${GREEN}[INFO]${NC} Reading log path from config file: $config_file" >&2
+            CONFIG_LOG_PATH=$(grep "^log_path" "$config_file" | head -1 | cut -d'=' -f2 | tr -d ' \r')
             echo -e "${GREEN}[INFO]${NC} Log path from config: $CONFIG_LOG_PATH" >&2
         }
         
         read_hazard_path_from_config() {
-            CONFIG_HAZARD_PATH=$(grep "^hazard_archive_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            local config_file="${1:-$CONFIG_PATH}"
+            echo -e "${GREEN}[INFO]${NC} Reading hazard path from config file: $config_file" >&2
+            CONFIG_HAZARD_PATH=$(grep "^hazard_archive_path" "$config_file" | head -1 | cut -d'=' -f2 | tr -d ' \r')
             echo -e "${GREEN}[INFO]${NC} Hazard path from config: $CONFIG_HAZARD_PATH" >&2
         }
         
         # Execute the configuration reading functions with auto sudo fallback
+        # Pass CONFIG_PATH as argument to ensure it's available in sudo context
         execute_function_or_dryrun_auto_sudo read_source_path_from_config \
             "Read source path from config" \
             "Failed to read source path from config" \
-            "Extract source_path from configuration file"
+            "Extract source_path from configuration file" \
+            "$CONFIG_PATH"
             
         execute_function_or_dryrun_auto_sudo read_dest_path_from_config \
             "Read destination path from config" \
             "Failed to read destination path from config" \
-            "Extract destination_path from configuration file"
+            "Extract destination_path from configuration file" \
+            "$CONFIG_PATH"
             
         execute_function_or_dryrun_auto_sudo read_quarantine_path_from_config \
             "Read quarantine path from config" \
             "Failed to read quarantine path from config" \
-            "Extract quarantine_path from configuration file"
+            "Extract quarantine_path from configuration file" \
+            "$CONFIG_PATH"
             
         execute_function_or_dryrun_auto_sudo read_log_path_from_config \
             "Read log path from config" \
             "Failed to read log path from config" \
-            "Extract log_path from configuration file"
+            "Extract log_path from configuration file" \
+            "$CONFIG_PATH"
             
         execute_function_or_dryrun_auto_sudo read_hazard_path_from_config \
             "Read hazard path from config" \
             "Failed to read hazard path from config" \
-            "Extract hazard_archive_path from configuration file"
+            "Extract hazard_archive_path from configuration file" \
+            "$CONFIG_PATH"
         
         # Validate extracted paths from config file
         if [[ -n "$CONFIG_SOURCE_PATH" ]] && ! validate_directory_path "$CONFIG_SOURCE_PATH" "Config source path"; then
