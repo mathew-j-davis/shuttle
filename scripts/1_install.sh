@@ -2118,6 +2118,8 @@ execute_installation() {
         log INFO "Virtual environment activated successfully"
         # Update IN_VENV flag since we just activated it
         IN_VENV=true
+        # Debug - check if activation actually worked
+        log INFO "After activation: VIRTUAL_ENV=${VIRTUAL_ENV:-'(not set)'}, which python=$(which python)"
     elif [[ "$VENV_TYPE" == "global" ]]; then
         log INFO "Using global Python installation (no venv activation needed)"
         IN_VENV=false
@@ -2307,7 +2309,25 @@ execute_installation() {
     # 2. We created a venv and activated it
     # 3. User chose global installation
     
-    if [[ "$IN_VENV" == "true" ]] || [[ "$VENV_TYPE" == "global" ]] || [[ -n "$VIRTUAL_ENV" ]]; then
+    # Debug current state
+    log INFO "Python dependencies check - IN_VENV: $IN_VENV, VENV_TYPE: $VENV_TYPE, VIRTUAL_ENV: ${VIRTUAL_ENV:-'(not set)'}"
+    
+    # Check if we can install dependencies
+    CAN_INSTALL_DEPS=false
+    if [[ "$IN_VENV" == "true" ]]; then
+        log INFO "Dependencies can be installed: IN_VENV is true"
+        CAN_INSTALL_DEPS=true
+    elif [[ "$VENV_TYPE" == "global" ]]; then
+        log INFO "Dependencies can be installed: Using global Python"
+        CAN_INSTALL_DEPS=true
+    elif [[ -n "$VIRTUAL_ENV" ]]; then
+        log INFO "Dependencies can be installed: VIRTUAL_ENV is set"
+        CAN_INSTALL_DEPS=true
+    else
+        log INFO "Dependencies cannot be installed - no suitable environment detected"
+    fi
+    
+    if [[ "$CAN_INSTALL_DEPS" == "true" ]]; then
         # Install Python dependencies
         echo "Installing Python development dependencies..."
         PYTHON_DEPS_CMD=$(add_dry_run_flag "$DEPLOYMENT_DIR/06_install_python_dev_dependencies.sh")
