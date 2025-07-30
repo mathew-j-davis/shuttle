@@ -2128,36 +2128,81 @@ execute_installation() {
         read_source_path_from_config() {
             local config_file="${1:-$CONFIG_PATH}"
             echo -e "${GREEN}[INFO]${NC} Reading source path from config file: $config_file" >&2
-            CONFIG_SOURCE_PATH=$(grep "^source_path" "$config_file" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            
+            # Capture grep output and check its exit status
+            local grep_output
+            if ! grep_output=$(grep "^source_path" "$config_file" 2>&1); then
+                echo -e "${RED}[ERROR]${NC} Failed to read config file: $grep_output" >&2
+                return 1
+            fi
+            
+            CONFIG_SOURCE_PATH=$(echo "$grep_output" | head -1 | cut -d'=' -f2 | tr -d ' \r')
             echo -e "${GREEN}[INFO]${NC} Source path from config: $CONFIG_SOURCE_PATH" >&2
+            return 0
         }
         
         read_dest_path_from_config() {
             local config_file="${1:-$CONFIG_PATH}"
             echo -e "${GREEN}[INFO]${NC} Reading destination path from config file: $config_file" >&2
-            CONFIG_DEST_PATH=$(grep "^destination_path" "$config_file" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            
+            # Capture grep output and check its exit status
+            local grep_output
+            if ! grep_output=$(grep "^destination_path" "$config_file" 2>&1); then
+                echo -e "${RED}[ERROR]${NC} Failed to read config file: $grep_output" >&2
+                return 1
+            fi
+            
+            CONFIG_DEST_PATH=$(echo "$grep_output" | head -1 | cut -d'=' -f2 | tr -d ' \r')
             echo -e "${GREEN}[INFO]${NC} Destination path from config: $CONFIG_DEST_PATH" >&2
+            return 0
         }
         
         read_quarantine_path_from_config() {
             local config_file="${1:-$CONFIG_PATH}"
             echo -e "${GREEN}[INFO]${NC} Reading quarantine path from config file: $config_file" >&2
-            CONFIG_QUARANTINE_PATH=$(grep "^quarantine_path" "$config_file" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            
+            # Capture grep output and check its exit status
+            local grep_output
+            if ! grep_output=$(grep "^quarantine_path" "$config_file" 2>&1); then
+                echo -e "${RED}[ERROR]${NC} Failed to read config file: $grep_output" >&2
+                return 1
+            fi
+            
+            CONFIG_QUARANTINE_PATH=$(echo "$grep_output" | head -1 | cut -d'=' -f2 | tr -d ' \r')
             echo -e "${GREEN}[INFO]${NC} Quarantine path from config: $CONFIG_QUARANTINE_PATH" >&2
+            return 0
         }
         
         read_log_path_from_config() {
             local config_file="${1:-$CONFIG_PATH}"
             echo -e "${GREEN}[INFO]${NC} Reading log path from config file: $config_file" >&2
-            CONFIG_LOG_PATH=$(grep "^log_path" "$config_file" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            
+            # Capture grep output and check its exit status
+            local grep_output
+            if ! grep_output=$(grep "^log_path" "$config_file" 2>&1); then
+                echo -e "${RED}[ERROR]${NC} Failed to read config file: $grep_output" >&2
+                return 1
+            fi
+            
+            CONFIG_LOG_PATH=$(echo "$grep_output" | head -1 | cut -d'=' -f2 | tr -d ' \r')
             echo -e "${GREEN}[INFO]${NC} Log path from config: $CONFIG_LOG_PATH" >&2
+            return 0
         }
         
         read_hazard_path_from_config() {
             local config_file="${1:-$CONFIG_PATH}"
             echo -e "${GREEN}[INFO]${NC} Reading hazard path from config file: $config_file" >&2
-            CONFIG_HAZARD_PATH=$(grep "^hazard_archive_path" "$config_file" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+            
+            # Capture grep output and check its exit status
+            local grep_output
+            if ! grep_output=$(grep "^hazard_archive_path" "$config_file" 2>&1); then
+                echo -e "${RED}[ERROR]${NC} Failed to read config file: $grep_output" >&2
+                return 1
+            fi
+            
+            CONFIG_HAZARD_PATH=$(echo "$grep_output" | head -1 | cut -d'=' -f2 | tr -d ' \r')
             echo -e "${GREEN}[INFO]${NC} Hazard path from config: $CONFIG_HAZARD_PATH" >&2
+            return 0
         }
         
         # Execute the configuration reading functions with auto sudo fallback
