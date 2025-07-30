@@ -2112,14 +2112,20 @@ execute_installation() {
     # Activate venv for our use if we should be using one
     # This includes both newly created venv and existing venv that should be used
     if [[ "$VENV_TYPE" == "script" || "$VENV_TYPE" == "existing" ]] && [[ -f "$VENV_PATH/bin/activate" ]]; then
-        log INFO "Activating virtual environment: $VENV_PATH"
-        source "$VENV_PATH/bin/activate"
-        echo -e "${GREEN}✅ Virtual environment activated for installation${NC}"
-        log INFO "Virtual environment activated successfully"
-        # Update IN_VENV flag since we just activated it
-        IN_VENV=true
-        # Debug - check if activation actually worked
-        log INFO "After activation: VIRTUAL_ENV=${VIRTUAL_ENV:-'(not set)'}, which python=$(which python)"
+        log INFO "Activating virtual environment directly: $VENV_PATH/bin/activate"
+        # Source the venv activation script directly, not through an intermediate script
+        if source "$VENV_PATH/bin/activate"; then
+            echo -e "${GREEN}✅ Virtual environment activated for installation${NC}"
+            log INFO "Virtual environment activated successfully"
+            # Update IN_VENV flag since we just activated it
+            IN_VENV=true
+            # Debug - check if activation actually worked
+            log INFO "After activation: VIRTUAL_ENV=${VIRTUAL_ENV:-'(not set)'}, which python=$(which python)"
+        else
+            log ERROR "Failed to activate virtual environment at $VENV_PATH/bin/activate"
+            echo -e "${RED}❌ Failed to activate virtual environment${NC}"
+            exit 1
+        fi
     elif [[ "$VENV_TYPE" == "global" ]]; then
         log INFO "Using global Python installation (no venv activation needed)"
         IN_VENV=false
