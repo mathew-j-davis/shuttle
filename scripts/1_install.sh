@@ -2117,14 +2117,52 @@ execute_installation() {
     
     # Read paths from config file to get the actual paths that will be used
     if [[ -f "$CONFIG_PATH" ]]; then
-        # Extract paths from config file with validation
-        # Use head -1 to get only the first occurrence of each setting
-        # Strip both spaces and carriage returns to handle Windows line endings
-        CONFIG_SOURCE_PATH=$(grep "^source_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
-        CONFIG_DEST_PATH=$(grep "^destination_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
-        CONFIG_QUARANTINE_PATH=$(grep "^quarantine_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
-        CONFIG_LOG_PATH=$(grep "^log_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
-        CONFIG_HAZARD_PATH=$(grep "^hazard_archive_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+        # Define functions to read configuration values with sudo fallback
+        read_source_path_from_config() {
+            CONFIG_SOURCE_PATH=$(grep "^source_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+        }
+        
+        read_dest_path_from_config() {
+            CONFIG_DEST_PATH=$(grep "^destination_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+        }
+        
+        read_quarantine_path_from_config() {
+            CONFIG_QUARANTINE_PATH=$(grep "^quarantine_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+        }
+        
+        read_log_path_from_config() {
+            CONFIG_LOG_PATH=$(grep "^log_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+        }
+        
+        read_hazard_path_from_config() {
+            CONFIG_HAZARD_PATH=$(grep "^hazard_archive_path" "$CONFIG_PATH" | head -1 | cut -d'=' -f2 | tr -d ' \r')
+        }
+        
+        # Execute the configuration reading functions with auto sudo fallback
+        execute_function_or_dryrun_auto_sudo read_source_path_from_config \
+            "Read source path from config" \
+            "Failed to read source path from config" \
+            "Extract source_path from configuration file"
+            
+        execute_function_or_dryrun_auto_sudo read_dest_path_from_config \
+            "Read destination path from config" \
+            "Failed to read destination path from config" \
+            "Extract destination_path from configuration file"
+            
+        execute_function_or_dryrun_auto_sudo read_quarantine_path_from_config \
+            "Read quarantine path from config" \
+            "Failed to read quarantine path from config" \
+            "Extract quarantine_path from configuration file"
+            
+        execute_function_or_dryrun_auto_sudo read_log_path_from_config \
+            "Read log path from config" \
+            "Failed to read log path from config" \
+            "Extract log_path from configuration file"
+            
+        execute_function_or_dryrun_auto_sudo read_hazard_path_from_config \
+            "Read hazard path from config" \
+            "Failed to read hazard path from config" \
+            "Extract hazard_archive_path from configuration file"
         
         # Validate extracted paths from config file
         if [[ -n "$CONFIG_SOURCE_PATH" ]] && ! validate_directory_path "$CONFIG_SOURCE_PATH" "Config source path"; then
@@ -2252,7 +2290,16 @@ execute_installation() {
     # Copy GPG key if it exists and config directory is different
     if [[ -f "$PROJECT_ROOT/shuttle_public.gpg" ]] && [[ "$CONFIG_DIR" != "$PROJECT_ROOT" ]]; then
         echo "Copying GPG public key to config directory..."
-        cp "$PROJECT_ROOT/shuttle_public.gpg" "$CONFIG_DIR/"
+        
+        copy_gpg_key_to_config() {
+            cp "$PROJECT_ROOT/shuttle_public.gpg" "$CONFIG_DIR/"
+        }
+        
+        execute_function_or_dryrun_auto_sudo copy_gpg_key_to_config \
+            "GPG key copied to config directory" \
+            "Failed to copy GPG key to config directory" \
+            "Copy shuttle_public.gpg to $CONFIG_DIR/"
+        
         echo -e "${GREEN}✅ GPG key copied${NC}"
     fi
     
