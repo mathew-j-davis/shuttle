@@ -2109,9 +2109,26 @@ execute_installation() {
         export SHUTTLE_TEST_CONFIG_PATH="$TEST_WORK_DIR/test_config.conf"
     fi
     
+    # Debug: Show current venv variables before activation check
+    log INFO "Venv activation check - VENV_TYPE: '$VENV_TYPE', VENV_PATH: '$VENV_PATH'"
+    log INFO "CREATE_VENV: '$CREATE_VENV', IN_VENV: '$IN_VENV'"
+    if [[ -n "$VENV_PATH" ]]; then
+        log INFO "Checking if activation script exists: $VENV_PATH/bin/activate"
+        if [[ -f "$VENV_PATH/bin/activate" ]]; then
+            log INFO "Activation script exists"
+        else
+            log INFO "Activation script does NOT exist"
+        fi
+    else
+        log INFO "VENV_PATH is empty - cannot check activation script"
+    fi
+    
     # Activate venv for our use if we should be using one
     # This includes both newly created venv and existing venv that should be used
-    if [[ "$VENV_TYPE" == "script" || "$VENV_TYPE" == "existing" ]] && [[ -f "$VENV_PATH/bin/activate" ]]; then
+    # Check both constant variables and literal strings for robustness
+    if ([[ "$VENV_TYPE" == "$VENV_TYPE_SCRIPT" ]] || [[ "$VENV_TYPE" == "$VENV_TYPE_EXISTING" ]] || \
+        [[ "$VENV_TYPE" == "script" ]] || [[ "$VENV_TYPE" == "existing" ]]) && \
+       [[ -f "$VENV_PATH/bin/activate" ]]; then
         log INFO "Activating virtual environment directly: $VENV_PATH/bin/activate"
         # Source the venv activation script directly, not through an intermediate script
         if source "$VENV_PATH/bin/activate"; then
@@ -2126,11 +2143,12 @@ execute_installation() {
             echo -e "${RED}❌ Failed to activate virtual environment${NC}"
             exit 1
         fi
-    elif [[ "$VENV_TYPE" == "global" ]]; then
+    elif [[ "$VENV_TYPE" == "$VENV_TYPE_GLOBAL" ]] || [[ "$VENV_TYPE" == "global" ]]; then
         log INFO "Using global Python installation (no venv activation needed)"
         IN_VENV=false
     else
         log INFO "No virtual environment activation required (VENV_TYPE: $VENV_TYPE)"
+        log INFO "Available constants: VENV_TYPE_SCRIPT='$VENV_TYPE_SCRIPT', VENV_TYPE_EXISTING='$VENV_TYPE_EXISTING', VENV_TYPE_GLOBAL='$VENV_TYPE_GLOBAL'"
     fi
     
     echo -e "${GREEN}✅ Environment and virtual environment setup complete${NC}"
