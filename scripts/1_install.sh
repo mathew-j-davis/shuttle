@@ -1366,18 +1366,8 @@ collect_environment_variables() {
         TEST_WORK_DIR="$SAVED_TEST_WORK_DIR"
         USER_TEST_WORK_DIR_CHOICE="$SAVED_TEST_WORK_DIR"
         
-        # Set venv path based on installation mode (same logic as wizard)
-        case "$INSTALL_MODE" in
-            "$INSTALL_MODE_DEV")
-                VENV_PATH="$(dirname "$CONFIG_PATH")/.venv"
-                ;;
-            "$INSTALL_MODE_USER") 
-                VENV_PATH="$HOME/.local/share/shuttle/.venv"
-                ;;
-            "$INSTALL_MODE_SERVICE")
-                VENV_PATH="/opt/shuttle/.venv"
-                ;;
-        esac
+        # Set venv path using defaults (same logic as wizard)
+        VENV_PATH=$(get_default_path "$INSTALL_MODE" "venv" "$PROJECT_ROOT")
         USER_VENV_PATH_CHOICE="$VENV_PATH"
         
         echo -e "${GREEN}✅ Using environment paths from instructions${NC}"
