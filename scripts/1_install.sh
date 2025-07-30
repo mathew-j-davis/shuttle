@@ -1525,20 +1525,6 @@ collect_config_parameters() {
     fi
     echo ""
     
-    echo "Destination directory:"
-    echo "Location where clean files are moved after successful scanning."
-    echo ""
-    read -p "[$DEFAULT_DEST]: " DEST_PATH
-    DEST_PATH=${DEST_PATH:-$DEFAULT_DEST}
-    
-    # Validate destination path
-    if ! validate_directory_path "$DEST_PATH" "Destination directory"; then
-        echo -e "${RED}❌ Invalid destination directory path: $DEST_PATH${NC}"
-        echo "Please run the script again with a valid path."
-        exit 1
-    fi
-    echo ""
-    
     echo "Quarantine directory:"
     echo "Temporary storage for files during scanning (hashed and isolated)."
     echo ""
@@ -1553,20 +1539,6 @@ collect_config_parameters() {
     fi
     echo ""
     
-    echo "Log directory:"
-    echo "Location where Shuttle writes log files and tracking information."
-    echo ""
-    read -p "[$DEFAULT_LOG]: " LOG_PATH
-    LOG_PATH=${LOG_PATH:-$DEFAULT_LOG}
-    
-    # Validate log path
-    if ! validate_directory_path "$LOG_PATH" "Log directory"; then
-        echo -e "${RED}❌ Invalid log directory path: $LOG_PATH${NC}"
-        echo "Please run the script again with a valid path."
-        exit 1
-    fi
-    echo ""
-    
     echo "Hazard archive directory:"
     echo "Location where malware and suspicious files are stored (encrypted)."
     echo ""
@@ -1576,6 +1548,34 @@ collect_config_parameters() {
     # Validate hazard path
     if ! validate_directory_path "$HAZARD_PATH" "Hazard archive directory"; then
         echo -e "${RED}❌ Invalid hazard archive directory path: $HAZARD_PATH${NC}"
+        echo "Please run the script again with a valid path."
+        exit 1
+    fi
+    echo ""
+    
+    echo "Destination directory:"
+    echo "Location where clean files are moved after successful scanning."
+    echo ""
+    read -p "[$DEFAULT_DEST]: " DEST_PATH
+    DEST_PATH=${DEST_PATH:-$DEFAULT_DEST}
+    
+    # Validate destination path
+    if ! validate_directory_path "$DEST_PATH" "Destination directory"; then
+        echo -e "${RED}❌ Invalid destination directory path: $DEST_PATH${NC}"
+        echo "Please run the script again with a valid path."
+        exit 1
+    fi
+    echo ""
+    
+    echo "Log directory:"
+    echo "Location where Shuttle writes log files and tracking information."
+    echo ""
+    read -p "[$DEFAULT_LOG]: " LOG_PATH
+    LOG_PATH=${LOG_PATH:-$DEFAULT_LOG}
+    
+    # Validate log path
+    if ! validate_directory_path "$LOG_PATH" "Log directory"; then
+        echo -e "${RED}❌ Invalid log directory path: $LOG_PATH${NC}"
         echo "Please run the script again with a valid path."
         exit 1
     fi

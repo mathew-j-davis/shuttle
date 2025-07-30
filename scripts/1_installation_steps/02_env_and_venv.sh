@@ -245,8 +245,8 @@ SHUTTLE_LOG_LEVEL=DEBUG"
         write_file_with_sudo_fallback "$DOT_ENV_PATH" "$DOT_ENV_CONTENT" "true"
     }
     
-    # Use execute_function_or_dryrun to handle dry-run mode automatically
-    execute_function_or_dryrun create_dev_env_file \
+    # Use execute_function_or_dryrun_auto_sudo for automatic sudo fallback
+    execute_function_or_dryrun_auto_sudo create_dev_env_file \
         "Development .env file created at: $DOT_ENV_PATH" \
         "Warning: Could not create .env file at: $DOT_ENV_PATH" \
         "Create development .env file for IDE integration"

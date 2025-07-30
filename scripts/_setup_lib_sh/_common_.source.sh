@@ -792,12 +792,19 @@ debug_function() {
 }
 
 
+# Execute a function with dry-run support and configurable sudo behavior
+# Usage: execute_function_or_dryrun <function_name> <success_msg> <error_msg> [explanation] [sudo_mode] [function_args...]
+# sudo_mode options:
+#   - "no" (default): Execute without sudo
+#   - "fallback": Try without sudo first, then with sudo if it fails
+#   - "always": Always execute with sudo
 execute_function_or_dryrun() {
     local func_name="$1"
     local success_msg="$2"
     local error_msg="$3"
     local explanation="${4:-}"
-    shift 4  # Remove first 4 args, leaving any function arguments
+    local sudo_mode="${5:-no}"  # no, fallback, always
+    shift 5  # Remove first 5 args, leaving any function arguments
     
     local timestamp=$(date '+%Y-%m-%d %H:%M:%S')
     
@@ -807,10 +814,21 @@ execute_function_or_dryrun() {
     fi
     
     if [[ "$DRY_RUN" == "true" ]]; then
-        log INFO "[DRY RUN] Would execute function: $func_name $*"
+        # Show sudo mode in dry-run output
+        local sudo_indicator=""
+        case "$sudo_mode" in
+            "always") sudo_indicator=" (with sudo)" ;;
+            "fallback") sudo_indicator=" (with sudo fallback)" ;;
+            "no") sudo_indicator="" ;;
+        esac
+        
+        log INFO "[DRY RUN] Would execute function: $func_name $*$sudo_indicator"
         if [[ "${VERBOSE:-false}" == "true" ]] && declare -f "$func_name" >/dev/null 2>&1; then
             # Show different levels of detail based on verbosity
             log DEBUG "Function analysis:"
+            
+            # Level 0: Sudo mode
+            log DEBUG "0. Sudo mode: $sudo_mode"
             
             # Level 1: Raw function definition
             log DEBUG "1. Raw function definition:"
@@ -825,7 +843,7 @@ execute_function_or_dryrun() {
             function_to_command_string "$func_name" "$@" | sed 's/^/     /' >&2
             
         fi
-        log_command_history "$timestamp" "$func_name $*" "$explanation" "DRY RUN" "true"
+        log_command_history "$timestamp" "$func_name $*$sudo_indicator" "$explanation" "DRY RUN" "true"
         return 0
     fi
     
@@ -841,17 +859,103 @@ execute_function_or_dryrun() {
         log DEBUG "Executing function: $func_name $*"
     fi
     
-    # Execute the function with any provided arguments
-    if "$func_name" "$@"; then
-        log INFO "$success_msg"
-        log_command_history "$timestamp" "$func_name $*" "$explanation" "SUCCESS" "false"
-        return 0
-    else
-        local exit_code=$?
-        log ERROR "$error_msg"
-        log_command_history "$timestamp" "$func_name $*" "$explanation" "FAILED (exit code: $exit_code)" "false"
-        return $exit_code
-    fi
+    # Execute the function with any provided arguments, handling sudo modes
+    case "$sudo_mode" in
+        "no")
+            # Execute without sudo
+            if "$func_name" "$@"; then
+                log INFO "$success_msg"
+                log_command_history "$timestamp" "$func_name $*" "$explanation" "SUCCESS" "false"
+                return 0
+            else
+                local exit_code=$?
+                log ERROR "$error_msg"
+                log_command_history "$timestamp" "$func_name $*" "$explanation" "FAILED (exit code: $exit_code)" "false"
+                return $exit_code
+            fi
+            ;;
+        "always")
+            # Always use sudo
+            if [[ "${VERBOSE:-false}" == "true" ]]; then
+                log DEBUG "Executing function with sudo: $func_name $*"
+            fi
+            if sudo bash -c "$(declare -f "$func_name"); $func_name $(printf '%q ' "$@")"; then
+                log INFO "$success_msg (with sudo)"
+                log_command_history "$timestamp" "sudo $func_name $*" "$explanation" "SUCCESS (with sudo)" "false"
+                return 0
+            else
+                local exit_code=$?
+                log ERROR "$error_msg (sudo failed)"
+                log_command_history "$timestamp" "sudo $func_name $*" "$explanation" "FAILED with sudo (exit code: $exit_code)" "false"
+                return $exit_code
+            fi
+            ;;
+        "fallback")
+            # Try without sudo first, then with sudo if it fails
+            if "$func_name" "$@"; then
+                log INFO "$success_msg"
+                log_command_history "$timestamp" "$func_name $*" "$explanation" "SUCCESS" "false"
+                return 0
+            else
+                local first_exit_code=$?
+                if [[ "${VERBOSE:-false}" == "true" ]]; then
+                    log DEBUG "Function failed without sudo (exit code: $first_exit_code), trying with sudo: $func_name $*"
+                fi
+                if sudo bash -c "$(declare -f "$func_name"); $func_name $(printf '%q ' "$@")"; then
+                    log INFO "$success_msg (with sudo fallback)"
+                    log_command_history "$timestamp" "sudo $func_name $*" "$explanation" "SUCCESS (with sudo fallback)" "false"
+                    return 0
+                else
+                    local sudo_exit_code=$?
+                    log ERROR "$error_msg (failed both with and without sudo)"
+                    log_command_history "$timestamp" "$func_name $* -> sudo $func_name $*" "$explanation" "FAILED both ways (exit codes: $first_exit_code, $sudo_exit_code)" "false"
+                    return $sudo_exit_code
+                fi
+            fi
+            ;;
+        *)
+            log ERROR "Invalid sudo_mode: $sudo_mode. Valid values: no, fallback, always"
+            return 1
+            ;;
+    esac
+}
+
+# Convenience wrapper functions for execute_function_or_dryrun with different sudo modes
+
+# Execute function without sudo (explicit no-sudo mode)
+# Usage: execute_function_or_dryrun_no_sudo <function_name> <success_msg> <error_msg> [explanation] [function_args...]
+execute_function_or_dryrun_no_sudo() {
+    local func_name="$1"
+    local success_msg="$2"
+    local error_msg="$3"
+    local explanation="${4:-}"
+    shift 4
+    
+    execute_function_or_dryrun "$func_name" "$success_msg" "$error_msg" "$explanation" "no" "$@"
+}
+
+# Execute function with automatic sudo fallback (try without sudo first, then with sudo if needed)
+# Usage: execute_function_or_dryrun_auto_sudo <function_name> <success_msg> <error_msg> [explanation] [function_args...]
+execute_function_or_dryrun_auto_sudo() {
+    local func_name="$1"
+    local success_msg="$2"
+    local error_msg="$3"
+    local explanation="${4:-}"
+    shift 4
+    
+    execute_function_or_dryrun "$func_name" "$success_msg" "$error_msg" "$explanation" "fallback" "$@"
+}
+
+# Execute function always with sudo (force sudo execution)
+# Usage: execute_function_or_dryrun_sudo <function_name> <success_msg> <error_msg> [explanation] [function_args...]
+execute_function_or_dryrun_sudo() {
+    local func_name="$1"
+    local success_msg="$2"
+    local error_msg="$3"
+    local explanation="${4:-}"
+    shift 4
+    
+    execute_function_or_dryrun "$func_name" "$success_msg" "$error_msg" "$explanation" "always" "$@"
 }
 
 execute() {
