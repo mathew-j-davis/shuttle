@@ -276,12 +276,14 @@ if [[ "$CREATE_VENV" == true ]]; then
         fi
         
         # Try to create venv directly first, then with sudo if needed
+        local venv_created_with_sudo=false
         if ! execute_or_dryrun "python3 -m venv \"$VENV_PATH\"" "Virtual environment created successfully" "Failed to create virtual environment" "Create Python virtual environment"; then
             # If direct creation fails, try with sudo
             if ! execute_or_dryrun "sudo python3 -m venv \"$VENV_PATH\"" "Virtual environment created with sudo" "Failed to create virtual environment even with sudo" "Create Python virtual environment with elevated permissions"; then
                 echo "❌ Failed to create virtual environment: $VENV_PATH"
                 exit 1
             fi
+            venv_created_with_sudo=true
         fi
         
         # Set exec permissions on activate
@@ -291,8 +293,12 @@ if [[ "$CREATE_VENV" == true ]]; then
         
         echo "✅ Virtual environment created successfully"
         
-        # Upgrade pip in the new venv
-        execute_or_dryrun "\"$VENV_PATH/bin/python\" -m pip install --upgrade pip" "Upgraded pip in virtual environment" "Failed to upgrade pip" "Upgrade pip to latest version in virtual environment"
+        # Upgrade pip in the new venv (use sudo if venv was created with sudo)
+        if [[ "$venv_created_with_sudo" == "true" ]]; then
+            execute_or_dryrun "sudo \"$VENV_PATH/bin/python\" -m pip install --upgrade pip" "Upgraded pip in virtual environment with sudo" "Failed to upgrade pip even with sudo" "Upgrade pip to latest version in virtual environment (with elevated permissions)"
+        else
+            execute_or_dryrun "\"$VENV_PATH/bin/python\" -m pip install --upgrade pip" "Upgraded pip in virtual environment" "Failed to upgrade pip" "Upgrade pip to latest version in virtual environment"
+        fi
         
         # Create activation helper script
         ACTIVATE_SCRIPT="$CONFIG_DIR/shuttle_activate_virtual_environment.sh"
