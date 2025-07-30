@@ -293,12 +293,18 @@ if [[ "$CREATE_VENV" == true ]]; then
         
         echo "✅ Virtual environment created successfully"
         
-        # Upgrade pip in the new venv (use sudo if venv was created with sudo)
+        # Fix ownership if venv was created with sudo (so regular user can install packages)
         if [[ "$venv_created_with_sudo" == "true" ]]; then
-            execute_or_dryrun "sudo \"$VENV_PATH/bin/python\" -m pip install --upgrade pip" "Upgraded pip in virtual environment with sudo" "Failed to upgrade pip even with sudo" "Upgrade pip to latest version in virtual environment (with elevated permissions)"
-        else
-            execute_or_dryrun "\"$VENV_PATH/bin/python\" -m pip install --upgrade pip" "Upgraded pip in virtual environment" "Failed to upgrade pip" "Upgrade pip to latest version in virtual environment"
+            echo "Fixing virtual environment ownership (created with sudo)..."
+            if execute_or_dryrun "sudo chown -R $USER:$(id -gn) \"$VENV_PATH\"" "Virtual environment ownership fixed" "Failed to fix virtual environment ownership" "Change venv ownership from root to current user"; then
+                echo "✅ Virtual environment ownership fixed for user: $USER"
+            else
+                echo "⚠️  Warning: Could not fix virtual environment ownership - pip installations may require sudo"
+            fi
         fi
+        
+        # Upgrade pip in the new venv (now that ownership is fixed, always run as user)
+        execute_or_dryrun "\"$VENV_PATH/bin/python\" -m pip install --upgrade pip" "Upgraded pip in virtual environment" "Failed to upgrade pip" "Upgrade pip to latest version in virtual environment"
         
         # Create activation helper script
         ACTIVATE_SCRIPT="$CONFIG_DIR/shuttle_activate_virtual_environment.sh"
