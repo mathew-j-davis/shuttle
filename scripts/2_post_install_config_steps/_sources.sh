@@ -12,6 +12,7 @@ source "$SCRIPTS_DIR/_setup_lib_sh/_input_validation.source.sh"
 source "$SCRIPTS_DIR/_setup_lib_sh/_check_active_user.source.sh"
 source "$SCRIPTS_DIR/_setup_lib_sh/_check_tool.source.sh"
 source "$SCRIPTS_DIR/_setup_lib_sh/_users_and_groups_inspect.source.sh"
+source "$SCRIPTS_DIR/_setup_lib_sh/sudo_helpers.source.sh"
 
 # Package manager for tools installation
 source "$SCRIPTS_DIR/_setup_lib_sh/_package_manager.source.sh"

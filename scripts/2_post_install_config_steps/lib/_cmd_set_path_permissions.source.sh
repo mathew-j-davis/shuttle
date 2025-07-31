@@ -1,8 +1,4 @@
-# Source input validation library for security
-SCRIPT_DIR_FOR_VALIDATION="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
-if [[ -f "$SCRIPT_DIR_FOR_VALIDATION/_input_validation.source.sh" ]]; then
-    source "$SCRIPT_DIR_FOR_VALIDATION/_input_validation.source.sh"
-fi
+# Input validation library will be loaded by the main script's setup lib loader
 
 # Command-specific help functions
 show_help_set_path_permissions() {
