@@ -96,6 +96,7 @@ def parse_arguments():
     parser.add_argument('--create-ledger', action='store_true', help='Create ledger file')
     parser.add_argument('--create-test-keys', action='store_true', help='Create test encryption keys')
     parser.add_argument('--all', action='store_true', help='Create all files (default behavior)')
+    parser.add_argument('--append-config', action='store_true', help='Append to existing configuration file instead of overwriting')
     
     # Staging mode support
     parser.add_argument('--staging-mode', action='store_true', help='Staging mode: use final paths in config content but create files at env var locations')
@@ -113,53 +114,57 @@ def parse_arguments():
     parser.add_argument('--hazard-encryption-key-path', help='Path to the GPG public key file (default: CONFIG_DIR/public-key.gpg)')
     
     # Scanning configuration
-    parser.add_argument('--max-scan-threads', type=int, default=1, help='Maximum number of parallel scans')
-    parser.add_argument('--on-demand-defender', action='store_true', default=True, help='Use on-demand scanning for Microsoft Defender')
+    parser.add_argument('--max-scan-threads', type=int, help='Maximum number of parallel scans')
+    parser.add_argument('--on-demand-defender', action='store_true', help='Use on-demand scanning for Microsoft Defender')
     parser.add_argument('--no-on-demand-defender', action='store_false', dest='on_demand_defender', help='Disable on-demand Microsoft Defender scanning')
-    parser.add_argument('--on-demand-clam-av', action='store_true', default=False, help='Use on-demand scanning for ClamAV')
-    parser.add_argument('--defender-handles-suspect-files', action='store_true', default=True, help='Let Microsoft Defender handle suspect files')
+    parser.add_argument('--on-demand-clam-av', action='store_true', help='Use on-demand scanning for ClamAV')
+    parser.add_argument('--defender-handles-suspect-files', action='store_true', help='Let Microsoft Defender handle suspect files')
     parser.add_argument('--no-defender-handles-suspect-files', action='store_false', dest='defender_handles_suspect_files', help='Don\'t let Defender handle suspect files')
     
     # Malware scan timeout configuration
-    parser.add_argument('--malware-scan-timeout-seconds', type=int, default=60, 
-                        help='Timeout for malware scans in seconds (default: 60, 0 = no timeout)')
-    parser.add_argument('--malware-scan-timeout-ms-per-byte', type=float, default=0.01,
-                        help='Additional timeout per byte in milliseconds (default: 0.01, 0 = no per-byte timeout)')
-    parser.add_argument('--malware-scan-retry-wait-seconds', type=int, default=30,
-                        help='Wait time between scan retries in seconds (default: 30, 0 = no wait)')
-    parser.add_argument('--malware-scan-retry-count', type=int, default=3,
-                        help='Maximum scan timeouts before shutdown (default: 3, 0 = unlimited)')
+    parser.add_argument('--malware-scan-timeout-seconds', type=int, 
+                        help='Timeout for malware scans in seconds (0 = no timeout)')
+    parser.add_argument('--malware-scan-timeout-ms-per-byte', type=float,
+                        help='Additional timeout per byte in milliseconds (0 = no per-byte timeout)')
+    parser.add_argument('--malware-scan-retry-wait-seconds', type=int,
+                        help='Wait time between scan retries in seconds (0 = no wait)')
+    parser.add_argument('--malware-scan-retry-count', type=int,
+                        help='Maximum scan timeouts before shutdown (0 = unlimited)')
     
     # File processing options
-    parser.add_argument('--delete-source-files-after-copying', action='store_true', default=True, help='Delete source files after copying')
+    parser.add_argument('--delete-source-files-after-copying', action='store_true', help='Delete source files after copying')
     parser.add_argument('--no-delete-source-files-after-copying', action='store_false', dest='delete_source_files_after_copying', help='Keep source files after copying')
     
     # Throttling configuration
-    parser.add_argument('--throttle', action='store_true', default=True, help='Enable throttling of file processing')
+    parser.add_argument('--throttle', action='store_true', help='Enable throttling of file processing')
     parser.add_argument('--no-throttle', action='store_false', dest='throttle', help='Disable throttling')
-    parser.add_argument('--throttle-free-space-mb', type=int, default=100, help='Minimum free space (in MB) required')
-    parser.add_argument('--throttle-max-file-count-per-run', type=int, default=1000, 
-                        help='Maximum files to process per run (default: 1000, 0 = unlimited)')
-    parser.add_argument('--throttle-max-file-volume-per-run-mb', type=int, default=1024,
-                        help='Maximum volume to process per run in MB (default: 1024, 0 = unlimited)')
+    parser.add_argument('--throttle-free-space-mb', type=int, help='Minimum free space (in MB) required')
+    parser.add_argument('--throttle-max-file-count-per-run', type=int, 
+                        help='Maximum files to process per run (0 = unlimited)')
+    parser.add_argument('--throttle-max-file-volume-per-run-mb', type=int,
+                        help='Maximum volume to process per run in MB (0 = unlimited)')
+    parser.add_argument('--throttle-max-file-volume-per-day-mb', type=int,
+                        help='Maximum volume to process per day in MB (0 = unlimited)')
+    parser.add_argument('--throttle-max-file-count-per-day', type=int,
+                        help='Maximum files to process per day (0 = unlimited)')
     
     # Logging configuration
-    parser.add_argument('--log-level', default='INFO', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], 
+    parser.add_argument('--log-level', choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'], 
                         help='Logging level')
     
     # Notification configuration
-    parser.add_argument('--notify', action='store_true', default=False, help='Enable email notifications for errors')
-    parser.add_argument('--notify-summary', action='store_true', default=False, help='Enable email notifications for summaries')
-    parser.add_argument('--notify-recipient-email', default='admin@example.com', help='Email address for notifications')
+    parser.add_argument('--notify', action='store_true', help='Enable email notifications for errors')
+    parser.add_argument('--notify-summary', action='store_true', help='Enable email notifications for summaries')
+    parser.add_argument('--notify-recipient-email', help='Email address for notifications')
     parser.add_argument('--notify-recipient-email-error', help='Email address for error notifications (defaults to notify-recipient-email)')
     parser.add_argument('--notify-recipient-email-summary', help='Email address for summary notifications (defaults to notify-recipient-email)')
     parser.add_argument('--notify-recipient-email-hazard', help='Email address for hazard notifications (defaults to notify-recipient-email)')
-    parser.add_argument('--notify-sender-email', default='shuttle@yourdomain.com', help='Sender email address')
-    parser.add_argument('--notify-smtp-server', default='smtp.yourdomain.com', help='SMTP server address')
-    parser.add_argument('--notify-smtp-port', type=int, default=587, help='SMTP server port')
-    parser.add_argument('--notify-username', default='shuttle_notifications', help='SMTP username')
-    parser.add_argument('--notify-password', default='your_secure_password_here', help='SMTP password')
-    parser.add_argument('--notify-use-tls', action='store_true', default=True, help='Use TLS for SMTP')
+    parser.add_argument('--notify-sender-email', help='Sender email address')
+    parser.add_argument('--notify-smtp-server', help='SMTP server address')
+    parser.add_argument('--notify-smtp-port', type=int, help='SMTP server port')
+    parser.add_argument('--notify-username', help='SMTP username')
+    parser.add_argument('--notify-password', help='SMTP password')
+    parser.add_argument('--notify-use-tls', action='store_true', help='Use TLS for SMTP')
     
     return parser.parse_args()
 
@@ -238,64 +243,137 @@ def prepare_directory_paths(work_dir, config_dir, args):
         'ledger_file_dir': ledger_file_dir
     }
 
+def add_config_value_if_not_none(section_dict, key, value):
+    """Add a value to the config section dictionary only if it's not None"""
+    if value is not None:
+        section_dict[key] = str(value)
+
 def create_config_file(config_path, args, paths, config_dir):
     """Create main Shuttle configuration file"""
-    if os.path.exists(config_path):
-        print(f"Overwriting existing configuration file: {config_path}")
+    # Check for append mode
+    if args.append_config and os.path.exists(config_path):
+        print(f"Appending to existing configuration file: {config_path}")
+        config = configparser.ConfigParser()
+        config.read(config_path)
     else:
-        print("Creating new config file")
+        if os.path.exists(config_path):
+            print(f"Overwriting existing configuration file: {config_path}")
+        else:
+            print("Creating new config file")
+        config = configparser.ConfigParser()
     
-    # Prepare config data
-    config = configparser.ConfigParser()
-    hazard_encryption_key_path = args.hazard_encryption_key_path or os.path.join(config_dir, "public-key.gpg")
+    # Prepare config data - only set hazard key if not provided
+    hazard_encryption_key_path = args.hazard_encryption_key_path
+    if not hazard_encryption_key_path and paths:
+        hazard_encryption_key_path = os.path.join(config_dir, "public-key.gpg")
 
-    config['paths'] = {
-            'source_path': paths['source_dir'],
-            'destination_path': paths['dest_dir'],
-            'quarantine_path': paths['quarantine_dir'],
-            'log_path': paths['log_dir'],
-            'hazard_archive_path': paths['hazard_archive_dir'],
-            'hazard_encryption_key_path': hazard_encryption_key_path,
-            'ledger_file_path': paths['ledger_file_path']
-        }
+    # Create or update paths section
+    if 'paths' not in config:
+        config.add_section('paths')
+    paths_section = {}
+    
+    # Only add path values that are provided
+    if paths and paths.get('source_dir'):
+        add_config_value_if_not_none(paths_section, 'source_path', paths['source_dir'])
+    if paths and paths.get('dest_dir'):
+        add_config_value_if_not_none(paths_section, 'destination_path', paths['dest_dir'])
+    if paths and paths.get('quarantine_dir'):
+        add_config_value_if_not_none(paths_section, 'quarantine_path', paths['quarantine_dir'])
+    if paths and paths.get('log_dir'):
+        add_config_value_if_not_none(paths_section, 'log_path', paths['log_dir'])
+        add_config_value_if_not_none(paths_section, 'daily_processing_tracker_logs_path', paths['log_dir'])
+    if paths and paths.get('hazard_archive_dir'):
+        add_config_value_if_not_none(paths_section, 'hazard_archive_path', paths['hazard_archive_dir'])
+    if hazard_encryption_key_path:
+        add_config_value_if_not_none(paths_section, 'hazard_encryption_key_path', hazard_encryption_key_path)
+    if paths and paths.get('ledger_file_path'):
+        add_config_value_if_not_none(paths_section, 'ledger_file_path', paths['ledger_file_path'])
+    
+    # Update the config section with new values
+    for key, value in paths_section.items():
+        config['paths'][key] = value
 
-    config['settings'] = {
-            'max_scan_threads': str(args.max_scan_threads),
-            'delete_source_files_after_copying': str(args.delete_source_files_after_copying),
-            'defender_handles_suspect_files': str(args.defender_handles_suspect_files),
-            'on_demand_defender': str(args.on_demand_defender),
-            'on_demand_clam_av': str(args.on_demand_clam_av),
-            'throttle': str(args.throttle),
-            'throttle_free_space_mb': str(args.throttle_free_space_mb),
-            'throttle_max_file_count_per_run': str(args.throttle_max_file_count_per_run),
-            'throttle_max_file_volume_per_run_mb': str(args.throttle_max_file_volume_per_run_mb)
-        }
+    # Create or update settings section
+    if 'settings' not in config:
+        config.add_section('settings')
+    settings_section = {}
+    
+    # Only add settings values that are provided
+    add_config_value_if_not_none(settings_section, 'max_scan_threads', args.max_scan_threads)
+    add_config_value_if_not_none(settings_section, 'delete_source_files_after_copying', args.delete_source_files_after_copying)
+    add_config_value_if_not_none(settings_section, 'defender_handles_suspect_files', args.defender_handles_suspect_files)
+    add_config_value_if_not_none(settings_section, 'on_demand_defender', args.on_demand_defender)
+    add_config_value_if_not_none(settings_section, 'on_demand_clam_av', args.on_demand_clam_av)
+    add_config_value_if_not_none(settings_section, 'throttle', args.throttle)
+    add_config_value_if_not_none(settings_section, 'throttle_free_space_mb', args.throttle_free_space_mb)
+    add_config_value_if_not_none(settings_section, 'throttle_max_file_count_per_run', args.throttle_max_file_count_per_run)
+    add_config_value_if_not_none(settings_section, 'throttle_max_file_volume_per_run_mb', args.throttle_max_file_volume_per_run_mb)
+    add_config_value_if_not_none(settings_section, 'throttle_max_file_volume_per_day_mb', args.throttle_max_file_volume_per_day_mb)
+    add_config_value_if_not_none(settings_section, 'throttle_max_file_count_per_day', args.throttle_max_file_count_per_day)
+    
+    # Update the config section with new values
+    for key, value in settings_section.items():
+        config['settings'][key] = value
 
-    config['logging'] = {
-            'log_level': args.log_level
-        }
+    # Create or update logging section
+    if 'logging' not in config:
+        config.add_section('logging')
+    logging_section = {}
+    
+    add_config_value_if_not_none(logging_section, 'log_level', args.log_level)
+    
+    # Update the config section with new values
+    for key, value in logging_section.items():
+        config['logging'][key] = value
 
-    config['scanning'] = {
-            'malware_scan_timeout_seconds': str(args.malware_scan_timeout_seconds),
-            'malware_scan_timeout_ms_per_byte': str(args.malware_scan_timeout_ms_per_byte),
-            'malware_scan_retry_wait_seconds': str(args.malware_scan_retry_wait_seconds),
-            'malware_scan_retry_count': str(args.malware_scan_retry_count)
-        }
+    # Create or update scanning section
+    if 'scanning' not in config:
+        config.add_section('scanning')
+    scanning_section = {}
+    
+    add_config_value_if_not_none(scanning_section, 'malware_scan_timeout_seconds', args.malware_scan_timeout_seconds)
+    add_config_value_if_not_none(scanning_section, 'malware_scan_timeout_ms_per_byte', args.malware_scan_timeout_ms_per_byte)
+    add_config_value_if_not_none(scanning_section, 'malware_scan_retry_wait_seconds', args.malware_scan_retry_wait_seconds)
+    add_config_value_if_not_none(scanning_section, 'malware_scan_retry_count', args.malware_scan_retry_count)
+    
+    # Update the config section with new values
+    for key, value in scanning_section.items():
+        config['scanning'][key] = value
 
-    config['notification'] = {
-            'notify': str(args.notify),
-            'notify_summary': str(args.notify_summary),
-            'recipient_email': args.notify_recipient_email,
-            'recipient_email_error': args.notify_recipient_email_error or args.notify_recipient_email,
-            'recipient_email_summary': args.notify_recipient_email_summary or args.notify_recipient_email,
-            'recipient_email_hazard': args.notify_recipient_email_hazard or args.notify_recipient_email,
-            'sender_email': args.notify_sender_email,
-            'smtp_server': args.notify_smtp_server, 
-            'smtp_port': str(args.notify_smtp_port),
-            'username': args.notify_username,
-            'password': args.notify_password,
-            'use_tls': str(args.notify_use_tls)
-        }
+    # Create or update notifications section
+    if 'notifications' not in config:
+        config.add_section('notifications')
+    notifications_section = {}
+    
+    add_config_value_if_not_none(notifications_section, 'notify', args.notify)
+    add_config_value_if_not_none(notifications_section, 'notify_summary', args.notify_summary)
+    add_config_value_if_not_none(notifications_section, 'recipient_email', args.notify_recipient_email)
+    
+    # Only add fallback emails if there's a primary email or specific email provided
+    if args.notify_recipient_email_error:
+        add_config_value_if_not_none(notifications_section, 'recipient_email_error', args.notify_recipient_email_error)
+    elif args.notify_recipient_email:
+        add_config_value_if_not_none(notifications_section, 'recipient_email_error', args.notify_recipient_email)
+        
+    if args.notify_recipient_email_summary:
+        add_config_value_if_not_none(notifications_section, 'recipient_email_summary', args.notify_recipient_email_summary)
+    elif args.notify_recipient_email:
+        add_config_value_if_not_none(notifications_section, 'recipient_email_summary', args.notify_recipient_email)
+        
+    if args.notify_recipient_email_hazard:
+        add_config_value_if_not_none(notifications_section, 'recipient_email_hazard', args.notify_recipient_email_hazard)
+    elif args.notify_recipient_email:
+        add_config_value_if_not_none(notifications_section, 'recipient_email_hazard', args.notify_recipient_email)
+    add_config_value_if_not_none(notifications_section, 'sender_email', args.notify_sender_email)
+    add_config_value_if_not_none(notifications_section, 'smtp_server', args.notify_smtp_server)
+    add_config_value_if_not_none(notifications_section, 'smtp_port', args.notify_smtp_port)
+    add_config_value_if_not_none(notifications_section, 'username', args.notify_username)
+    add_config_value_if_not_none(notifications_section, 'password', args.notify_password)
+    add_config_value_if_not_none(notifications_section, 'use_tls', args.notify_use_tls)
+    
+    # Update the config section with new values
+    for key, value in notifications_section.items():
+        config['notifications'][key] = value
 
     # Define write function for the shared helper
     def write_config(file_path):

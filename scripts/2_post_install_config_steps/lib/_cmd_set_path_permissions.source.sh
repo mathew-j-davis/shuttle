@@ -354,6 +354,82 @@ set_path_permissions_core() {
     return 0
 }
 
+# Function to apply directory permissions using batch operations
+apply_dir_permissions() {
+    local path="$1"
+    local dir_mode="$2"
+    
+    local dirs_found=0
+    local dirs_processed=0
+    
+    # Count directories first for progress tracking
+    if [[ "$VERBOSE" == "true" ]]; then
+        if dirs_found=$(find "$path" -type d 2>/dev/null | wc -l); then
+            log INFO "Found $dirs_found directories to process"
+        fi
+    fi
+    
+    # Use find with -exec + for batch processing (more efficient than individual chmod calls)
+    if find "$path" -type d -exec chmod "$dir_mode" {} + 2>/dev/null; then
+        # Count successful operations for reporting
+        if dirs_processed=$(find "$path" -type d 2>/dev/null | wc -l); then
+            log INFO "Successfully set directory permissions ($dir_mode) on $dirs_processed directories"
+            if [[ "$VERBOSE" == "true" ]]; then
+                # Show some examples of what was processed
+                log INFO "Sample directories processed:"
+                find "$path" -type d 2>/dev/null | head -5 | while read -r dir; do
+                    log INFO "  $dir -> $dir_mode"
+                done
+                if [[ $dirs_processed -gt 5 ]]; then
+                    log INFO "  ... and $((dirs_processed - 5)) more directories"
+                fi
+            fi
+        fi
+        return 0
+    else
+        log ERROR "Failed to set directory permissions using batch operation"
+        return 1
+    fi
+}
+
+# Function to apply file permissions using batch operations
+apply_file_permissions() {
+    local path="$1"
+    local file_mode="$2"
+    
+    local files_found=0
+    local files_processed=0
+    
+    # Count files first for progress tracking
+    if [[ "$VERBOSE" == "true" ]]; then
+        if files_found=$(find "$path" -type f 2>/dev/null | wc -l); then
+            log INFO "Found $files_found files to process"
+        fi
+    fi
+    
+    # Use find with -exec + for batch processing (more efficient than individual chmod calls)
+    if find "$path" -type f -exec chmod "$file_mode" {} + 2>/dev/null; then
+        # Count successful operations for reporting
+        if files_processed=$(find "$path" -type f 2>/dev/null | wc -l); then
+            log INFO "Successfully set file permissions ($file_mode) on $files_processed files"
+            if [[ "$VERBOSE" == "true" ]]; then
+                # Show some examples of what was processed
+                log INFO "Sample files processed:"
+                find "$path" -type f 2>/dev/null | head -5 | while read -r file; do
+                    log INFO "  $file -> $file_mode"
+                done
+                if [[ $files_processed -gt 5 ]]; then
+                    log INFO "  ... and $((files_processed - 5)) more files"
+                fi
+            fi
+        fi
+        return 0
+    else
+        log ERROR "Failed to set file permissions using batch operation"
+        return 1
+    fi
+}
+
 # Function to set separate permissions for files and directories
 set_separate_file_dir_permissions() {
     local path="$1"
@@ -364,63 +440,55 @@ set_separate_file_dir_permissions() {
     log INFO "  Files will be set to: $file_mode"
     log INFO "  Directories will be set to: $dir_mode"
     
-    # Determine sudo prefix
-    local sudo_prefix=""
-    if ! check_active_user_is_root; then
-        sudo_prefix="sudo "
+    # Safety check before processing
+    if ! check_path_safety "$path" "change permissions recursively"; then
+        return 1
     fi
     
-    local files_changed=0
-    local dirs_changed=0
-    local errors=0
+    local overall_success=true
     
-    # First set permissions on directories
-    log INFO "Setting directory permissions..."
-    while IFS= read -r -d '' dir; do
-        local chmod_cmd="${sudo_prefix}chmod '$dir_mode' '$dir'"
-        if execute_or_dryrun "$chmod_cmd" "Set directory permissions: $dir -> $dir_mode" "Failed to set permissions on directory: $dir" \
-                          "Apply specific permissions to directory to control access and traversal rights"; then
-            ((dirs_changed++))
-        else
-            ((errors++))
+    # First set permissions on directories using batch operations
+    log INFO "Processing directory permissions..."
+    if ! execute_function_or_dryrun_auto_sudo apply_dir_permissions \
+        "Directory permissions applied successfully" \
+        "Failed to apply directory permissions" \
+        "Apply directory permissions ($dir_mode) to all directories in $path" \
+        "$path" "$dir_mode"; then
+        log ERROR "Directory permission application failed"
+        overall_success=false
+    fi
+    
+    # Then set permissions on files using batch operations
+    log INFO "Processing file permissions..."
+    if ! execute_function_or_dryrun_auto_sudo apply_file_permissions \
+        "File permissions applied successfully" \
+        "Failed to apply file permissions" \
+        "Apply file permissions ($file_mode) to all files in $path" \
+        "$path" "$file_mode"; then
+        log ERROR "File permission application failed"
+        overall_success=false
+    fi
+    
+    # Show summary and permission interpretations
+    if [[ "$overall_success" == "true" ]]; then
+        log INFO "All permission changes completed successfully"
+        
+        # Show permission interpretations for octal modes
+        if [[ "$file_mode" =~ ^[0-7]{3,4}$ ]]; then
+            log INFO "File permission interpretation:"
+            interpret_octal_permissions "$file_mode"
         fi
-    done < <(find "$path" -type d -print0 2>/dev/null)
-    
-    # Then set permissions on files
-    log INFO "Setting file permissions..."
-    while IFS= read -r -d '' file; do
-        local chmod_cmd="${sudo_prefix}chmod '$file_mode' '$file'"
-        if execute_or_dryrun "$chmod_cmd" "Set file permissions: $file -> $file_mode" "Failed to set permissions on file: $file" \
-                          "Apply specific permissions to file to control read/write/execute access rights"; then
-            ((files_changed++))
-        else
-            ((errors++))
+        
+        if [[ "$dir_mode" =~ ^[0-7]{3,4}$ ]]; then
+            log INFO "Directory permission interpretation:"
+            interpret_octal_permissions "$dir_mode"
         fi
-    done < <(find "$path" -type f -print0 2>/dev/null)
-    
-    # Show summary
-    if [[ "$DRY_RUN" == "true" ]]; then
-        log INFO "Would change permissions on $dirs_changed directories and $files_changed files"
+        
+        return 0
     else
-        log INFO "Changed permissions on $dirs_changed directories and $files_changed files"
-        if [[ $errors -gt 0 ]]; then
-            log WARN "Encountered $errors errors during permission changes"
-            return 1
-        fi
+        log ERROR "Some permission changes failed"
+        return 1
     fi
-    
-    # Show permission interpretations
-    if [[ "$file_mode" =~ ^[0-7]{3,4}$ ]]; then
-        log INFO "File permission interpretation:"
-        interpret_octal_permissions "$file_mode"
-    fi
-    
-    if [[ "$dir_mode" =~ ^[0-7]{3,4}$ ]]; then
-        log INFO "Directory permission interpretation:"
-        interpret_octal_permissions "$dir_mode"
-    fi
-    
-    return 0
 }
 
 # Function to validate permission mode format

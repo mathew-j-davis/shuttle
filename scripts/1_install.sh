@@ -1643,6 +1643,15 @@ collect_config_parameters() {
     MAX_VOLUME_PER_RUN=${MAX_VOLUME_PER_RUN:-1024}
     
     echo ""
+    echo "Daily file limits (usually set to 0 for unlimited in production):"
+    read -p "Max files per day (Default: 0=unlimited): " MAX_FILES_PER_DAY
+    MAX_FILES_PER_DAY=${MAX_FILES_PER_DAY:-0}
+    
+    echo ""
+    read -p "Max volume per day MB (Default: 0=unlimited): " MAX_VOLUME_PER_DAY
+    MAX_VOLUME_PER_DAY=${MAX_VOLUME_PER_DAY:-0}
+    
+    echo ""
     echo "Scan timeout configuration:"
     echo "Dynamic timeouts based on file size help handle large files that take longer to scan."
     echo "Total timeout = base timeout + (file size in bytes × per-byte timeout)"
@@ -1832,6 +1841,8 @@ collect_config_parameters() {
     USER_MIN_FREE_SPACE_CHOICE="$MIN_FREE_SPACE"
     USER_MAX_FILES_PER_RUN_CHOICE="$MAX_FILES_PER_RUN"
     USER_MAX_VOLUME_PER_RUN_CHOICE="$MAX_VOLUME_PER_RUN"
+    USER_MAX_FILES_PER_DAY_CHOICE="$MAX_FILES_PER_DAY"
+    USER_MAX_VOLUME_PER_DAY_CHOICE="$MAX_VOLUME_PER_DAY"
     USER_BASE_SCAN_TIMEOUT_CHOICE="$BASE_SCAN_TIMEOUT"
     USER_MS_PER_BYTE_TIMEOUT_CHOICE="$MS_PER_BYTE_TIMEOUT"
     USER_LOG_LEVEL_CHOICE="$LOG_LEVEL"
@@ -1886,6 +1897,8 @@ collect_config_parameters() {
         "--throttle-free-space-mb" "$MIN_FREE_SPACE"
         "--throttle-max-file-count-per-run" "$MAX_FILES_PER_RUN"
         "--throttle-max-file-volume-per-run-mb" "$MAX_VOLUME_PER_RUN"
+        "--throttle-max-file-count-per-day" "$MAX_FILES_PER_DAY"
+        "--throttle-max-file-volume-per-day-mb" "$MAX_VOLUME_PER_DAY"
         "--malware-scan-timeout-seconds" "$BASE_SCAN_TIMEOUT"
         "--malware-scan-timeout-ms-per-byte" "$MS_PER_BYTE_TIMEOUT"
         "--hazard-encryption-key-path" "$GPG_KEY_PATH"

@@ -176,20 +176,19 @@ note: where a group has read access to a directory they have +x for the director
 
 ### Access information organised by path
 
-| Directory    | Path                                    | Owner                   | Group                | Directory Mode   | File Mode        | Owner Dir | Owner File | Group Dir | Group File | Other Dir | Other File | ACL Users | Notes                           |
-|--------------|-----------------------------------------|-------------------------|----------------------|------------------|------------------|-----------|------------|-----------|------------|-----------|------------|-----------|---------------------------------|
-| venv         | /opt/shuttle/venv                       | root                    | root                 | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx       | rw-        | r-x       | r--        | r-x       | r--        | -         | Python virtual environment      |
-| installation | /opt/shuttle                            | root                    | root                 | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx       | rw-        | r-x       | r--        | r-x       | r--        | -         | Application source code         |
-| config       | /etc/shuttle                            | root                    | shuttle_common_users | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx       | rw-        | r-x       | r--        | ---       | ---        | -         | Config and keys, write via sudo |
-| ledger       | /var/log/shuttle/ledger.json            | shuttle_defender_tester | shuttle_common_users | N/A              | 0640 (rw-r-----) | N/A       | rw-        | N/A       | r--        | N/A       | ---        | -         | Processing ledger file          |
-| logs         | /var/log/shuttle                        | root                    | shuttle_common_users | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Log directory                   |
-| source       | /mnt/in                                 | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Samba users via ACL (future)    |
-| quarantine   | /mnt/quarantine                         | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Service accounts only           |
-| hazard       | /mnt/hazard                             | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Malware isolation               |
-| destination  | /mnt/out                                | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Network users via ACL (future)  |
-| tests        | /var/tmp/shuttle/tests/                 | root                    | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Tests                           |
-| test config  | /var/tmp/shuttle/tests/test_config.yaml | root                    | shuttle_testers      | N/A              | 0660 (rw-rw----) | N/A       | rw-        | N/A       | rw-        | N/A       | ---        | -         | Test configuration file         |
-| test work    | /var/tmp/shuttle/tests/test_area        | root                    | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Temporary test area             |
+| Directory   | Path                                    | Owner                   | Group                | Directory Mode   | File Mode        | Owner Dir | Owner File | Group Dir | Group File | Other Dir | Other File | ACL Users | Notes                                                           |
+|-------------|-----------------------------------------|-------------------------|----------------------|------------------|------------------|-----------|------------|-----------|------------|-----------|------------|-----------|-----------------------------------------------------------------|
+| venv        | /opt/shuttle/venv                       | root                    | root                 | 0755 (rwxr-xr-x) | 0644 (rw-r--r--) | rwx       | rw-        | r-x       | r--        | r-x       | r--        | -         | Python virtual environment, and installation of shuttle modules |
+| config      | /etc/shuttle                            | root                    | shuttle_common_users | 2750 (rwxr-s---) | 0640 (rw-r-----) | rwx       | rw-        | r-x       | r--        | ---       | ---        | -         | Config and keys, write via sudo                                 |
+| ledger      | /etc/shuttle/ledger.json                | shuttle_defender_tester | shuttle_common_users | N/A              | 0640 (rw-r-----) | N/A       | rw-        | N/A       | r--        | N/A       | ---        | -         | Processing ledger file                                          |
+| logs        | /var/log/shuttle                        | root                    | shuttle_common_users | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Log directory                                                   |
+| source      | /mnt/in                                 | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Samba users via ACL (future)                                    |
+| quarantine  | /mnt/quarantine                         | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Service accounts only                                           |
+| hazard      | /mnt/hazard                             | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Malware isolation                                               |
+| destination | /mnt/out                                | root                    | shuttle_owners       | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Network users via ACL (future)                                  |
+| tests       | /var/tmp/shuttle/tests/                 | root                    | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Tests                                                           |
+| test config | /var/tmp/shuttle/tests/test_config.yaml | root                    | shuttle_testers      | N/A              | 0660 (rw-rw----) | N/A       | rw-        | N/A       | rw-        | N/A       | ---        | -         | Test configuration file                                         |
+| test work   | /var/tmp/shuttle/tests/test_area        | root                    | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Temporary test area                                             |
 
 
 ### Environment Variables 
@@ -208,14 +207,15 @@ note: where a group has read access to a directory they have +x for the director
 
 ### Configuration File
 
-Location: `/etc/shuttle/config.yaml`
+Location: `/etc/shuttle/config.conf`
 
-```yaml
+```ini
 
 [paths]
 log_path = /var/log/shuttle
-ledger_file_path = /etc/shuttle/ledger/ledger.yaml
+ledger_file_path = /etc/shuttle/ledger.yaml
 hazard_encryption_key_path = /etc/shuttle/shuttle_public.gpg
+daily_processing_tracker_logs_path = /var/log/shuttle
 
 source_path = /mnt/in
 quarantine_path = /mnt/quarantine
@@ -224,6 +224,10 @@ destination_path = /mnt/out
 
 [settings]
 max_scan_threads = 1
+throttle_max_file_count_per_run = 1000
+throttle_max_file_volume_per_run_mb = 1024
+throttle_max_file_volume_per_day_mb = 0
+throttle_max_file_count_per_day = 0
 delete_source_files_after_copying = True
 defender_handles_suspect_files = True
 on_demand_defender = True
@@ -232,7 +236,6 @@ throttle = True
 throttle_free_space_mb = 100
 
 [logging]
-
 #log level during testing
 log_level=DEBUG
 
@@ -240,11 +243,12 @@ log_level=DEBUG
 # log_level = INFO
 
 [scanning]
-malware_scan_timeout_seconds = 300
+malware_scan_timeout_seconds = 60
+malware_scan_timeout_ms_per_byte = 0.01
 malware_scan_retry_wait_seconds = 30
 malware_scan_retry_count = 5
 
-[notification]
+[notifications]
 notify = True
 notify_summary = True
 recipient_email = shuttle-notifications@host.com
@@ -253,7 +257,7 @@ recipient_email_summary = shuttle-notifications@host.com
 recipient_email_hazard = shuttle-alert@host.com
 sender_email = 
 smtp_server = 
-smtp_port = 2
+smtp_port = 25
 username = 
 password = 
 use_tls = True
