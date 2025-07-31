@@ -1,0 +1,57 @@
+# Shuttle Installation Defaults - Development Mode
+# Mode-specific settings for development installations
+
+paths:
+  # Development mode paths (COMPUTED_PROJECT_ROOT will be replaced at runtime)
+  config: "COMPUTED_PROJECT_ROOT/config/config.conf"
+  source: "COMPUTED_PROJECT_ROOT/work/incoming"
+  destination: "COMPUTED_PROJECT_ROOT/work/processed"
+  quarantine: "COMPUTED_PROJECT_ROOT/work/quarantine"
+  logs: "COMPUTED_PROJECT_ROOT/work/logs"
+  hazard: "COMPUTED_PROJECT_ROOT/work/hazard"
+  hazard_encryption_key: "COMPUTED_PROJECT_ROOT/config/shuttle_public.gpg"
+  ledger_file: "COMPUTED_PROJECT_ROOT/config/ledger/ledger.yaml"
+  daily_processing_tracker_logs: "COMPUTED_PROJECT_ROOT/work/logs"
+  venv: "COMPUTED_PROJECT_ROOT/.venv"
+  test_config: "COMPUTED_PROJECT_ROOT/config/test_config.yaml"
+  test_work: "COMPUTED_PROJECT_ROOT/test_area"
+
+settings:
+  # Development-friendly processing settings
+  max_scan_threads: 2
+  throttle_max_file_count_per_run: 50
+  throttle_max_file_volume_per_run_mb: 100
+  throttle_max_file_volume_per_day_mb: 0
+  throttle_max_file_count_per_day: 0
+  delete_source_files_after_copying: false  # Safer for development
+  defender_handles_suspect_files: true
+  on_demand_defender: true
+  on_demand_clam_av: false
+  throttle: true
+  throttle_free_space_mb: 500  # More generous for dev
+
+logging:
+  # Debug logging for development
+  log_level: "DEBUG"
+
+scanning:
+  # Generous timeouts for development
+  malware_scan_timeout_seconds: 120
+  malware_scan_timeout_ms_per_byte: 0.01
+  malware_scan_retry_wait_seconds: 15
+  malware_scan_retry_count: 3
+
+notifications:
+  # Development email settings - local/test setup
+  notify: true
+  notify_summary: true
+  recipient_email: "dev@localhost"
+  recipient_email_error: "dev@localhost"
+  recipient_email_summary: "dev@localhost"
+  recipient_email_hazard: "dev@localhost"
+  sender_email: "shuttle-dev@localhost"
+  smtp_server: "localhost"
+  smtp_port: 587
+  username: "shuttle_dev"
+  password: "dev_password_change_me"
+  use_tls: false  # Local SMTP often doesn't need TLS

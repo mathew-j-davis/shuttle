@@ -1,0 +1,30 @@
+# Shuttle Installation Defaults - General Settings
+# Settings needed BEFORE mode selection or that apply across all modes
+
+install_mode:
+  # Which mode to default to when user just presses enter
+  default: "dev"
+
+scanning:
+  # Scanner availability - affects dependency installation before mode selection
+  use_clamav: false
+  use_defender: true
+
+system_deps:
+  # System packages - installed before mode is fully configured
+  install_basic_deps: true
+  install_python: true
+  install_clamav: false
+  check_defender: true
+
+venv:
+  # Virtual environment behavior - consistent across all modes
+  choice_no_venv: "script_creates"
+
+directories:
+  # Directory creation behavior - consistent across all modes
+  create_source_dir: true
+  create_dest_dir: true
+  create_quarantine_dir: true
+  create_log_dir: true
+  create_hazard_dir: true

@@ -108,6 +108,88 @@ print('Y' if defaults.get_default_delete_source() else 'n')
 "
 }
 
+# Get default throttling settings
+get_default_max_file_count_per_run() {
+    local install_mode="${1:-service}"
+    
+    run_python_with_defaults "
+from installation_defaults import get_installation_defaults
+defaults = get_installation_defaults()
+print(defaults.get_default_max_file_count_per_run('$install_mode'))
+"
+}
+
+get_default_max_file_volume_per_run_mb() {
+    local install_mode="${1:-service}"
+    
+    run_python_with_defaults "
+from installation_defaults import get_installation_defaults
+defaults = get_installation_defaults()
+print(defaults.get_default_max_file_volume_per_run_mb('$install_mode'))
+"
+}
+
+get_default_max_file_volume_per_day_mb() {
+    local install_mode="${1:-service}"
+    
+    run_python_with_defaults "
+from installation_defaults import get_installation_defaults
+defaults = get_installation_defaults()
+print(defaults.get_default_max_file_volume_per_day_mb('$install_mode'))
+"
+}
+
+get_default_max_file_count_per_day() {
+    local install_mode="${1:-service}"
+    
+    run_python_with_defaults "
+from installation_defaults import get_installation_defaults
+defaults = get_installation_defaults()
+print(defaults.get_default_max_file_count_per_day('$install_mode'))
+"
+}
+
+# Get default scanning timeout settings
+get_default_malware_scan_timeout_seconds() {
+    local install_mode="${1:-service}"
+    
+    run_python_with_defaults "
+from installation_defaults import get_installation_defaults
+defaults = get_installation_defaults()
+print(defaults.get_default_malware_scan_timeout_seconds('$install_mode'))
+"
+}
+
+get_default_malware_scan_timeout_ms_per_byte() {
+    local install_mode="${1:-service}"
+    
+    run_python_with_defaults "
+from installation_defaults import get_installation_defaults
+defaults = get_installation_defaults()
+print(defaults.get_default_malware_scan_timeout_ms_per_byte('$install_mode'))
+"
+}
+
+get_default_malware_scan_retry_wait_seconds() {
+    local install_mode="${1:-service}"
+    
+    run_python_with_defaults "
+from installation_defaults import get_installation_defaults
+defaults = get_installation_defaults()
+print(defaults.get_default_malware_scan_retry_wait_seconds('$install_mode'))
+"
+}
+
+get_default_malware_scan_retry_count() {
+    local install_mode="${1:-service}"
+    
+    run_python_with_defaults "
+from installation_defaults import get_installation_defaults
+defaults = get_installation_defaults()
+print(defaults.get_default_malware_scan_retry_count('$install_mode'))
+"
+}
+
 # Get default system dependency settings
 get_default_install_basic_deps() {
     run_python_with_defaults "
@@ -188,6 +270,9 @@ test_installation_defaults() {
         echo "  Config: $(get_default_path "$mode" "config" "/test/project")"
         echo "  Source: $(get_default_path "$mode" "source" "/test/project")" 
         echo "  Log level: $(get_default_log_level "$mode")"
+        echo "  Max file count per run: $(get_default_max_file_count_per_run "$mode")"
+        echo "  Max file volume per run (MB): $(get_default_max_file_volume_per_run_mb "$mode")"
+        echo "  Scan timeout (s): $(get_default_malware_scan_timeout_seconds "$mode")"
         echo ""
     done
     
@@ -199,4 +284,8 @@ test_installation_defaults() {
     echo "Scanner defaults:"
     echo "  Use ClamAV: $(get_default_use_clamav)"
     echo "  Use Defender: $(get_default_use_defender)"
+    
+    echo "Email defaults:"
+    echo "  SMTP port: $(get_default_smtp_port)"
+    echo "  Use TLS: $(get_default_use_tls)"
 }

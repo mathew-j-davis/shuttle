@@ -1,0 +1,57 @@
+# Shuttle Installation Defaults - Production/Service Mode
+# Mode-specific settings for production service installations
+
+paths:
+  # Service mode paths - system directories
+  config: "/etc/shuttle/config.conf"
+  source: "/mnt/in"
+  destination: "/mnt/out"
+  quarantine: "/mnt/quarantine"
+  logs: "/var/log/shuttle"
+  hazard: "/mnt/hazard"
+  hazard_encryption_key: "/etc/shuttle/shuttle_public.gpg"
+  ledger_file: "/etc/shuttle/ledger.yaml"
+  daily_processing_tracker_logs: "/var/log/shuttle"
+  venv: "/opt/shuttle/venv"
+  test_config: "/etc/shuttle/test_config.yaml"
+  test_work: "/var/tmp/shuttle/test_area"
+
+settings:
+  # Production processing settings - high throughput, no daily limits
+  max_scan_threads: 1
+  throttle_max_file_count_per_run: 1000
+  throttle_max_file_volume_per_run_mb: 1024
+  throttle_max_file_volume_per_day_mb: 0    # No daily limit
+  throttle_max_file_count_per_day: 0        # No daily limit
+  delete_source_files_after_copying: true
+  defender_handles_suspect_files: true
+  on_demand_defender: true
+  on_demand_clam_av: false
+  throttle: true
+  throttle_free_space_mb: 100  # Conservative for production
+
+logging:
+  # Info logging for production
+  log_level: "INFO"
+
+scanning:
+  # Strict timeouts for production efficiency
+  malware_scan_timeout_seconds: 60
+  malware_scan_timeout_ms_per_byte: 0.01
+  malware_scan_retry_wait_seconds: 30
+  malware_scan_retry_count: 5
+
+notifications:
+  # Production email settings - separate recipients by type
+  notify: true
+  notify_summary: true
+  recipient_email: "shuttle-notifications@host.com"
+  recipient_email_error: "shuttle-errors@host.com"
+  recipient_email_summary: "shuttle-reports@host.com"
+  recipient_email_hazard: "shuttle-security@host.com"
+  sender_email: "shuttle@host.com"
+  smtp_server: "smtp.host.com"
+  smtp_port: 25  # Standard SMTP port for production
+  username: "shuttle_notifications"
+  password: "production_password_change_me"
+  use_tls: true

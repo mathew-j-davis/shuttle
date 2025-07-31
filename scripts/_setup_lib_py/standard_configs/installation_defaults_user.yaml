@@ -1,0 +1,57 @@
+# Shuttle Installation Defaults - User Mode
+# Mode-specific settings for personal user installations
+
+paths:
+  # User mode paths - personal directories
+  config: "${HOME}/.config/shuttle/config.conf"
+  source: "${HOME}/shuttle/incoming"
+  destination: "${HOME}/shuttle/processed"
+  quarantine: "/tmp/shuttle/quarantine"
+  logs: "${HOME}/shuttle/logs"
+  hazard: "${HOME}/shuttle/hazard"
+  hazard_encryption_key: "${HOME}/.config/shuttle/shuttle_public.gpg"
+  ledger_file: "${HOME}/.config/shuttle/ledger.yaml"
+  daily_processing_tracker_logs: "${HOME}/shuttle/logs"
+  venv: "${HOME}/.local/share/shuttle/venv"
+  test_config: "${HOME}/.config/shuttle/test_config.yaml"
+  test_work: "/tmp/shuttle/test_area"
+
+settings:
+  # Personal use processing settings with daily limits
+  max_scan_threads: 1
+  throttle_max_file_count_per_run: 100
+  throttle_max_file_volume_per_run_mb: 256
+  throttle_max_file_volume_per_day_mb: 1024  # 1GB daily limit
+  throttle_max_file_count_per_day: 500       # 500 files daily limit
+  delete_source_files_after_copying: true
+  defender_handles_suspect_files: true
+  on_demand_defender: true
+  on_demand_clam_av: false
+  throttle: true
+  throttle_free_space_mb: 200
+
+logging:
+  # Info logging for personal use
+  log_level: "INFO"
+
+scanning:
+  # Moderate timeouts for personal use
+  malware_scan_timeout_seconds: 180
+  malware_scan_timeout_ms_per_byte: 0.01
+  malware_scan_retry_wait_seconds: 30
+  malware_scan_retry_count: 3
+
+notifications:
+  # Personal email settings - typically disabled by default
+  notify: false
+  notify_summary: false
+  recipient_email: "user@example.com"
+  recipient_email_error: "user@example.com"
+  recipient_email_summary: "user@example.com"
+  recipient_email_hazard: "user@example.com"
+  sender_email: "shuttle@example.com"
+  smtp_server: "smtp.example.com"
+  smtp_port: 587
+  username: "shuttle_user"
+  password: "change_me"
+  use_tls: true
