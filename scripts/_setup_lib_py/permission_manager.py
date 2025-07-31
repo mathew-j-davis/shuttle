@@ -124,16 +124,29 @@ class PermissionManager:
                 print(f"Warning: Failed to set ownership on {actual_path}")
                 success = False
         
-        # Set permissions
-        perm_cmd = [self.users_groups_script, "set-path-permissions", 
-                   "--path", actual_path, "--mode", mode]
+        # Set permissions - handle both single mode and separate directory/file modes
+        perm_cmd = [self.users_groups_script, "set-path-permissions", "--path", actual_path]
         
-        if perm.get('recursive', False):
+        # Check if this permission config has separate modes
+        if perm.get('_has_separate_modes') and 'directory_mode' in perm and 'file_mode' in perm:
+            # Use separate directory and file modes (always requires --recursive)
+            perm_cmd.extend(["--dir-mode", perm['directory_mode']])
+            perm_cmd.extend(["--file-mode", perm['file_mode']])
             perm_cmd.append("--recursive")
+        else:
+            # Use single mode (backward compatibility)
+            perm_cmd.extend(["--mode", mode])
+            # Add recursive flag if specified
+            if perm.get('recursive', False):
+                perm_cmd.append("--recursive")
         
-        desc = f"Set {mode} permissions on {actual_path}"
-        if perm.get('recursive', False):
-            desc += " (recursive)"
+        # Create appropriate description
+        if perm.get('_has_separate_modes') and 'directory_mode' in perm and 'file_mode' in perm:
+            desc = f"Set dir:{perm['directory_mode']}/file:{perm['file_mode']} permissions on {actual_path} (recursive)"
+        else:
+            desc = f"Set {mode} permissions on {actual_path}"
+            if perm.get('recursive', False):
+                desc += " (recursive)"
         
         if not run_command(perm_cmd, desc, self.dry_run):
             print(f"Warning: Failed to set permissions on {actual_path}")

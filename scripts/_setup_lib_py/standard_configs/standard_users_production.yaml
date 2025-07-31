@@ -1,0 +1,102 @@
+# Standard Users - Production Mode
+# Full service account model with role separation
+
+users:
+  shuttle_runner:
+    name: shuttle_runner
+    description: Main application service account - runs shuttle file processing
+    category: core_services
+    recommended: true
+    source: local
+    account_type: service
+    groups:
+      primary: shuttle_runner  # Auto-created group
+      secondary:
+        - shuttle_common_users
+        - shuttle_owners
+    shell: /usr/sbin/nologin
+    home_directory: /var/lib/shuttle/shuttle_runner
+    create_home: true
+
+  shuttle_defender_test_runner:
+    name: shuttle_defender_test_runner
+    description: Defender testing service account - validates antivirus functionality
+    category: core_services
+    recommended: true
+    source: local
+    account_type: service
+    groups:
+      primary: shuttle_defender_test_runner  # Auto-created group
+      secondary:
+        - shuttle_common_users
+    shell: /usr/sbin/nologin
+    home_directory: /var/lib/shuttle/shuttle_defender_test_runner
+    create_home: true
+
+  shuttle_tester:
+    name: shuttle_tester
+    description: Testing service account - runs shuttle test suites
+    category: testing
+    recommended: true
+    source: local
+    account_type: service
+    groups:
+      primary: shuttle_tester  # Auto-created group
+      secondary:
+        - shuttle_testers
+    shell: /usr/sbin/nologin
+    home_directory: /var/lib/shuttle/shuttle_tester
+    create_home: true
+
+  shuttle_admin:
+    name: shuttle_admin
+    description: Administrative service account with full shuttle access
+    category: admin
+    recommended: true
+    source: local
+    account_type: service
+    groups:
+      primary: shuttle_admin  # Auto-created group
+      secondary:
+        - shuttle_common_users
+        - shuttle_owners
+        - shuttle_testers
+        - sudo
+    shell: /usr/sbin/nologin
+    home_directory: /var/lib/shuttle/shuttle_admin
+    create_home: true
+
+  # Commented out - Samba users for future use
+  # shuttle_in_user:
+  #   name: shuttle_in_user
+  #   description: Samba user for uploading files to shuttle (inbound network access)
+  #   category: network_services
+  #   recommended: true
+  #   source: local
+  #   account_type: service
+  #   groups:
+  #     primary: shuttle_in_user  # Auto-created group
+  #     secondary:
+  #       - shuttle_samba_in_users
+  #   samba:
+  #     enabled: true
+  #   shell: /usr/sbin/nologin
+  #   home_directory: /var/lib/shuttle/samba/shuttle_in_user
+  #   create_home: true
+
+  # shuttle_out_user:
+  #   name: shuttle_out_user
+  #   description: Samba user for downloading processed files (outbound network access)
+  #   category: network_services
+  #   recommended: true
+  #   source: local
+  #   account_type: service
+  #   groups:
+  #     primary: shuttle_out_user  # Auto-created group
+  #     secondary:
+  #       - shuttle_out_users
+  #   samba:
+  #     enabled: true
+  #   shell: /usr/sbin/nologin
+  #   home_directory: /var/lib/shuttle/samba/shuttle_out_user
+  #   create_home: true

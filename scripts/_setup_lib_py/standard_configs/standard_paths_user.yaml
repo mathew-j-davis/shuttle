@@ -1,0 +1,95 @@
+# Standard Path Permissions - User Mode
+# Balanced permissions for single-user installations
+
+path_templates:
+  name: User Installation Model
+  description: Balanced permissions for single-user installations with some role separation
+  category: standard
+  recommended: true
+  
+  templates:
+    # /opt/shuttle/venv - Python virtual environment
+    venv_path:
+      owner: root
+      group: root
+      directory_mode: "0755"
+      file_mode: "0644"
+      description: Python virtual environment
+
+    # /etc/shuttle - Config and keys
+    config_path:
+      owner: root
+      group: shuttle_common_users
+      directory_mode: "2750"
+      file_mode: "0640"
+      description: Config and keys
+
+    # /etc/shuttle/ledger.yaml - Processing ledger file
+    ledger_file_path:
+      owner: shuttle_admin
+      group: shuttle_common_users
+      file_mode: "0640"
+      description: Processing ledger file
+
+    # /var/log/shuttle - Log directory
+    log_path:
+      owner: root
+      group: shuttle_common_users
+      directory_mode: "2770"
+      file_mode: "0660"
+      description: Log files
+
+    # /mnt/in - Source directory
+    source_path:
+      owner: root
+      group: shuttle_owners
+      directory_mode: "2770"
+      file_mode: "0660"
+      description: Inbound files directory
+
+    # /mnt/quarantine - Quarantine directory
+    quarantine_path:
+      owner: root
+      group: shuttle_owners
+      directory_mode: "2770"
+      file_mode: "0660"
+      description: Quarantine directory
+
+    # /mnt/hazard - Malware isolation
+    hazard_archive_path:
+      owner: root
+      group: shuttle_owners
+      directory_mode: "2770"
+      file_mode: "0660"
+      description: Encrypted malware archive
+
+    # /mnt/out - Destination directory
+    destination_path:
+      owner: root
+      group: shuttle_owners
+      directory_mode: "2770"
+      file_mode: "0660"
+      description: Processed files directory
+
+    # /var/tmp/shuttle/tests/ - Tests directory
+    test_work_dir:
+      owner: root
+      group: shuttle_testers
+      directory_mode: "2770"
+      file_mode: "0660"
+      description: Test work directory
+
+    # /var/tmp/shuttle/tests/test_config.yaml - Test configuration file
+    test_config_path:
+      owner: root
+      group: shuttle_testers
+      file_mode: "0660"
+      description: Test configuration file
+
+    # /var/tmp/shuttle/tests/test_area - Temporary test area  
+    test_area_path:
+      owner: root
+      group: shuttle_testers
+      directory_mode: "2770"
+      file_mode: "0660"
+      description: Temporary test area

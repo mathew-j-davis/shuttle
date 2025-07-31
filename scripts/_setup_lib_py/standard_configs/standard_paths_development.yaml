@@ -1,0 +1,17 @@
+# Standard Path Permissions - Development Mode
+# Relaxed permissions for development and testing
+
+path_templates:
+  name: Development/Testing Model
+  description: Relaxed permissions for development and testing
+  category: standard
+  recommended: true
+  
+  templates:
+    # Wildcard template for all paths - full admin access
+    "*":
+      owner: root
+      group: shuttle_admins
+      directory_mode: "2775"
+      file_mode: "0664"
+      description: Full admin access for development

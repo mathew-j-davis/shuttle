@@ -1,0 +1,21 @@
+# Standard Groups - User Mode
+# Balanced security model for single-user installations
+
+groups:
+  # Administrative group
+  shuttle_admins:
+    description: Administrative users with full shuttle access
+    gid: 5000
+
+  # Core functional groups
+  shuttle_common_users:
+    description: Read config, write logs, read ledger
+    gid: 5001
+
+  shuttle_owners:
+    description: Own all data directories (source, quarantine, hazard, destination)
+    gid: 5002
+
+  shuttle_testers:
+    description: Run tests
+    gid: 5012

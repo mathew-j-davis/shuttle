@@ -1,0 +1,8 @@
+# Standard Groups - Development Mode
+# Simplified security model for development and testing environments
+
+groups:
+  # Administrative group - single group for development
+  shuttle_admins:
+    description: Administrative users with full shuttle access
+    gid: 5000

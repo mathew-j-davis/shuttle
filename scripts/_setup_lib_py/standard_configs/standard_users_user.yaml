@@ -1,0 +1,37 @@
+# Standard Users - User Mode
+# Balanced model for single-user installations with some service separation
+
+users:
+  shuttle_runner:
+    name: shuttle_runner
+    description: Main application service account - runs shuttle file processing
+    category: core_services
+    recommended: true
+    source: local
+    account_type: service
+    groups:
+      primary: shuttle_runner  # Auto-created group
+      secondary:
+        - shuttle_common_users
+        - shuttle_owners
+    shell: /usr/sbin/nologin
+    home_directory: /var/lib/shuttle/shuttle_runner
+    create_home: true
+
+  shuttle_admin:
+    name: shuttle_admin
+    description: Administrative account with full access to all shuttle components
+    category: admin
+    recommended: true
+    source: local
+    account_type: interactive
+    groups:
+      primary: shuttle_admin  # Auto-created group
+      secondary:
+        - shuttle_common_users
+        - shuttle_owners
+        - shuttle_testers
+        - shuttle_admins
+    shell: /bin/bash
+    home_directory: /home/shuttle_admin
+    create_home: true

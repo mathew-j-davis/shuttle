@@ -1,0 +1,20 @@
+# Standard Users - Development Mode
+# Single admin user with full access for development/testing
+
+users:
+  shuttle_admin:
+    name: shuttle_admin
+    description: Development admin user with full access to all shuttle components
+    category: admin
+    recommended: true
+    source: local
+    account_type: interactive
+    groups:
+      primary: shuttle_admin  # Auto-created group
+      secondary:
+        - shuttle_admins
+    shell: /bin/bash
+    home_directory: /home/shuttle_admin
+    create_home: true
+    samba:
+      enabled: false  # Can be enabled via prompt

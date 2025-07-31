@@ -1,0 +1,30 @@
+# Standard Firewall Configuration
+# Template for firewall rules and policies
+
+firewall:
+  enabled: true
+  
+  default_policy:
+    incoming: deny
+    outgoing: allow
+  
+  logging: low
+  
+  rules:
+    ssh_access:
+      service: ssh
+      action: allow
+      sources:
+        - any  # Will be restricted in production
+      comment: SSH administrative access
+    
+    samba_access:
+      service: samba
+      action: allow
+      sources: []  # To be configured based on network topology
+      comment: Samba file sharing access
+  
+  network_topology:
+    management_networks: []  # e.g., ['10.10.5.0/24', '192.168.100.0/24']
+    client_networks: []      # e.g., ['192.168.1.0/24']
+    isolated_hosts: []       # e.g., ['10.10.1.100', '10.10.1.101']

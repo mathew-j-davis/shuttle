@@ -2,97 +2,7 @@
 """
 Standard Configuration Definitions for Shuttle
 Centralized source of truth for all standard groups, users, and path permissions
-Now loads from YAML files with fallback to hardcoded Python dictionaries
 """
-
-import os
-import yaml
-import copy
-from typing import Dict, Any, Optional
-
-# Path to YAML configuration files
-YAML_CONFIG_DIR = os.path.join(os.path.dirname(__file__), 'standard_configs')
-
-# Cache for loaded YAML data
-_yaml_cache = {}
-
-def _load_yaml_config(filename: str) -> Optional[Dict[str, Any]]:
-    """Load YAML configuration file with caching and error handling"""
-    if filename in _yaml_cache:
-        return _yaml_cache[filename]
-    
-    yaml_path = os.path.join(YAML_CONFIG_DIR, filename)
-    try:
-        if os.path.exists(yaml_path):
-            with open(yaml_path, 'r') as f:
-                data = yaml.safe_load(f)
-                _yaml_cache[filename] = data
-                return data
-        else:
-            print(f"Warning: YAML config file not found: {yaml_path}")
-            return None
-    except Exception as e:
-        print(f"Error loading YAML config {yaml_path}: {e}")
-        return None
-
-def _get_groups_from_yaml(environment: str) -> Optional[Dict[str, Any]]:
-    """Load groups from YAML file for specified environment"""
-    filename = f'standard_groups_{environment}.yaml'
-    data = _load_yaml_config(filename)
-    return data.get('groups') if data else None
-
-def _get_users_from_yaml(environment: str) -> Optional[Dict[str, Any]]:
-    """Load users from YAML file for specified environment"""
-    filename = f'standard_users_{environment}.yaml'
-    data = _load_yaml_config(filename)
-    return data.get('users') if data else None
-
-def _get_paths_from_yaml(environment: str) -> Optional[Dict[str, Any]]:
-    """Load path templates from YAML file for specified environment"""
-    filename = f'standard_paths_{environment}.yaml'
-    data = _load_yaml_config(filename)
-    if data and 'path_templates' in data:
-        # Convert to the expected format
-        path_data = data['path_templates']
-        templates = path_data.get('templates', {})
-        
-        # Normalize templates to support both old and new formats
-        normalized_templates = {}
-        for template_name, template_config in templates.items():
-            normalized_config = template_config.copy()
-            
-            # Convert new format (directory_mode/file_mode) to include compatibility fields
-            if 'directory_mode' in template_config or 'file_mode' in template_config:
-                # New format detected - add compatibility for bash script calls
-                normalized_config['_has_separate_modes'] = True
-                
-                # For backward compatibility with existing code that expects 'mode'
-                # Use directory_mode as the default 'mode' if no single mode exists
-                if 'mode' not in template_config and 'directory_mode' in template_config:
-                    normalized_config['mode'] = template_config['directory_mode']
-            
-            normalized_templates[template_name] = normalized_config
-        
-        return {
-            environment: {
-                'name': path_data.get('name', f'{environment.title()} Model'),
-                'description': path_data.get('description', f'{environment.title()} permissions'),
-                'category': path_data.get('category', 'standard'),
-                'recommended': path_data.get('recommended', True),
-                'templates': normalized_templates
-            }
-        }
-    return None
-
-def _get_samba_config_from_yaml() -> Optional[Dict[str, Any]]:
-    """Load Samba configuration from YAML file"""
-    data = _load_yaml_config('standard_samba_config.yaml')
-    return data.get('samba') if data else None
-
-def _get_firewall_config_from_yaml() -> Optional[Dict[str, Any]]:
-    """Load firewall configuration from YAML file"""
-    data = _load_yaml_config('standard_firewall_config.yaml')
-    return data.get('firewall') if data else None
 
 # Standard Groups - Simplified 3-group structure
 STANDARD_GROUPS = {
@@ -426,21 +336,8 @@ STANDARD_INSTRUCTION_TEMPLATE = {
     # Note: groups, users, paths are separate collections that become separate YAML documents
 }
 
-def get_standard_groups(environment='production'):
-    """Get a copy of standard groups configuration
-    
-    Args:
-        environment: 'production', 'development', or 'user'
-    
-    Returns:
-        Dictionary of groups configuration
-    """
-    # Try to load from YAML first
-    yaml_groups = _get_groups_from_yaml(environment)
-    if yaml_groups:
-        return copy.deepcopy(yaml_groups)
-    
-    # Fallback to hardcoded Python dictionaries
+def get_standard_groups():
+    """Get a copy of standard groups configuration"""
     return STANDARD_GROUPS.copy()
 
 def get_development_admin_group():
@@ -449,22 +346,10 @@ def get_development_admin_group():
 
 def get_standard_samba_config():
     """Get a copy of standard Samba configuration"""
-    # Try to load from YAML first
-    yaml_samba = _get_samba_config_from_yaml()
-    if yaml_samba:
-        return copy.deepcopy(yaml_samba)
-    
-    # Fallback to hardcoded Python dictionary
     return STANDARD_SAMBA_CONFIG.copy()
 
 def get_standard_firewall_config():
     """Get a copy of standard firewall configuration"""
-    # Try to load from YAML first
-    yaml_firewall = _get_firewall_config_from_yaml()
-    if yaml_firewall:
-        return copy.deepcopy(yaml_firewall)
-    
-    # Fallback to hardcoded Python dictionary
     return STANDARD_FIREWALL_CONFIG.copy()
 
 # Note: get_standard_path_permissions() function removed
@@ -474,17 +359,12 @@ def get_standard_user_templates(environment='production'):
     """Get a copy of standard user templates configuration for the specified environment
     
     Args:
-        environment: 'production', 'development', or 'user'
+        environment: 'production' or 'development'
         
     Returns:
         Deep copy of the appropriate user templates configuration
     """
-    # Try to load from YAML first
-    yaml_users = _get_users_from_yaml(environment)
-    if yaml_users:
-        return copy.deepcopy(yaml_users)
-    
-    # Fallback to hardcoded Python dictionaries
+    import copy
     if environment == 'development':
         return copy.deepcopy(STANDARD_DEVELOPMENT_USER_TEMPLATES)
     else:
@@ -672,18 +552,5 @@ PATH_PERMISSION_BASE_TEMPLATES = {
 
 def get_path_permission_base_templates():
     """Get a copy of path permission base templates"""
-    # Try to load from YAML files first
-    result = {}
-    
-    # Load all three environments
-    for env in ['production', 'development', 'user']:
-        yaml_paths = _get_paths_from_yaml(env)
-        if yaml_paths:
-            result.update(yaml_paths)
-    
-    # If we got any YAML data, return it
-    if result:
-        return copy.deepcopy(result)
-    
-    # Fallback to hardcoded Python dictionaries
+    import copy
     return copy.deepcopy(PATH_PERMISSION_BASE_TEMPLATES)

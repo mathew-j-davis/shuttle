@@ -1,0 +1,30 @@
+# Standard Groups - Security Model Definition
+# This file defines the core functional groups used in the Shuttle security model
+
+groups:
+  # Administrative group
+  shuttle_admins:
+    description: Administrative users with full shuttle access
+    gid: 5000
+
+  # Core functional groups (3 groups needed for basic operation)
+  shuttle_common_users:
+    description: Read config, write logs, read ledger
+    gid: 5001
+
+  shuttle_owners:
+    description: Own all data directories (source, quarantine, hazard, destination)
+    gid: 5002
+
+  shuttle_testers:
+    description: Run tests
+    gid: 5012
+
+  # Optional network access groups (commented out - for future use)
+  # shuttle_samba_in_users:
+  #   description: Inbound file submission via Samba (optional - future use)
+  #   gid: 5020
+  
+  # shuttle_out_users:
+  #   description: Outbound file retrieval (optional - future use)
+  #   gid: 5021

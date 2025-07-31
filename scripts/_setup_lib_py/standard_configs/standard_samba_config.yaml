@@ -1,0 +1,36 @@
+# Standard Samba Configuration
+# Template for Samba file sharing setup
+
+samba:
+  enabled: true
+  
+  global_settings:
+    workgroup: WORKGROUP
+    server_string: Shuttle File Transfer Server
+    security: user
+    map_to_guest: Bad User
+    log_level: 1
+    max_log_size: 1000
+    encrypt_passwords: true
+    unix_password_sync: false
+  
+  shares:
+    # Commented out - Samba shares for future use when Samba users are enabled
+    # shuttle_inbound:
+    #   path: /var/shuttle/source
+    #   comment: Shuttle inbound file submission
+    #   read_only: false
+    #   valid_users: "@shuttle_samba_in_users"
+    #   write_list: "@shuttle_samba_in_users"
+    #   create_mask: "0644"
+    #   directory_mask: "0755"
+    #   force_user: shuttle_runner
+    #   force_group: shuttle_owners
+    
+    # shuttle_outbound:
+    #   path: /var/shuttle/destination
+    #   comment: Shuttle processed file retrieval
+    #   read_only: true
+    #   valid_users: "@shuttle_out_users"
+    #   create_mask: "0644"
+    #   directory_mask: "0755"
