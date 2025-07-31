@@ -171,8 +171,8 @@ cmd_set_path_owner() {
     # Check tool availability
     check_tool_permission_or_error_exit "chown" "change ownership" "chown not available - cannot change file ownership"
     
-    # Validate path exists
-    if [[ ! -e "$path" ]]; then
+    # Validate path exists (with sudo fallback for permission-restricted paths)
+    if ! check_path_exists_with_sudo "$path" "true" "true"; then
         error_exit "Path does not exist: $path"
     fi
     
@@ -216,7 +216,7 @@ set_path_owner_core() {
     
     # Handle reference file
     if [[ -n "$reference_file" ]]; then
-        if [[ ! -e "$reference_file" ]]; then
+        if ! check_path_exists_with_sudo "$reference_file" "true" "true"; then
             log ERROR "Reference file does not exist: $reference_file"
             return 1
         fi

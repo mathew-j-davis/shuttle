@@ -245,6 +245,33 @@ check_config_file_access() {
     fi
 }
 
+# Check if a path exists with sudo fallback for cases where user lacks read permission
+# Usage: check_path_exists_with_sudo <path> [allow_sudo] [show_warnings]
+check_path_exists_with_sudo() {
+    local path="$1"
+    local allow_sudo="${2:-true}"
+    local show_warnings="${3:-true}"
+    
+    # Try checking without sudo first
+    if [[ -e "$path" ]]; then
+        return 0
+    fi
+    
+    # If sudo is allowed, try with sudo
+    # Unlike other functions, we don't restrict to system paths since
+    # the path might be inaccessible due to permissions, not location
+    if [[ "$allow_sudo" == "true" ]]; then
+        if sudo test -e "$path" 2>/dev/null; then
+            [[ "$show_warnings" == "true" ]] && [[ "${VERBOSE:-false}" == "true" ]] && \
+                echo "Note: Path exists but requires sudo to access: $path" >&2
+            return 0
+        fi
+    fi
+    
+    # Path genuinely doesn't exist
+    return 1
+}
+
 # Parse a configuration file with sudo fallback if needed
 # This is a simple key=value parser that works with config files
 parse_config_file_with_sudo() {
