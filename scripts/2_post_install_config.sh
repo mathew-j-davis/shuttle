@@ -711,6 +711,55 @@ with open('$INSTRUCTIONS_FILE', 'r') as f:
         print_warn "⚠️  Defender test launch script not found at $PROJECT_ROOT/scripts/launch-shuttle-defender-test.sh"
     fi
     
+    # Set permissions on pip entry point executables
+    local pip_executables_fixed=0
+    local venv_bin_dir=""
+    
+    # Determine venv bin directory based on mode
+    case "$install_mode" in
+        development)
+            venv_bin_dir="$PROJECT_ROOT/.venv/bin"
+            ;;
+        user)
+            venv_bin_dir="${HOME}/.local/share/shuttle/venv/bin"
+            ;;
+        production|service)
+            venv_bin_dir="/opt/shuttle/venv/bin"
+            ;;
+    esac
+    
+    if [[ -d "$venv_bin_dir" ]]; then
+        echo ""
+        echo "Setting permissions on pip entry point executables..."
+        
+        # Fix run-shuttle permissions
+        if [[ -f "$venv_bin_dir/run-shuttle" ]]; then
+            if execute_or_execute_dryrun "sudo chmod 755 '$venv_bin_dir/run-shuttle'" \
+                                          "Set executable permissions on run-shuttle" \
+                                          "Failed to set permissions on run-shuttle" \
+                                          "Make run-shuttle executable"; then
+                ((pip_executables_fixed++))
+            fi
+        fi
+        
+        # Fix run-shuttle-defender-test permissions  
+        if [[ -f "$venv_bin_dir/run-shuttle-defender-test" ]]; then
+            if execute_or_execute_dryrun "sudo chmod 755 '$venv_bin_dir/run-shuttle-defender-test'" \
+                                          "Set executable permissions on run-shuttle-defender-test" \
+                                          "Failed to set permissions on run-shuttle-defender-test" \
+                                          "Make run-shuttle-defender-test executable"; then
+                ((pip_executables_fixed++))
+            fi
+        fi
+        
+        if [[ $pip_executables_fixed -gt 0 ]]; then
+            echo "Fixed permissions on $pip_executables_fixed pip entry point executables"
+        fi
+    else
+        print_warn "⚠️  Virtual environment bin directory not found: $venv_bin_dir"
+    fi
+    
+    # Summary
     if [[ $scripts_copied -gt 0 ]]; then
         print_success "Launch scripts installation complete ($scripts_copied scripts installed)"
         echo ""
@@ -718,6 +767,12 @@ with open('$INSTRUCTIONS_FILE', 'r') as f:
         echo "Usage:"
         echo "  sudo -u shuttle_runner $target_dir/launch-shuttle"
         echo "  sudo -u shuttle_defender_test_runner $target_dir/launch-shuttle-defender-test"
+        if [[ $pip_executables_fixed -gt 0 ]]; then
+            echo ""
+            echo "Pip entry points also available:"
+            echo "  sudo -u shuttle_runner $venv_bin_dir/run-shuttle"
+            echo "  sudo -u shuttle_defender_test_runner $venv_bin_dir/run-shuttle-defender-test"
+        fi
     else
         print_warn "⚠️  No launch scripts were installed"
     fi

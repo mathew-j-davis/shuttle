@@ -109,3 +109,19 @@ path_templates:
       group: ${USER}
       file_mode: "0755"
       description: Launch script with environment setup for defender test
+
+    # ${HOME}/.local/share/shuttle/venv/bin/run-shuttle - Pip entry point for shuttle
+    run_shuttle_executable:
+      path: ${HOME}/.local/share/shuttle/venv/bin/run-shuttle
+      owner: ${USER}
+      group: ${USER}
+      file_mode: "0755"
+      description: Pip-installed entry point for shuttle application
+
+    # ${HOME}/.local/share/shuttle/venv/bin/run-shuttle-defender-test - Pip entry point for defender test
+    run_shuttle_defender_test_executable:
+      path: ${HOME}/.local/share/shuttle/venv/bin/run-shuttle-defender-test
+      owner: ${USER}
+      group: ${USER}  
+      file_mode: "0755"
+      description: Pip-installed entry point for defender test application

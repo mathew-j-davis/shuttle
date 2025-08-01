@@ -129,6 +129,8 @@ free --mega
 | test work    | /var/tmp/shuttle/tests/test_area        | Temporary test area             |
 | scripts      | /usr/local/bin/launch-shuttle           | Launch wrapper for shuttle      |
 | scripts      | /usr/local/bin/launch-shuttle-defender-test | Launch wrapper for defender test |
+| executables  | /opt/shuttle/venv/bin/run-shuttle           | Pip entry point for shuttle      |
+| executables  | /opt/shuttle/venv/bin/run-shuttle-defender-test | Pip entry point for defender test |
 
 ### Access Control 
 
@@ -193,6 +195,8 @@ note: where a group has read access to a directory they have +x for the director
 | test work   | /var/tmp/shuttle/tests/test_area        | root                         | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Temporary test area                                             |
 | scripts     | /usr/local/bin/launch-shuttle           | root                         | root                 | N/A              | 0755 (rwxr-xr-x) | N/A       | rwx        | N/A       | r-x        | N/A       | r-x        | -         | Launch script with environment setup for shuttle                |
 | scripts     | /usr/local/bin/launch-shuttle-defender-test | root                     | root                 | N/A              | 0755 (rwxr-xr-x) | N/A       | rwx        | N/A       | r-x        | N/A       | r-x        | -         | Launch script with environment setup for defender test          |
+| executables | /opt/shuttle/venv/bin/run-shuttle           | root                     | root                 | N/A              | 0755 (rwxr-xr-x) | N/A       | rwx        | N/A       | r-x        | N/A       | r-x        | -         | Pip-installed entry point for shuttle application               |
+| executables | /opt/shuttle/venv/bin/run-shuttle-defender-test | root                 | root                 | N/A              | 0755 (rwxr-xr-x) | N/A       | rwx        | N/A       | r-x        | N/A       | r-x        | -         | Pip-installed entry point for defender test application         |
 
 
 ### Environment Variables 
