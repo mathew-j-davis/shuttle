@@ -15,3 +15,19 @@ path_templates:
       directory_mode: "2775"
       file_mode: "0664"
       description: Full admin access for development
+
+    # ${PROJECT_ROOT}/scripts/launch-shuttle - Launch script for shuttle (dev)
+    launch_shuttle_script:
+      path: ${PROJECT_ROOT}/scripts/launch-shuttle
+      owner: ${USER}
+      group: ${USER}
+      file_mode: "0755"
+      description: Launch script with environment setup for shuttle
+
+    # ${PROJECT_ROOT}/scripts/launch-shuttle-defender-test - Launch script for defender test (dev)
+    launch_defender_test_script:
+      path: ${PROJECT_ROOT}/scripts/launch-shuttle-defender-test
+      owner: ${USER}
+      group: ${USER}
+      file_mode: "0755"
+      description: Launch script with environment setup for defender test

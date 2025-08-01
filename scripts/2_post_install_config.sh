@@ -636,11 +636,98 @@ phase_set_permissions() {
     fi
 }
 
-# Phase 4: Configure Samba
+# Phase 4: Install launch scripts
+phase_install_launch_scripts() {
+    echo ""
+    print_header "🚀 Phase 4: Installing launch scripts"
+    echo ""
+    
+    # Determine installation mode from config
+    local install_mode="production"
+    if [[ -f "$INSTRUCTIONS_FILE" ]]; then
+        install_mode=$(python3 -c "
+import yaml
+with open('$INSTRUCTIONS_FILE', 'r') as f:
+    config = yaml.safe_load(f)
+    print(config.get('install_mode', 'production'))
+" 2>/dev/null || echo "production")
+    fi
+    
+    # Set target directory based on mode
+    local target_dir="/usr/local/bin"
+    case "$install_mode" in
+        development)
+            target_dir="$PROJECT_ROOT/scripts"
+            ;;
+        user)
+            target_dir="${HOME}/.local/bin"
+            mkdir -p "$target_dir" 2>/dev/null || true
+            ;;
+        production|service)
+            target_dir="/usr/local/bin"
+            ;;
+    esac
+    
+    # Copy launch scripts
+    local scripts_copied=0
+    
+    # Copy shuttle launch script
+    if [[ -f "$PROJECT_ROOT/scripts/launch-shuttle.sh" ]]; then
+        if execute_or_execute_dryrun "sudo cp '$PROJECT_ROOT/scripts/launch-shuttle.sh' '$target_dir/launch-shuttle'" \
+                                      "Copied shuttle launch script to $target_dir/launch-shuttle" \
+                                      "Failed to copy shuttle launch script" \
+                                      "Copy shuttle launch script with environment setup"; then
+            execute_or_execute_dryrun "sudo chmod 755 '$target_dir/launch-shuttle'" \
+                                      "Set executable permissions on launch-shuttle" \
+                                      "Failed to set permissions on launch-shuttle" \
+                                      "Make launch-shuttle executable"
+            execute_or_execute_dryrun "sudo chown root:root '$target_dir/launch-shuttle'" \
+                                      "Set ownership of launch-shuttle to root:root" \
+                                      "Failed to set ownership on launch-shuttle" \
+                                      "Set secure ownership on launch-shuttle"
+            ((scripts_copied++))
+        fi
+    else
+        print_warn "⚠️  Shuttle launch script not found at $PROJECT_ROOT/scripts/launch-shuttle.sh"
+    fi
+    
+    # Copy defender test launch script
+    if [[ -f "$PROJECT_ROOT/scripts/launch-shuttle-defender-test.sh" ]]; then
+        if execute_or_execute_dryrun "sudo cp '$PROJECT_ROOT/scripts/launch-shuttle-defender-test.sh' '$target_dir/launch-shuttle-defender-test'" \
+                                      "Copied defender test launch script to $target_dir/launch-shuttle-defender-test" \
+                                      "Failed to copy defender test launch script" \
+                                      "Copy defender test launch script with environment setup"; then
+            execute_or_execute_dryrun "sudo chmod 755 '$target_dir/launch-shuttle-defender-test'" \
+                                      "Set executable permissions on launch-shuttle-defender-test" \
+                                      "Failed to set permissions on launch-shuttle-defender-test" \
+                                      "Make launch-shuttle-defender-test executable"
+            execute_or_execute_dryrun "sudo chown root:root '$target_dir/launch-shuttle-defender-test'" \
+                                      "Set ownership of launch-shuttle-defender-test to root:root" \
+                                      "Failed to set ownership on launch-shuttle-defender-test" \
+                                      "Set secure ownership on launch-shuttle-defender-test"
+            ((scripts_copied++))
+        fi
+    else
+        print_warn "⚠️  Defender test launch script not found at $PROJECT_ROOT/scripts/launch-shuttle-defender-test.sh"
+    fi
+    
+    if [[ $scripts_copied -gt 0 ]]; then
+        print_success "Launch scripts installation complete ($scripts_copied scripts installed)"
+        echo ""
+        echo "Launch scripts installed to: $target_dir"
+        echo "Usage:"
+        echo "  sudo -u shuttle_runner $target_dir/launch-shuttle"
+        echo "  sudo -u shuttle_defender_test_runner $target_dir/launch-shuttle-defender-test"
+    else
+        print_warn "⚠️  No launch scripts were installed"
+    fi
+}
+
+# Phase 5: Configure Samba
 phase_configure_samba() {
     if ! is_component_enabled "configure_samba"; then
         echo ""
-        print_warn "⏭️  Phase 4: Skipping Samba configuration"
+        print_warn "⏭️  Phase 5: Skipping Samba configuration"
         return 0
     fi
     
@@ -668,16 +755,16 @@ phase_configure_samba() {
     fi
 }
 
-# Phase 5: Configure firewall
+# Phase 6: Configure firewall
 phase_configure_firewall() {
     if ! is_component_enabled "configure_firewall"; then
         echo ""
-        print_warn "⏭️  Phase 5: Skipping firewall configuration"
+        print_warn "⏭️  Phase 6: Skipping firewall configuration"
         return 0
     fi
     
     echo ""
-    print_header "🔥 Phase 5: Configuring firewall"
+    print_header "🔥 Phase 6: Configuring firewall"
     echo ""
     
     # Use Python module to configure firewall from YAML
@@ -875,6 +962,7 @@ main() {
     phase_install_tools
     phase_configure_users
     phase_set_permissions
+    phase_install_launch_scripts
     phase_configure_samba
     phase_configure_firewall
     

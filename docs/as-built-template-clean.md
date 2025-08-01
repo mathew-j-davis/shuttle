@@ -127,6 +127,8 @@ free --mega
 | tests        | /var/tmp/shuttle/tests/                 | Tests                           |
 | test config  | /var/tmp/shuttle/tests/test_config.yaml | Test configuration file         |
 | test work    | /var/tmp/shuttle/tests/test_area        | Temporary test area             |
+| scripts      | /usr/local/bin/launch-shuttle           | Launch wrapper for shuttle      |
+| scripts      | /usr/local/bin/launch-shuttle-defender-test | Launch wrapper for defender test |
 
 ### Access Control 
 
@@ -189,6 +191,8 @@ note: where a group has read access to a directory they have +x for the director
 | tests       | /var/tmp/shuttle/tests/                 | root                         | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Tests                                                           |
 | test config | /var/tmp/shuttle/tests/test_config.yaml | root                         | shuttle_testers      | N/A              | 0660 (rw-rw----) | N/A       | rw-        | N/A       | rw-        | N/A       | ---        | -         | Test configuration file                                         |
 | test work   | /var/tmp/shuttle/tests/test_area        | root                         | shuttle_testers      | 2770 (rwxrws---) | 0660 (rw-rw----) | rwx       | rw-        | rwx       | rw-        | ---       | ---        | -         | Temporary test area                                             |
+| scripts     | /usr/local/bin/launch-shuttle           | root                         | root                 | N/A              | 0755 (rwxr-xr-x) | N/A       | rwx        | N/A       | r-x        | N/A       | r-x        | -         | Launch script with environment setup for shuttle                |
+| scripts     | /usr/local/bin/launch-shuttle-defender-test | root                     | root                 | N/A              | 0755 (rwxr-xr-x) | N/A       | rwx        | N/A       | r-x        | N/A       | r-x        | -         | Launch script with environment setup for defender test          |
 
 
 ### Environment Variables 

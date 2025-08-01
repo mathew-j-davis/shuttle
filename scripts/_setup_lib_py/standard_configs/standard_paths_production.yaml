@@ -93,3 +93,19 @@ path_templates:
       directory_mode: "2770"
       file_mode: "0660"
       description: Temporary test area
+
+    # /usr/local/bin/launch-shuttle - Launch script for shuttle
+    launch_shuttle_script:
+      path: /usr/local/bin/launch-shuttle
+      owner: root
+      group: root
+      file_mode: "0755"
+      description: Launch script with environment setup for shuttle
+
+    # /usr/local/bin/launch-shuttle-defender-test - Launch script for defender test
+    launch_defender_test_script:
+      path: /usr/local/bin/launch-shuttle-defender-test
+      owner: root
+      group: root
+      file_mode: "0755"
+      description: Launch script with environment setup for defender test
