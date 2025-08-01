@@ -173,7 +173,14 @@ Throttling system monitors available disk space in all relevant directories and 
 
 ## Installation
 
-Shuttle provides interactive installation scripts for easy setup:
+Shuttle can be installed using pip to install the modules in the /src directory
+
+
+While the scripts in /scripts are intended to provide easy setup, they are still very much in beta and therefore dangerous.
+
+Only use these script on machines that you are happy to tear down and re-create.
+It might be safer to using the installation and configuration scripts to build a list of the steps (choose the option save the instruction steps files), then carry out these steps yourself manually using linux commands/
+
 
 ```bash
 # Clone the repository
@@ -185,7 +192,9 @@ cd shuttle
 
 # Configure users, groups, permissions, and services
 # configure your environment manually, the configuration scripts are still in early development
- 
+
+
+
 #./scripts/2_post_install_config_steps/*
 #./scripts/2_post_install_config.sh
 ```
