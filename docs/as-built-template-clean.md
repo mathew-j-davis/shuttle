@@ -268,3 +268,57 @@ password =
 use_tls = True
 
 ```
+
+
+
+
+#### Environment File Location
+
+```bash
+# Production environment variables
+/etc/shuttle/shuttle_env.sh
+
+# Source in cron or systemd:
+source /etc/shuttle/shuttle_env.sh
+```
+
+---
+
+## Automation and Scheduling
+
+### launch scripts
+
+`/usr/local/bin/launch-shuttle`
+
+```bash
+#!/bin/bash
+# sudo -u shuttle_runner ./launch-shuttle
+source /etc/shuttle/shuttle_env.sh
+source /etc/shuttle/shuttle_activate_virtual_environment.sh
+run-shuttle
+
+```
+
+`/usr/local/bin/launch-shuttle-defender-test`
+
+```bash
+#!/bin/bash
+# sudo -u shuttle_defender_test_runner ./launch-shuttle-defender-test
+source /etc/shuttle/shuttle_env.sh
+source /etc/shuttle/shuttle_activate_virtual_environment.sh
+run-shuttle-defender-test
+```
+
+### Calling launch scripts as Cron Jobs
+
+Configured in root crontab 
+running as shuttle_defender_test_runner and shuttle_runner
+
+```crontab
+# shuttle defender test - validates that defender is working with shuttle
+45 7 * * MON-FRI usr/sbin/runuser -u shuttle_defender_test_runner /usr/local/bin/launch-shuttle-defender-test >> /var/log/shuttle/shuttle-defender-test-cron.log 2>&1
+# shuttle - moves files from mnt/in to mnt/quarantine performs malware scan with defender safe files to /mnt/out, unsafe are encrypted to /mnt/hazard
+* 8-18 * * MON-FRI /usr/sbin/runuser -u shuttle_runner /usr/local/bin/launch-shuttle >>  /var/log/shuttle/shuttle-cron.log 2>&1
+                                                                                                                         
+```
+
