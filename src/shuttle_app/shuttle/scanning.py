@@ -622,14 +622,16 @@ def cleanup_after_processing(quarantine_files, results, source_path, delete_sour
 
 
 
-def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=None, config=None):
+def process_scan_tasks(scan_tasks, max_scan_threads, daily_processing_tracker=None, per_run_tracker=None, config=None):
     """
     Process a list of scan tasks either sequentially or in parallel based on max_scan_threads.
     
     Args:
         scan_tasks: List of parameter tuples for scan tasks
         max_scan_threads: Number of parallel threads to use (1 for sequential)
-        options
+        daily_processing_tracker: Optional DailyProcessingTracker to update
+        per_run_tracker: Optional PerRunTracker to update
+        config: Optional config object
         
     Returns:
         tuple: (results, successful_files, failed_files, timeout_shutdown)
@@ -925,6 +927,7 @@ def scan_and_process_directory(
             scan_tasks,
             max_scan_threads,
             daily_processing_tracker,
+            per_run_tracker,
             config
         )
 
