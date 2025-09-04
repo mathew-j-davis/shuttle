@@ -70,10 +70,15 @@ free --mega
 - **Architecture**: x86_64
 
 ### Software Dependencies
-- Python 3.8 or higher
+- Python 3.6 or higher
 - Microsoft Defender for Linux (mdatp)
 - ClamAV (optional)
 - Samba (for Windows file sharing)
+- PyYAML>=6.0       # For YAML file handling 
+- python-gnupg>=0.5.0  # For GPG encryption/decryption in files.py
+- safety>=3.2.11
+ 
+
 
 ### Hardware Requirements
 - **CPU**: [CPU SPECS]
