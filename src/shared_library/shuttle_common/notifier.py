@@ -1,5 +1,6 @@
 import smtplib
 import logging
+import traceback
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from .logger_injection import get_logger
@@ -66,17 +67,22 @@ class Notifier:
 
         return self._send_notification(self.recipient_email, title, message)
 
-    def notify_error(self, title, message):
+    def notify_error(self, title, message, exception=None):
         """
         Send an error notification to the designated error recipient.
-        
+
         Args:
             title (str): The notification title
             message (str): The notification message body
-            
+            exception (Exception, optional): If provided, the full traceback will be appended to the message
+
         Returns:
             bool: True if the notification was sent successfully, False otherwise
         """
+        if exception is not None:
+            tb_str = traceback.format_exception(type(exception), exception, exception.__traceback__)
+            message += "\n\n--- Stack Trace ---\n"
+            message += "".join(tb_str)
 
         return self._send_notification(self.recipient_email_error, title, message)
 

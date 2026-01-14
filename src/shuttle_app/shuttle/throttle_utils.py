@@ -255,10 +255,10 @@ def handle_throttle_check(
         
     except Exception as e:
         logger.error(f"Error in throttling checks: {e}")
-        
-        # Send error notification if notifier provided
+
+        # Send error notification with full traceback if notifier provided
         if notifier:
             error_message = f"Critical error during throttle check: {str(e)}"
-            notifier.notify_error("Shuttle Throttle Error", error_message)
-        
+            notifier.notify_error("Shuttle Throttle Error", error_message, exception=e)
+
         return False  # Stop processing due to error

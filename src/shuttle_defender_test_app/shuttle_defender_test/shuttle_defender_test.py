@@ -104,13 +104,14 @@ def cleanup(temp_dir):
     except Exception as e:
         logger.warning(f"Error cleaning up: {e}")
 
-def send_notification(message, error=False, config=None):
+def send_notification(message, error=False, config=None, exception=None):
     """Send a notification about test results.
-    
+
     Args:
         message (str): The message to send
         error (bool): Whether this is an error message
         config (CommonConfig): Configuration containing notification settings
+        exception (Exception, optional): If provided, the full traceback will be appended to error messages
     """
     logger = get_logger()
     # Log the message first
@@ -118,7 +119,7 @@ def send_notification(message, error=False, config=None):
         logger.error(message)
     else:
         logger.info(message)
-    
+
     # Send notification if configured
     if config and config.notify:
         try:
@@ -136,7 +137,7 @@ def send_notification(message, error=False, config=None):
             )
             subject = "Defender Test " + ("ERROR" if error else "INFO")
             if error:
-                notifier.notify_error(subject, message)
+                notifier.notify_error(subject, message, exception=exception)
             else:
                 notifier.notify(subject, message)
             logger.info(f"Notification sent to {config.notify_recipient_email}")
@@ -340,7 +341,7 @@ def main():
             # Add timestamp for daily runs
             timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             error_message = f"{timestamp}: {error_message}"
-            send_notification(error_message, error=True, config=config)
+            send_notification(error_message, error=True, config=config, exception=e)
         result = 2
     
     finally:
