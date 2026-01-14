@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="mdatp-simulator",
-    version="0.1.0",
+    version="0.2.0",
     description="Simulator for Microsoft Defender for Endpoint (MDATP) for testing",
     author="Shuttle Team",
     packages=["mdatp_simulator"],
