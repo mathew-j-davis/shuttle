@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="shuttle_common",
-    version="0.1.0",
+    version="0.2.0",
     packages=find_packages(),
     description="Common utilities for shuttle and defender_test applications",
     author="Mat Davis",

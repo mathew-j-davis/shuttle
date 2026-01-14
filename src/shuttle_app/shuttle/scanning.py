@@ -988,10 +988,10 @@ def scan_and_process_directory(
         if logger:
             logger.error(f"Failed to copy files to quarantine: Error: {e}")
         failed_files += 1
-        
-        # Send notification about the critical error
+
+        # Send notification about the critical error with full traceback
         if notifier:
             error_message = f"Critical error occurred during file processing: {str(e)}\n\n"
             error_message += f"Source directory: {source_path}\n"
             error_message += f"Destination directory: {destination_path}\n"
-            notifier.notify_error("Shuttle: Critical Processing Error", error_message)
+            notifier.notify_error("Shuttle: Critical Processing Error", error_message, exception=e)

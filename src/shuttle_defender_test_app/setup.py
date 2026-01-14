@@ -2,14 +2,14 @@ from setuptools import setup, find_packages
 
 setup(
     name="shuttle_defender_test",
-    version="0.1.0",
+    version="0.2.0",
     packages=find_packages(),
     description="Shuttle Defender Test application for validating Windows Defender",
     author="Mat Davis",
     python_requires='>=3.6',
     # Add dependencies including the shared library
     install_requires=[
-        "shuttle_common>=0.1.0",  # Dependency on the shared library
+        "shuttle_common>=0.2.0",  # Dependency on the shared library
     ],
     # Entry points for command-line scripts
     entry_points={
