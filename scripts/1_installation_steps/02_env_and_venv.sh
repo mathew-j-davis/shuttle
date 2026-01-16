@@ -230,7 +230,7 @@ make_executable_with_sudo_fallback "$ENV_FILE_PATH" "environment file" "true" ||
 if [[ "$DEV_MODE" == true ]]; then
     DOT_ENV_PATH="$PROJECT_ROOT/.env"
     DOT_ENV_CONTENT="# Python paths for IDE import resolution (append to existing PYTHONPATH)
-PYTHONPATH=./src/shared_library:./src/shuttle_app:./src/shuttle_defender_test_app:./tests:$PYTHONPATH
+PYTHONPATH=./src/shared_library:./src/shuttle_app:./src/shuttle_defender_test_app:./tests:\${PYTHONPATH:-}
 
 # Shuttle environment variables
 SHUTTLE_CONFIG_PATH=$CONFIG_PATH
