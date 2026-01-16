@@ -7,6 +7,7 @@ This module extends the Ledger class to provide read-write functionality
 for working with the defender version ledger file.
 """
 
+import os
 import yaml
 from typing import List, Dict, Any
 from datetime import datetime
@@ -34,10 +35,10 @@ class ReadWriteLedger(Ledger):
     def save(self, ledger_file_path) -> bool:
         """
         Save the ledger data to the file.
-        
+
         Args:
             ledger_file_path (str): Path to the ledger.yaml file
-            
+
         Returns:
             bool: True if saved successfully, False otherwise
         """
@@ -46,12 +47,18 @@ class ReadWriteLedger(Ledger):
         if not ledger_file_path:
             logger.error("No ledger file path provided")
             return False
-        
+
         if self.data is None:
             logger.error("No ledger data to save")
             return False
-            
+
         try:
+            # Ensure the parent directory exists
+            ledger_dir = os.path.dirname(ledger_file_path)
+            if ledger_dir and not os.path.exists(ledger_dir):
+                logger.info(f"Creating ledger directory: {ledger_dir}")
+                os.makedirs(ledger_dir, exist_ok=True)
+
             with open(ledger_file_path, 'w') as file:
                 yaml.dump(self.data, file, default_flow_style=False, sort_keys=False)
                 return True
